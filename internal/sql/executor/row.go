@@ -11,27 +11,31 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
-// RowFormat defines the serialization format for rows
+// RowFormat defines the serialization format for rows.
 type RowFormat struct {
 	Schema *Schema
 }
 
-// NewRowFormat creates a new row formatter
+// NewRowFormat creates a new row formatter.
 func NewRowFormat(schema *Schema) *RowFormat {
 	return &RowFormat{Schema: schema}
 }
 
-// Serialize converts a row to bytes
+// Serialize converts a row to bytes.
 func (rf *RowFormat) Serialize(row *Row) ([]byte, error) {
 	if len(row.Values) != len(rf.Schema.Columns) {
-		return nil, fmt.Errorf("row has %d values but schema has %d columns", 
+		return nil, fmt.Errorf("row has %d values but schema has %d columns",
 			len(row.Values), len(rf.Schema.Columns))
 	}
 
 	var buf bytes.Buffer
 
 	// Write number of columns
-	if err := binary.Write(&buf, binary.LittleEndian, uint32(len(row.Values))); err != nil {
+	colCount := len(row.Values)
+	if colCount > 4294967295 { // uint32 max
+		return nil, fmt.Errorf("too many columns: %d", colCount)
+	}
+	if err := binary.Write(&buf, binary.LittleEndian, uint32(colCount)); err != nil {
 		return nil, fmt.Errorf("failed to write column count: %w", err)
 	}
 
@@ -45,7 +49,7 @@ func (rf *RowFormat) Serialize(row *Row) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Deserialize converts bytes to a row
+// Deserialize converts bytes to a row.
 func (rf *RowFormat) Deserialize(data []byte) (*Row, error) {
 	buf := bytes.NewReader(data)
 
@@ -55,9 +59,13 @@ func (rf *RowFormat) Deserialize(data []byte) (*Row, error) {
 		return nil, fmt.Errorf("failed to read column count: %w", err)
 	}
 
-	if colCount != uint32(len(rf.Schema.Columns)) {
-		return nil, fmt.Errorf("data has %d columns but schema has %d columns", 
-			colCount, len(rf.Schema.Columns))
+	schemaColCount := len(rf.Schema.Columns)
+	if schemaColCount > 4294967295 { // uint32 max
+		return nil, fmt.Errorf("schema has too many columns: %d", schemaColCount)
+	}
+	if colCount != uint32(schemaColCount) {
+		return nil, fmt.Errorf("data has %d columns but schema has %d columns",
+			colCount, schemaColCount)
 	}
 
 	row := &Row{
@@ -76,7 +84,7 @@ func (rf *RowFormat) Deserialize(data []byte) (*Row, error) {
 	return row, nil
 }
 
-// serializeValue writes a single value to the buffer
+// serializeValue writes a single value to the buffer.
 func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types.DataType) error {
 	// Write null flag
 	isNull := val.IsNull()
@@ -130,7 +138,11 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return fmt.Errorf("expected string, got %T", val.Data)
 		}
 		// Write string length
-		if err := binary.Write(w, binary.LittleEndian, uint32(len(v))); err != nil {
+		strLen := len(v)
+		if strLen > 4294967295 { // uint32 max
+			return fmt.Errorf("string too long: %d bytes", strLen)
+		}
+		if err := binary.Write(w, binary.LittleEndian, uint32(strLen)); err != nil {
 			return err
 		}
 		// Write string data
@@ -160,7 +172,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 	return nil
 }
 
-// deserializeValue reads a single value from the buffer
+// deserializeValue reads a single value from the buffer.
 func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (types.Value, error) {
 	// Read null flag
 	var isNull bool
@@ -226,31 +238,31 @@ func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (typ
 	}
 }
 
-// RowKeyFormat defines the format for row keys
+// RowKeyFormat defines the format for row keys.
 type RowKeyFormat struct {
 	TableName  string
 	SchemaName string
 }
 
-// GenerateRowKey creates a key for a row
+// GenerateRowKey creates a key for a row.
 func (rkf *RowKeyFormat) GenerateRowKey(primaryKey interface{}) []byte {
 	return []byte(fmt.Sprintf("table:%s:%s:row:%v", rkf.SchemaName, rkf.TableName, primaryKey))
 }
 
-// ParseRowKey extracts information from a row key
+// ParseRowKey extracts information from a row key.
 func (rkf *RowKeyFormat) ParseRowKey(key []byte) (primaryKey string, err error) {
 	keyStr := string(key)
 	prefix := fmt.Sprintf("table:%s:%s:row:", rkf.SchemaName, rkf.TableName)
-	
+
 	if len(keyStr) <= len(prefix) {
 		return "", fmt.Errorf("invalid row key format")
 	}
-	
+
 	primaryKey = keyStr[len(prefix):]
 	return primaryKey, nil
 }
 
-// IsRowKey checks if a key is a row key for this table
+// IsRowKey checks if a key is a row key for this table.
 func (rkf *RowKeyFormat) IsRowKey(key []byte) bool {
 	prefix := fmt.Sprintf("table:%s:%s:row:", rkf.SchemaName, rkf.TableName)
 	return bytes.HasPrefix(key, []byte(prefix))

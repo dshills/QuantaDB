@@ -34,11 +34,11 @@ func (o *baseOperator) Schema() *Schema {
 // ScanOperator reads rows from a table.
 type ScanOperator struct {
 	baseOperator
-	table      *catalog.Table
-	iterator   engine.Iterator
-	rowCount   int64
-	rowFormat  *RowFormat
-	keyFormat  *RowKeyFormat
+	table     *catalog.Table
+	iterator  engine.Iterator
+	rowCount  int64
+	rowFormat *RowFormat
+	keyFormat *RowKeyFormat
 }
 
 // NewScanOperator creates a new scan operator.
@@ -54,7 +54,7 @@ func NewScanOperator(table *catalog.Table, ctx *ExecContext) *ScanOperator {
 			Nullable: col.IsNullable,
 		}
 	}
-	
+
 	return &ScanOperator{
 		baseOperator: baseOperator{
 			schema: schema,
@@ -72,20 +72,20 @@ func NewScanOperator(table *catalog.Table, ctx *ExecContext) *ScanOperator {
 // Open initializes the scan.
 func (s *ScanOperator) Open(ctx *ExecContext) error {
 	s.ctx = ctx
-	
+
 	// Create table key prefix
 	tableKey := fmt.Sprintf("table:%s:%s:", s.table.SchemaName, s.table.TableName)
-	
+
 	// Create iterator for table scan
 	var err error
 	// For now, we don't support scanning within transactions
 	// We'll need to extend the Transaction interface to support this
 	s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to create scan iterator: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -94,7 +94,7 @@ func (s *ScanOperator) Next() (*Row, error) {
 	if s.iterator == nil {
 		return nil, fmt.Errorf("scan not opened")
 	}
-	
+
 	// Keep scanning until we find a valid row key
 	for s.iterator.Next() {
 		key := s.iterator.Key()
@@ -125,7 +125,7 @@ func (s *ScanOperator) Next() (*Row, error) {
 		return row, nil
 	}
 
-	return nil, nil // EOF
+	return nil, nil // nolint:nilnil // EOF
 }
 
 // Close cleans up the scan.
@@ -172,20 +172,20 @@ func (f *FilterOperator) Next() (*Row, error) {
 			return nil, err
 		}
 		if row == nil {
-			return nil, nil // EOF
+			return nil, nil // nolint:nilnil // EOF
 		}
-		
+
 		// Evaluate predicate
 		result, err := f.predicate.Eval(row, f.ctx)
 		if err != nil {
 			return nil, fmt.Errorf("predicate evaluation failed: %w", err)
 		}
-		
+
 		// Check if row matches
 		if result.IsNull() {
 			continue // NULL is treated as false
 		}
-		
+
 		if b, ok := result.Data.(bool); ok && b {
 			if f.ctx.Stats != nil {
 				f.ctx.Stats.RowsReturned++
@@ -232,14 +232,14 @@ func (p *ProjectOperator) Next() (*Row, error) {
 		return nil, err
 	}
 	if row == nil {
-		return nil, nil // EOF
+		return nil, nil // nolint:nilnil // EOF
 	}
-	
+
 	// Create projected row
 	projectedRow := &Row{
 		Values: make([]types.Value, len(p.projections)),
 	}
-	
+
 	// Evaluate each projection
 	for i, proj := range p.projections {
 		value, err := proj.Eval(row, p.ctx)
@@ -248,11 +248,11 @@ func (p *ProjectOperator) Next() (*Row, error) {
 		}
 		projectedRow.Values[i] = value
 	}
-	
+
 	if p.ctx.Stats != nil {
 		p.ctx.Stats.RowsReturned++
 	}
-	
+
 	return projectedRow, nil
 }
 
@@ -298,31 +298,31 @@ func (l *LimitOperator) Next() (*Row, error) {
 			return nil, err
 		}
 		if row == nil {
-			return nil, nil // EOF before reaching offset
+			return nil, nil // nolint:nilnil // EOF before reaching offset
 		}
 		l.rowCount++
 	}
-	
+
 	// Check if we've reached the limit
 	if l.limit >= 0 && l.rowCount >= l.offset+l.limit {
-		return nil, nil // EOF due to limit
+		return nil, nil // nolint:nilnil // EOF due to limit
 	}
-	
+
 	// Get next row
 	row, err := l.child.Next()
 	if err != nil {
 		return nil, err
 	}
 	if row == nil {
-		return nil, nil // EOF
+		return nil, nil // nolint:nilnil // EOF
 	}
-	
+
 	l.rowCount++
-	
+
 	if l.ctx.Stats != nil {
 		l.ctx.Stats.RowsReturned++
 	}
-	
+
 	return row, nil
 }
 

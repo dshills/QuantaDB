@@ -12,7 +12,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
-// TestSQLIntegration tests the full SQL pipeline: parse -> plan -> execute
+// TestSQLIntegration tests the full SQL pipeline: parse -> plan -> execute.
 func TestSQLIntegration(t *testing.T) {
 	// Set up catalog and storage
 	cat := catalog.NewMemoryCatalog()
@@ -135,18 +135,16 @@ func TestSQLIntegration(t *testing.T) {
 			sql:      "SELECT id, name FROM employees",
 			expected: 5,
 		},
-		// TODO: These tests will work once we implement proper row deserialization
-		// and column resolution in the scan operator
-		// {
-		// 	name:     "SELECT with WHERE",
-		// 	sql:      "SELECT * FROM employees WHERE salary > 90000",
-		// 	expected: 2, // Alice and Charlie
-		// },
-		// {
-		// 	name:     "SELECT with ORDER BY",
-		// 	sql:      "SELECT * FROM employees ORDER BY salary DESC",
-		// 	expected: 5,
-		// },
+		{
+			name:     "SELECT with ORDER BY",
+			sql:      "SELECT * FROM employees ORDER BY salary DESC",
+			expected: 5,
+		},
+		{
+			name:     "SELECT with ORDER BY and LIMIT",
+			sql:      "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 3",
+			expected: 3,
+		},
 	}
 	
 	for _, tt := range tests {
@@ -204,7 +202,7 @@ func TestSQLIntegration(t *testing.T) {
 	}
 }
 
-// TestEndToEndQuery tests a complete query execution with proper row format
+// TestEndToEndQuery tests a complete query execution with proper row format.
 func TestEndToEndQuery(t *testing.T) {
 	// This test demonstrates what a full integration would look like
 	// with proper row serialization and column resolution

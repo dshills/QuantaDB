@@ -286,7 +286,7 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 
 // convertBinaryOp converts a parser binary operator to a planner operator.
 func (p *BasicPlanner) convertBinaryOp(op parser.TokenType) (BinaryOperator, error) {
-	switch op {
+	switch op { // nolint:exhaustive // Only handles binary operators
 	case parser.TokenPlus:
 		return OpAdd, nil
 	case parser.TokenMinus:
@@ -308,7 +308,7 @@ func (p *BasicPlanner) convertBinaryOp(op parser.TokenType) (BinaryOperator, err
 
 // convertComparisonOp converts a parser comparison operator to a planner operator.
 func (p *BasicPlanner) convertComparisonOp(op parser.TokenType) (BinaryOperator, error) {
-	switch op {
+	switch op { // nolint:exhaustive // Only handles comparison operators
 	case parser.TokenEqual:
 		return OpEqual, nil
 	case parser.TokenNotEqual:
@@ -328,7 +328,7 @@ func (p *BasicPlanner) convertComparisonOp(op parser.TokenType) (BinaryOperator,
 
 // convertUnaryOp converts a parser unary operator to a planner operator.
 func (p *BasicPlanner) convertUnaryOp(op parser.TokenType) (UnaryOperator, error) {
-	switch op {
+	switch op { // nolint:exhaustive // Only handles unary operators
 	case parser.TokenNot:
 		return OpNot, nil
 	case parser.TokenMinus:

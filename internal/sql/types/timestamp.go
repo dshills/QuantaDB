@@ -51,7 +51,7 @@ func (t *timestampType) Serialize(v Value) ([]byte, error) {
 	// Store as Unix nanoseconds
 	nano := val.UnixNano()
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(nano))
+	binary.BigEndian.PutUint64(buf, uint64(nano)) // nolint:gosec // int64 to uint64 conversion is safe for timestamp
 	return buf, nil
 }
 
@@ -64,7 +64,7 @@ func (t *timestampType) Deserialize(data []byte) (Value, error) {
 		return Value{}, fmt.Errorf("expected 8 bytes for TIMESTAMP, got %d", len(data))
 	}
 	
-	nano := int64(binary.BigEndian.Uint64(data))
+	nano := int64(binary.BigEndian.Uint64(data)) // nolint:gosec // uint64 to int64 conversion is safe for timestamp data
 	val := time.Unix(0, nano)
 	return NewValue(val), nil
 }
@@ -128,7 +128,7 @@ func (t *dateType) Serialize(v Value) ([]byte, error) {
 	days := int32(val.UTC().Sub(epoch).Hours() / 24)
 	
 	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, uint32(days))
+	binary.BigEndian.PutUint32(buf, uint32(days)) // nolint:gosec // int32 to uint32 conversion is safe
 	return buf, nil
 }
 
@@ -141,7 +141,7 @@ func (t *dateType) Deserialize(data []byte) (Value, error) {
 		return Value{}, fmt.Errorf("expected 4 bytes for DATE, got %d", len(data))
 	}
 	
-	days := int32(binary.BigEndian.Uint32(data))
+	days := int32(binary.BigEndian.Uint32(data)) // nolint:gosec // uint32 to int32 conversion is safe for date data
 	// Use UTC epoch to avoid timezone issues
 	epoch := time.Unix(0, 0).UTC()
 	val := epoch.AddDate(0, 0, int(days))

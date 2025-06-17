@@ -33,7 +33,7 @@ var (
 func init() {
 	// Initialize with JSON handler by default
 	opts := &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level:     slog.LevelInfo,
 		AddSource: true,
 	}
 	handler := slog.NewJSONHandler(os.Stdout, opts)
@@ -58,7 +58,7 @@ func New(handler slog.Handler) Logger {
 // NewTextLogger creates a new text logger
 func NewTextLogger(level slog.Level) Logger {
 	opts := &slog.HandlerOptions{
-		Level: level,
+		Level:     level,
 		AddSource: true,
 	}
 	handler := slog.NewTextHandler(os.Stdout, opts)
@@ -68,7 +68,7 @@ func NewTextLogger(level slog.Level) Logger {
 // NewJSONLogger creates a new JSON logger
 func NewJSONLogger(level slog.Level) Logger {
 	opts := &slog.HandlerOptions{
-		Level: level,
+		Level:     level,
 		AddSource: true,
 	}
 	handler := slog.NewJSONHandler(os.Stdout, opts)
@@ -153,8 +153,8 @@ func Group(key string, attrs ...slog.Attr) slog.Attr {
 	return slog.Group(key, args...)
 }
 
-// LogLatency logs the latency of an operation
-func LogLatency(start time.Time, operation string) {
+// Latency logs the latency of an operation
+func Latency(start time.Time, operation string) {
 	latency := time.Since(start)
 	_, file, line, _ := runtime.Caller(1)
 	defaultLogger.Info("operation completed",

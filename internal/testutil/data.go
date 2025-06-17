@@ -23,11 +23,11 @@ func GenerateValue(size int) []byte {
 func GenerateKeyValuePairs(n int, valueSize int) (keys [][]byte, values [][]byte) {
 	keys = make([][]byte, n)
 	values = make([][]byte, n)
-	
+
 	for i := 0; i < n; i++ {
 		keys[i] = GenerateKey("key", i)
 		values[i] = GenerateValue(valueSize)
 	}
-	
+
 	return keys, values
 }

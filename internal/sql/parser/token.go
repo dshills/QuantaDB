@@ -6,7 +6,7 @@ import "fmt"
 type TokenType int
 
 const (
-	// Special tokens
+	// Special tokens.
 	TokenEOF TokenType = iota
 	TokenError
 

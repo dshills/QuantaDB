@@ -23,7 +23,7 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 	switch e := expr.(type) {
 	case *planner.Literal:
 		return &literalEvaluator{value: e.Value}, nil
-		
+
 	case *planner.ColumnRef:
 		// Resolve column index if schema is provided
 		columnIdx := -1
@@ -35,14 +35,14 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 				}
 			}
 		}
-		
+
 		return &columnRefEvaluator{
 			columnName: e.ColumnName,
 			tableAlias: e.TableAlias,
 			columnIdx:  columnIdx,
 			resolved:   columnIdx >= 0,
 		}, nil
-		
+
 	case *planner.BinaryOp:
 		left, err := buildExprEvaluatorWithSchema(e.Left, schema)
 		if err != nil {
@@ -58,7 +58,7 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 			operator: e.Operator,
 			dataType: e.Type,
 		}, nil
-		
+
 	case *planner.UnaryOp:
 		operand, err := buildExprEvaluatorWithSchema(e.Expr, schema)
 		if err != nil {
@@ -69,10 +69,15 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 			operator: e.Operator,
 			dataType: e.Type,
 		}, nil
-		
+
 	case *planner.Star:
 		return nil, fmt.Errorf("star expression not supported in this context")
-		
+
+	case *planner.FunctionCall:
+		// For non-aggregate functions, we would handle them here
+		// For now, return an error as we only support aggregate functions
+		return nil, fmt.Errorf("non-aggregate function calls not yet supported: %s", e.Name)
+
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
@@ -99,11 +104,11 @@ func (e *columnRefEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, erro
 	if !e.resolved {
 		return types.NewNullValue(), fmt.Errorf("column %s not resolved", e.columnName)
 	}
-	
+
 	if e.columnIdx < 0 || e.columnIdx >= len(row.Values) {
 		return types.NewNullValue(), fmt.Errorf("column index %d out of range", e.columnIdx)
 	}
-	
+
 	return row.Values[e.columnIdx], nil
 }
 
@@ -121,19 +126,19 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 	if err != nil {
 		return types.NewNullValue(), err
 	}
-	
+
 	rightVal, err := e.right.Eval(row, ctx)
 	if err != nil {
 		return types.NewNullValue(), err
 	}
-	
+
 	// Handle NULL values
 	if leftVal.IsNull() || rightVal.IsNull() {
 		// Most operations with NULL return NULL
 		// Exceptions would be IS NULL, IS NOT NULL
 		return types.NewNullValue(), nil
 	}
-	
+
 	// Evaluate based on operator
 	switch e.operator {
 	// Arithmetic operators
@@ -151,7 +156,7 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			}
 			return nil
 		})
-		
+
 	case planner.OpSubtract:
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
@@ -166,7 +171,7 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			}
 			return nil
 		})
-		
+
 	case planner.OpMultiply:
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
@@ -181,7 +186,7 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			}
 			return nil
 		})
-		
+
 	case planner.OpDivide:
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
@@ -202,26 +207,26 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			}
 			return nil
 		})
-		
+
 	// Comparison operators
 	case planner.OpEqual:
 		return e.evalComparison(leftVal, rightVal, func(cmp int) bool { return cmp == 0 })
-		
+
 	case planner.OpNotEqual:
 		return e.evalComparison(leftVal, rightVal, func(cmp int) bool { return cmp != 0 })
-		
+
 	case planner.OpLess:
 		return e.evalComparison(leftVal, rightVal, func(cmp int) bool { return cmp < 0 })
-		
+
 	case planner.OpLessEqual:
 		return e.evalComparison(leftVal, rightVal, func(cmp int) bool { return cmp <= 0 })
-		
+
 	case planner.OpGreater:
 		return e.evalComparison(leftVal, rightVal, func(cmp int) bool { return cmp > 0 })
-		
+
 	case planner.OpGreaterEqual:
 		return e.evalComparison(leftVal, rightVal, func(cmp int) bool { return cmp >= 0 })
-		
+
 	// Logical operators
 	case planner.OpAnd:
 		left, ok1 := leftVal.Data.(bool)
@@ -230,7 +235,7 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			return types.NewNullValue(), fmt.Errorf("AND requires boolean operands")
 		}
 		return types.NewValue(left && right), nil
-		
+
 	case planner.OpOr:
 		left, ok1 := leftVal.Data.(bool)
 		right, ok2 := rightVal.Data.(bool)
@@ -238,7 +243,41 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			return types.NewNullValue(), fmt.Errorf("OR requires boolean operands")
 		}
 		return types.NewValue(left || right), nil
-		
+
+	case planner.OpModulo:
+		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
+			switch a := a.(type) {
+			case int64:
+				if b, ok := b.(int64); ok {
+					if b == 0 {
+						return nil // Modulo by zero
+					}
+					return a % b
+				}
+			}
+			return nil
+		})
+
+	case planner.OpConcat:
+		leftStr, ok1 := leftVal.Data.(string)
+		rightStr, ok2 := rightVal.Data.(string)
+		if !ok1 || !ok2 {
+			return types.NewNullValue(), fmt.Errorf("CONCAT requires string operands")
+		}
+		return types.NewValue(leftStr + rightStr), nil
+
+	case planner.OpLike, planner.OpNotLike:
+		// Simple pattern matching - would need full LIKE implementation
+		return types.NewValue(false), nil
+
+	case planner.OpIn, planner.OpNotIn:
+		// IN/NOT IN would need list comparison - simplified for now
+		return types.NewValue(false), nil
+
+	case planner.OpIs, planner.OpIsNot:
+		// IS/IS NOT for NULL checking - simplified for now
+		return types.NewValue(false), nil
+
 	default:
 		return types.NewNullValue(), fmt.Errorf("unsupported binary operator: %v", e.operator)
 	}
@@ -258,7 +297,7 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 	// Simple comparison based on Go's comparable types
 	// In a real implementation, we'd use the type system's Compare method
 	cmp := 0
-	
+
 	switch l := left.Data.(type) {
 	case int64:
 		if r, ok := right.Data.(int64); ok {
@@ -270,7 +309,7 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 		} else {
 			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
 		}
-		
+
 	case string:
 		if r, ok := right.Data.(string); ok {
 			if l < r {
@@ -281,7 +320,7 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 		} else {
 			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
 		}
-		
+
 	case bool:
 		if r, ok := right.Data.(bool); ok {
 			if !l && r {
@@ -292,11 +331,11 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 		} else {
 			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
 		}
-		
+
 	default:
 		return types.NewNullValue(), fmt.Errorf("unsupported type for comparison: %T", l)
 	}
-	
+
 	return types.NewValue(op(cmp)), nil
 }
 
@@ -313,7 +352,7 @@ func (e *unaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error)
 	if err != nil {
 		return types.NewNullValue(), err
 	}
-	
+
 	switch e.operator {
 	case planner.OpNot:
 		if val.IsNull() {
@@ -324,7 +363,7 @@ func (e *unaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error)
 			return types.NewNullValue(), fmt.Errorf("NOT requires boolean operand")
 		}
 		return types.NewValue(!b), nil
-		
+
 	case planner.OpNegate:
 		if val.IsNull() {
 			return types.NewNullValue(), nil
@@ -337,13 +376,13 @@ func (e *unaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error)
 		default:
 			return types.NewNullValue(), fmt.Errorf("cannot negate %T", v)
 		}
-		
+
 	case planner.OpIsNull:
 		return types.NewValue(val.IsNull()), nil
-		
+
 	case planner.OpIsNotNull:
 		return types.NewValue(!val.IsNull()), nil
-		
+
 	default:
 		return types.NewNullValue(), fmt.Errorf("unsupported unary operator: %v", e.operator)
 	}

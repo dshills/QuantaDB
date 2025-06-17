@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// AssertEqual checks if two values are equal
+// AssertEqual checks if two values are equal.
 func AssertEqual(t *testing.T, expected, actual interface{}) {
 	t.Helper()
 	if !reflect.DeepEqual(expected, actual) {
@@ -13,7 +13,7 @@ func AssertEqual(t *testing.T, expected, actual interface{}) {
 	}
 }
 
-// AssertNoError checks that error is nil
+// AssertNoError checks that error is nil.
 func AssertNoError(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
@@ -21,7 +21,7 @@ func AssertNoError(t *testing.T, err error) {
 	}
 }
 
-// AssertError checks that error is not nil
+// AssertError checks that error is not nil.
 func AssertError(t *testing.T, err error) {
 	t.Helper()
 	if err == nil {

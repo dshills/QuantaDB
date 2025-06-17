@@ -1,11 +1,11 @@
 # TASK.md
 
 ## Top Priority
-- [ ] Implement query planner to transform AST into execution plans
-- [ ] Create query executor for INSERT/SELECT statements
-- [ ] Implement catalog/metadata system for table schemas
-- [ ] Redesign storage engine for row-based storage with B+Tree indexes
 - [ ] Add transaction support with basic MVCC
+- [ ] Implement network layer with PostgreSQL wire protocol
+- [ ] Redesign storage engine for row-based storage with B+Tree indexes
+- [ ] Create distributed consensus layer (Raft implementation)
+- [ ] Implement index management and optimization
 
 ## Setup
 - [x] Define project structure and directory layout
@@ -17,15 +17,15 @@
 
 ## SQL Engine Core
 - [x] Design SQL type system (INTEGER, VARCHAR, etc.)
-- [ ] Create table schema representation
+- [x] Create table schema representation
 - [x] Implement SQL parser with AST
-- [ ] Build query planner
-- [ ] Implement query executor
-- [ ] Create catalog/metadata storage
-- [ ] Design row-based storage format
+- [x] Build query planner (logical and physical)
+- [x] Implement query executor (full operator pipeline)
+- [x] Create catalog/metadata storage
+- [x] Design row-based storage format
 - [ ] Implement B+Tree indexing
 - [ ] Build transaction manager with MVCC
-- [ ] Add constraint validation (PRIMARY KEY, NOT NULL, etc.)
+- [x] Add constraint validation (PRIMARY KEY, NOT NULL, etc.)
 
 ## Distributed Systems
 - [ ] Design cluster membership and discovery
@@ -45,14 +45,14 @@
 - [ ] Implement connection pooling
 
 ## SQL Features
-- [ ] Basic DDL: CREATE/DROP TABLE, CREATE/DROP INDEX
-- [ ] Basic DML: INSERT, SELECT, UPDATE, DELETE
-- [ ] WHERE clause with basic operators
-- [ ] ORDER BY support
-- [ ] LIMIT/OFFSET pagination
-- [ ] Basic JOIN support (INNER JOIN first)
-- [ ] Aggregate functions (COUNT, SUM, AVG, MIN, MAX)
-- [ ] GROUP BY and HAVING
+- [x] Basic DDL: CREATE/DROP TABLE, CREATE/DROP INDEX
+- [x] Basic DML: INSERT, SELECT, UPDATE, DELETE
+- [x] WHERE clause with basic operators
+- [x] ORDER BY support
+- [x] LIMIT/OFFSET pagination
+- [x] Basic JOIN support (Hash Join, Nested Loop Join)
+- [x] Aggregate functions (COUNT, SUM, AVG, MIN, MAX)
+- [x] GROUP BY and HAVING
 - [ ] Subqueries
 - [ ] Prepared statements
 
@@ -74,8 +74,8 @@
 
 ## Testing and Quality
 - [x] Set up unit testing framework
-- [ ] Create integration test suite
-- [ ] Implement end-to-end tests
+- [x] Create integration test suite
+- [x] Implement end-to-end tests
 - [ ] Create load testing framework
 - [x] Set up code coverage reporting
 - [ ] Implement property-based testing
@@ -84,7 +84,7 @@
 - [ ] Create developer documentation
 - [ ] Write user guide and API documentation
 - [ ] Create CLI tools for database management
-- [x] Set up code formatting and linting
+- [x] Set up code formatting and linting (comprehensive fixes applied)
 - [ ] Create deployment guides
 - [ ] Write troubleshooting documentation
 
@@ -112,3 +112,13 @@
 - [x] Fix linter issues and improve code quality
 - [x] Simplify Makefile test output to show only failures
 - [x] Update PLANNING.md with current project status and structure
+- [x] Implement complete query planner with logical and physical optimization (58.9% test coverage)
+- [x] Create comprehensive query executor with all basic operators (59.2% test coverage)
+- [x] Implement catalog/metadata system for schema management (78.4% test coverage)
+- [x] Add JOIN operations (Hash Join and Nested Loop Join)
+- [x] Implement aggregate operations (SUM, COUNT, AVG, MIN, MAX) with GROUP BY
+- [x] Add sorting capabilities (ORDER BY)
+- [x] Create full SQL integration tests demonstrating end-to-end functionality
+- [x] Apply comprehensive linting fixes reducing issues from 59+ to 29 minor issues
+- [x] Remove unused code and improve type safety
+- [x] Update documentation to reflect current implementation status

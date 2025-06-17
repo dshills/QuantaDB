@@ -55,13 +55,17 @@ func (t *varcharType) Serialize(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("expected string, got %T", v.Data)
 	}
 	
-	if len(str) > t.maxLen {
-		return nil, fmt.Errorf("string length %d exceeds maximum %d", len(str), t.maxLen)
+	strLen := len(str)
+	if strLen > t.maxLen {
+		return nil, fmt.Errorf("string length %d exceeds maximum %d", strLen, t.maxLen)
+	}
+	if strLen > 4294967295 { // uint32 max
+		return nil, fmt.Errorf("string too long: %d bytes", strLen)
 	}
 	
 	// Serialize as: [4 bytes length][string data]
-	buf := make([]byte, 4+len(str))
-	binary.BigEndian.PutUint32(buf[:4], uint32(len(str)))
+	buf := make([]byte, 4+strLen)
+	binary.BigEndian.PutUint32(buf[:4], uint32(strLen)) // nolint:gosec // Length checked above
 	copy(buf[4:], str)
 	
 	return buf, nil
@@ -216,9 +220,14 @@ func (t *textType) Serialize(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("expected string, got %T", v.Data)
 	}
 	
+	strLen := len(str)
+	if strLen > 4294967295 { // uint32 max
+		return nil, fmt.Errorf("string too long: %d bytes", strLen)
+	}
+	
 	// Serialize as: [4 bytes length][string data]
-	buf := make([]byte, 4+len(str))
-	binary.BigEndian.PutUint32(buf[:4], uint32(len(str)))
+	buf := make([]byte, 4+strLen)
+	binary.BigEndian.PutUint32(buf[:4], uint32(strLen)) // nolint:gosec // Length checked above
 	copy(buf[4:], str)
 	
 	return buf, nil

@@ -9,23 +9,23 @@ import (
 type DataType interface {
 	// Name returns the SQL name of the type (e.g., "INTEGER", "VARCHAR")
 	Name() string
-	
+
 	// Size returns the storage size in bytes (-1 for variable size)
 	Size() int
-	
+
 	// Compare compares two values of this type
 	// Returns: -1 if a < b, 0 if a == b, 1 if a > b
 	Compare(a, b Value) int
-	
+
 	// Serialize converts a value to bytes for storage
 	Serialize(v Value) ([]byte, error)
-	
+
 	// Deserialize converts bytes back to a value
 	Deserialize(data []byte) (Value, error)
-	
+
 	// IsValid checks if a value is valid for this type
 	IsValid(v Value) bool
-	
+
 	// Zero returns the zero value for this type
 	Zero() Value
 }
@@ -77,16 +77,16 @@ func CompareValues(a, b Value) int {
 
 // Common SQL types
 var (
-	Integer    DataType
-	BigInt     DataType
-	SmallInt   DataType
-	Boolean    DataType
-	Varchar    func(size int) DataType
-	Char       func(size int) DataType
-	Text       DataType
-	Timestamp  DataType
-	Date       DataType
-	Decimal    func(precision, scale int) DataType
+	Integer   DataType
+	BigInt    DataType
+	SmallInt  DataType
+	Boolean   DataType
+	Varchar   func(size int) DataType
+	Char      func(size int) DataType
+	Text      DataType
+	Timestamp DataType
+	Date      DataType
+	Decimal   func(precision, scale int) DataType
 )
 
 // TypeID represents the internal ID of a data type
@@ -178,76 +178,13 @@ type Deserializer func(data []byte) (Value, error)
 // Validator is a function that validates a value
 type Validator func(v Value) bool
 
-// baseType provides common functionality for data types
-type baseType struct {
-	name         string
-	size         int
-	comparator   Comparator
-	serializer   Serializer
-	deserializer Deserializer
-	validator    Validator
-	zero         Value
-}
-
-func (t *baseType) Name() string {
-	return t.name
-}
-
-func (t *baseType) Size() int {
-	return t.size
-}
-
-func (t *baseType) Compare(a, b Value) int {
-	if a.Null || b.Null {
-		return CompareValues(a, b)
-	}
-	return t.comparator(a, b)
-}
-
-func (t *baseType) Serialize(v Value) ([]byte, error) {
-	if v.Null {
-		return nil, nil
-	}
-	return t.serializer(v)
-}
-
-func (t *baseType) Deserialize(data []byte) (Value, error) {
-	if data == nil {
-		return NewNullValue(), nil
-	}
-	return t.deserializer(data)
-}
-
-func (t *baseType) IsValid(v Value) bool {
-	if v.Null {
-		return true
-	}
-	return t.validator(v)
-}
-
-func (t *baseType) Zero() Value {
-	return t.zero
-}
-
-// Helper functions for creating base types
-func newBaseType(name string, size int, zero Value) *baseType {
-	return &baseType{
-		name: name,
-		size: size,
-		zero: zero,
-		validator: func(v Value) bool {
-			return !v.Null
-		},
-	}
-}
-
 // TimeValue wraps time.Time for SQL timestamp/date types
 type TimeValue time.Time
 
 // DecimalValue represents a decimal number with precision and scale
 type DecimalValue struct {
 	// Store as string for now, can optimize later
-	Value string
+	Value     string
 	Precision int
-	Scale int
+	Scale     int
 }

@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const defaultSchemaName = "public"
+
 // MemoryCatalog is an in-memory implementation of the Catalog interface.
 // It's useful for testing and development.
 type MemoryCatalog struct {
@@ -33,8 +35,8 @@ func NewMemoryCatalog() *MemoryCatalog {
 	}
 	
 	// Create default public schema
-	c.schemas["public"] = &schema{
-		name:   "public",
+	c.schemas[defaultSchemaName] = &schema{
+		name:   defaultSchemaName,
 		tables: make(map[string]*Table),
 	}
 	
@@ -63,8 +65,8 @@ func (c *MemoryCatalog) DropSchema(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	
-	if name == "public" {
-		return fmt.Errorf("cannot drop public schema")
+	if name == defaultSchemaName {
+		return fmt.Errorf("cannot drop %s schema", defaultSchemaName)
 	}
 	
 	schema, exists := c.schemas[name]
@@ -110,7 +112,7 @@ func (c *MemoryCatalog) CreateTable(tableSchema *TableSchema) (*Table, error) {
 	// Validate schema exists
 	schemaName := tableSchema.SchemaName
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	schema, exists := c.schemas[schemaName]
@@ -220,7 +222,7 @@ func (c *MemoryCatalog) GetTable(schemaName, tableName string) (*Table, error) {
 	defer c.mu.RUnlock()
 	
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	key := fmt.Sprintf("%s.%s", schemaName, tableName)
@@ -238,7 +240,7 @@ func (c *MemoryCatalog) DropTable(schemaName, tableName string) error {
 	defer c.mu.Unlock()
 	
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	schema, exists := c.schemas[schemaName]
@@ -273,7 +275,7 @@ func (c *MemoryCatalog) ListTables(schemaName string) ([]*Table, error) {
 	defer c.mu.RUnlock()
 	
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	schema, exists := c.schemas[schemaName]
@@ -297,7 +299,7 @@ func (c *MemoryCatalog) CreateIndex(indexSchema *IndexSchema) (*Index, error) {
 	// Get the table without locking (we already have the lock)
 	schemaName := indexSchema.SchemaName
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	key := fmt.Sprintf("%s.%s", schemaName, indexSchema.TableName)
@@ -352,7 +354,7 @@ func (c *MemoryCatalog) GetIndex(schemaName, tableName, indexName string) (*Inde
 	defer c.mu.RUnlock()
 	
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	key := fmt.Sprintf("%s.%s.%s", schemaName, tableName, indexName)
@@ -370,7 +372,7 @@ func (c *MemoryCatalog) DropIndex(schemaName, tableName, indexName string) error
 	defer c.mu.Unlock()
 	
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	// Get the table
@@ -411,7 +413,7 @@ func (c *MemoryCatalog) UpdateTableStats(schemaName, tableName string) error {
 	defer c.mu.Unlock()
 	
 	if schemaName == "" {
-		schemaName = "public"
+		schemaName = defaultSchemaName
 	}
 	
 	key := fmt.Sprintf("%s.%s", schemaName, tableName)

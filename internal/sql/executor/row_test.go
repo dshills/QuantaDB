@@ -98,7 +98,7 @@ func TestRowSerialization(t *testing.T) {
 
 				// Compare data
 				if expected.Data != actual.Data {
-					t.Errorf("Value %d: expected %v (%T), got %v (%T)", 
+					t.Errorf("Value %d: expected %v (%T), got %v (%T)",
 						i, expected.Data, expected.Data, actual.Data, actual.Data)
 				}
 			}

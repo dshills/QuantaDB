@@ -91,6 +91,18 @@ func EstimateSelectivity(stats *ColumnStats, op ComparisonOp, value types.Value)
 		// Estimate based on value position in range
 		return 0.3
 		
+	case OpIsNull:
+		if stats.NullCount > 0 {
+			return Selectivity(float64(stats.NullCount) / float64(stats.RowCount()))
+		}
+		return 0.01 // Low default for IS NULL
+		
+	case OpIsNotNull:
+		if stats.NullCount > 0 {
+			return Selectivity(1.0 - float64(stats.NullCount)/float64(stats.RowCount()))
+		}
+		return 0.99 // High default for IS NOT NULL
+		
 	case OpNotEqual:
 		if stats.DistinctCount > 0 {
 			return Selectivity(1.0 - (1.0 / float64(stats.DistinctCount)))

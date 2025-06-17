@@ -5,13 +5,13 @@ import (
 	"strings"
 )
 
-// Config represents logging configuration
+// Config represents logging configuration.
 type Config struct {
 	Level  string `json:"level"`
 	Format string `json:"format"`
 }
 
-// DefaultConfig returns default logging configuration
+// DefaultConfig returns default logging configuration.
 func DefaultConfig() Config {
 	return Config{
 		Level:  "info",
@@ -19,7 +19,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// ParseLevel parses string log level to slog.Level
+// ParseLevel parses string log level to slog.Level.
 func ParseLevel(level string) slog.Level {
 	switch strings.ToLower(level) {
 	case "debug":
@@ -38,7 +38,7 @@ func ParseLevel(level string) slog.Level {
 // Configure sets up the logger based on config
 func Configure(cfg Config) {
 	level := ParseLevel(cfg.Level)
-	
+
 	var logger Logger
 	switch strings.ToLower(cfg.Format) {
 	case "text":
@@ -48,6 +48,6 @@ func Configure(cfg Config) {
 	default:
 		logger = NewJSONLogger(level)
 	}
-	
+
 	SetDefault(logger)
 }
