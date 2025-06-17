@@ -61,3 +61,11 @@ QuantaDB/
 - Use Go modules for dependency management
 - Implement comprehensive testing for database reliability
 - Consider performance implications in all design decisions
+
+## Linting
+
+- Run golangci-lint run before committing code, fix any errors
+
+## Commit Guidelines
+
+- Run tests before committing, fix any errors
