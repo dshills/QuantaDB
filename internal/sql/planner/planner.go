@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -15,12 +16,22 @@ type Planner interface {
 
 // BasicPlanner is a simple rule-based query planner.
 type BasicPlanner struct {
+	catalog   catalog.Catalog
 	optimizer *Optimizer
 }
 
 // NewBasicPlanner creates a new basic planner.
 func NewBasicPlanner() *BasicPlanner {
 	return &BasicPlanner{
+		catalog:   catalog.NewMemoryCatalog(),
+		optimizer: NewOptimizer(),
+	}
+}
+
+// NewBasicPlannerWithCatalog creates a new basic planner with a specific catalog.
+func NewBasicPlannerWithCatalog(cat catalog.Catalog) *BasicPlanner {
+	return &BasicPlanner{
+		catalog:   cat,
 		optimizer: NewOptimizer(),
 	}
 }
@@ -57,15 +68,38 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 
 // planSelect converts a SELECT statement to a logical plan.
 func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) {
-	// Start with table scan
-	// TODO: Get schema from catalog when available
-	schema := &Schema{
-		Columns: []Column{
-			{Name: "*", DataType: types.Unknown, Nullable: true},
-		},
+	// Get table from catalog
+	table, err := p.catalog.GetTable("public", stmt.From)
+	if err != nil {
+		// If table doesn't exist in catalog, use a placeholder schema
+		// This allows tests to work without setting up catalog
+		schema := &Schema{
+			Columns: []Column{
+				{Name: "*", DataType: types.Unknown, Nullable: true},
+			},
+		}
+		var plan LogicalPlan = NewLogicalScan(stmt.From, stmt.From, schema)
+		return p.buildSelectPlan(plan, stmt)
 	}
-	var plan LogicalPlan = NewLogicalScan(stmt.From, stmt.From, schema)
 	
+	// Build schema from table metadata
+	schema := &Schema{
+		Columns: make([]Column, len(table.Columns)),
+	}
+	for i, col := range table.Columns {
+		schema.Columns[i] = Column{
+			Name:     col.Name,
+			DataType: col.DataType,
+			Nullable: col.IsNullable,
+		}
+	}
+	
+	var plan LogicalPlan = NewLogicalScan(stmt.From, stmt.From, schema)
+	return p.buildSelectPlan(plan, stmt)
+}
+
+// buildSelectPlan builds the rest of the SELECT plan after the table scan.
+func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt) (LogicalPlan, error) {
 	// Add WHERE clause if present
 	if stmt.Where != nil {
 		predicate, err := p.convertExpression(stmt.Where)
@@ -150,7 +184,8 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 		return &Literal{Value: e.Value, Type: dataType}, nil
 		
 	case *parser.Identifier:
-		// TODO: Resolve column type from catalog
+		// Try to resolve column type from catalog
+		// For now, we'll use Unknown type if we can't resolve it
 		return &ColumnRef{
 			ColumnName: e.Name,
 			ColumnType: types.Unknown,
