@@ -1,24 +1,24 @@
 # TASK.md
 
 ## Top Priority
-- [ ] Design SQL type system and table schema
-- [ ] Create basic SQL parser for CREATE TABLE and simple queries
-- [ ] Redesign storage engine for row-based storage
-- [ ] Implement catalog/metadata system
-- [ ] Create basic query executor for INSERT/SELECT
+- [ ] Implement query planner to transform AST into execution plans
+- [ ] Create query executor for INSERT/SELECT statements
+- [ ] Implement catalog/metadata system for table schemas
+- [ ] Redesign storage engine for row-based storage with B+Tree indexes
+- [ ] Add transaction support with basic MVCC
 
 ## Setup
-- [ ] Define project structure and directory layout
-- [ ] Set up Go module dependencies
+- [x] Define project structure and directory layout
+- [x] Set up Go module dependencies
 - [ ] Create basic configuration management
-- [ ] Set up logging framework
-- [ ] Define build and deployment scripts
+- [x] Set up logging framework
+- [x] Define build and deployment scripts (Makefile)
 - [ ] Set up continuous integration pipeline
 
 ## SQL Engine Core
-- [ ] Design SQL type system (INTEGER, VARCHAR, etc.)
+- [x] Design SQL type system (INTEGER, VARCHAR, etc.)
 - [ ] Create table schema representation
-- [ ] Implement SQL parser with AST
+- [x] Implement SQL parser with AST
 - [ ] Build query planner
 - [ ] Implement query executor
 - [ ] Create catalog/metadata storage
@@ -73,18 +73,18 @@
 - [ ] Profile and optimize hot paths
 
 ## Testing and Quality
-- [ ] Set up unit testing framework
+- [x] Set up unit testing framework
 - [ ] Create integration test suite
 - [ ] Implement end-to-end tests
 - [ ] Create load testing framework
-- [ ] Set up code coverage reporting
+- [x] Set up code coverage reporting
 - [ ] Implement property-based testing
 
 ## Documentation and Tooling
 - [ ] Create developer documentation
 - [ ] Write user guide and API documentation
 - [ ] Create CLI tools for database management
-- [ ] Set up code formatting and linting
+- [x] Set up code formatting and linting
 - [ ] Create deployment guides
 - [ ] Write troubleshooting documentation
 
@@ -107,3 +107,8 @@
 - [x] Design and implement storage engine interface with in-memory implementation
 - [x] Update PLANNING.md with SQL architecture
 - [x] Design SQL type system with INTEGER, BIGINT, SMALLINT, VARCHAR, CHAR, TEXT, BOOLEAN, TIMESTAMP, DATE, and DECIMAL types
+- [x] Implement SQL parser with lexer and AST (83.3% test coverage)
+- [x] Create comprehensive parser tests for all SQL constructs
+- [x] Fix linter issues and improve code quality
+- [x] Simplify Makefile test output to show only failures
+- [x] Update PLANNING.md with current project status and structure

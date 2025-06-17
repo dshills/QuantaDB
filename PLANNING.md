@@ -53,16 +53,61 @@ QuantaDB is a distributed, high-performance SQL database designed for scalabilit
 - **Build**: Make + Go modules
 
 ## Project structure
-TBD
+```
+QuantaDB/
+├── cmd/
+│   ├── quantadb/         # Main server binary
+│   └── quantactl/        # CLI management tool
+├── internal/             # Private packages
+│   ├── engine/          # Storage engine interface and implementations
+│   ├── log/             # Structured logging framework
+│   ├── sql/             # SQL processing
+│   │   ├── parser/      # SQL parser with lexer and AST (COMPLETED)
+│   │   ├── types/       # SQL type system (COMPLETED)
+│   │   ├── planner/     # Query planner (TODO)
+│   │   └── executor/    # Query executor (TODO)
+│   ├── catalog/         # Table/schema metadata (TODO)
+│   ├── cluster/         # Distributed systems logic (TODO)
+│   ├── network/         # Network layer (TODO)
+│   └── testutil/        # Testing utilities (COMPLETED)
+├── pkg/                 # Public packages
+│   ├── client/          # Go client library (TODO)
+│   └── protocol/        # Wire protocol definitions (TODO)
+├── test/                # Integration tests (TODO)
+└── docs/                # Documentation (TODO)
+```
 
 ## Testing strategy
-TBD
+- Unit tests for all packages with target >80% coverage
+- Integration tests for SQL compliance
+- Property-based testing for parser and type system
+- Benchmark tests for performance-critical paths
+- Load testing framework for distributed scenarios
+- Current test coverage:
+  - Storage engine: 90.4%
+  - SQL parser: 83.3%
+  - Type system: 75.7%
+  - Logging: 79.2%
 
 ## Development commands
-TBD
+```bash
+make build         # Build both server and CLI
+make test          # Run tests (quiet, shows only failures)
+make test-verbose  # Run tests with detailed output
+make test-coverage # Run tests with coverage report
+make bench         # Run benchmarks
+make fmt           # Format code
+make vet           # Run go vet
+make lint          # Run golangci-lint
+make clean         # Clean build artifacts
+```
 
 ## Environment setup
-TBD
+1. Install Go 1.24.4 or later
+2. Clone repository: `git clone https://github.com/dshills/QuantaDB`
+3. Install development dependencies: `make dev-deps`
+4. Run tests: `make test`
+5. Build: `make build`
 
 ## Development guidelines
 - Start with single-node implementation, design for distribution
