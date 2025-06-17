@@ -6,7 +6,7 @@ import (
 	"unicode"
 )
 
-// Lexer tokenizes SQL input
+// Lexer tokenizes SQL input.
 type Lexer struct {
 	input    string
 	position int
@@ -14,7 +14,7 @@ type Lexer struct {
 	column   int
 }
 
-// NewLexer creates a new lexer for the given input
+// NewLexer creates a new lexer for the given input.
 func NewLexer(input string) *Lexer {
 	return &Lexer{
 		input:  input,
@@ -23,7 +23,7 @@ func NewLexer(input string) *Lexer {
 	}
 }
 
-// NextToken returns the next token from the input
+// NextToken returns the next token from the input.
 func (l *Lexer) NextToken() Token {
 	l.skipWhitespace()
 
@@ -98,7 +98,7 @@ func (l *Lexer) NextToken() Token {
 	return l.makeToken(TokenError, fmt.Sprintf("unexpected character '%c'", ch))
 }
 
-// skipWhitespace skips whitespace and updates line/column tracking
+// skipWhitespace skips whitespace and updates line/column tracking.
 func (l *Lexer) skipWhitespace() {
 	for l.position < len(l.input) {
 		ch := l.input[l.position]
@@ -115,7 +115,7 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-// skipComment skips SQL comments (-- to end of line)
+// skipComment skips SQL comments (-- to end of line).
 func (l *Lexer) skipComment() {
 	for l.position < len(l.input) && l.input[l.position] != '\n' {
 		l.position++
@@ -123,7 +123,7 @@ func (l *Lexer) skipComment() {
 	}
 }
 
-// peek looks ahead n characters without consuming
+// peek looks ahead n characters without consuming.
 func (l *Lexer) peek(n int) byte {
 	pos := l.position + n
 	if pos >= len(l.input) {
@@ -132,7 +132,7 @@ func (l *Lexer) peek(n int) byte {
 	return l.input[pos]
 }
 
-// consumeChar consumes a single character and returns a token
+// consumeChar consumes a single character and returns a token.
 func (l *Lexer) consumeChar(tokenType TokenType) Token {
 	tok := l.makeToken(tokenType, string(l.input[l.position]))
 	l.position++
@@ -140,7 +140,7 @@ func (l *Lexer) consumeChar(tokenType TokenType) Token {
 	return tok
 }
 
-// consumeChars consumes n characters and returns a token
+// consumeChars consumes n characters and returns a token.
 func (l *Lexer) consumeChars(tokenType TokenType, n int) Token {
 	value := l.input[l.position : l.position+n]
 	tok := l.makeToken(tokenType, value)
@@ -149,7 +149,7 @@ func (l *Lexer) consumeChars(tokenType TokenType, n int) Token {
 	return tok
 }
 
-// makeToken creates a token at the current position
+// makeToken creates a token at the current position.
 func (l *Lexer) makeToken(tokenType TokenType, value string) Token {
 	return Token{
 		Type:     tokenType,
@@ -160,7 +160,7 @@ func (l *Lexer) makeToken(tokenType TokenType, value string) Token {
 	}
 }
 
-// readIdentifier reads an identifier or keyword
+// readIdentifier reads an identifier or keyword.
 func (l *Lexer) readIdentifier() Token {
 	start := l.position
 	startCol := l.column
@@ -200,7 +200,7 @@ func (l *Lexer) readIdentifier() Token {
 	}
 }
 
-// readNumber reads a numeric literal
+// readNumber reads a numeric literal.
 func (l *Lexer) readNumber() Token {
 	start := l.position
 	startCol := l.column
@@ -230,8 +230,8 @@ func (l *Lexer) readNumber() Token {
 	}
 }
 
-// readString reads a string literal enclosed in single quotes
-func (l *Lexer) readString() Token {
+// readQuoted reads a quoted string with the given quote character.
+func (l *Lexer) readQuoted(quoteChar byte, tokenType TokenType, errorMsg string) Token {
 	start := l.position
 	startCol := l.column
 	l.position++ // Skip opening quote
@@ -241,18 +241,18 @@ func (l *Lexer) readString() Token {
 
 	for l.position < len(l.input) {
 		ch := l.input[l.position]
-		if ch == '\'' {
+		if ch == quoteChar {
 			// Check for escaped quote
-			if l.peek(1) == '\'' {
-				builder.WriteByte('\'')
+			if l.peek(1) == quoteChar {
+				builder.WriteByte(quoteChar)
 				l.position += 2
 				l.column += 2
 			} else {
-				// End of string
+				// End of quoted string
 				l.position++
 				l.column++
 				return Token{
-					Type:     TokenString,
+					Type:     tokenType,
 					Value:    builder.String(),
 					Position: start,
 					Line:     l.line,
@@ -262,7 +262,7 @@ func (l *Lexer) readString() Token {
 		} else if ch == '\n' {
 			return Token{
 				Type:     TokenError,
-				Value:    "unterminated string literal",
+				Value:    errorMsg,
 				Position: start,
 				Line:     l.line,
 				Column:   startCol,
@@ -276,62 +276,19 @@ func (l *Lexer) readString() Token {
 
 	return Token{
 		Type:     TokenError,
-		Value:    "unterminated string literal",
+		Value:    errorMsg,
 		Position: start,
 		Line:     l.line,
 		Column:   startCol,
 	}
 }
 
-// readQuotedIdentifier reads an identifier enclosed in double quotes
+// readString reads a string literal enclosed in single quotes.
+func (l *Lexer) readString() Token {
+	return l.readQuoted('\'', TokenString, "unterminated string literal")
+}
+
+// readQuotedIdentifier reads an identifier enclosed in double quotes.
 func (l *Lexer) readQuotedIdentifier() Token {
-	start := l.position
-	startCol := l.column
-	l.position++ // Skip opening quote
-	l.column++
-
-	var builder strings.Builder
-
-	for l.position < len(l.input) {
-		ch := l.input[l.position]
-		if ch == '"' {
-			// Check for escaped quote
-			if l.peek(1) == '"' {
-				builder.WriteByte('"')
-				l.position += 2
-				l.column += 2
-			} else {
-				// End of identifier
-				l.position++
-				l.column++
-				return Token{
-					Type:     TokenIdentifier,
-					Value:    builder.String(),
-					Position: start,
-					Line:     l.line,
-					Column:   startCol,
-				}
-			}
-		} else if ch == '\n' {
-			return Token{
-				Type:     TokenError,
-				Value:    "unterminated quoted identifier",
-				Position: start,
-				Line:     l.line,
-				Column:   startCol,
-			}
-		} else {
-			builder.WriteByte(ch)
-			l.position++
-			l.column++
-		}
-	}
-
-	return Token{
-		Type:     TokenError,
-		Value:    "unterminated quoted identifier",
-		Position: start,
-		Line:     l.line,
-		Column:   startCol,
-	}
+	return l.readQuoted('"', TokenIdentifier, "unterminated quoted identifier")
 }

@@ -2,7 +2,7 @@ package parser
 
 import "fmt"
 
-// TokenType represents the type of a SQL token
+// TokenType represents the type of a SQL token.
 type TokenType int
 
 const (
@@ -154,7 +154,7 @@ var tokenStrings = map[TokenType]string{
 	TokenDot:          ".",
 }
 
-// String returns the string representation of a token type
+// String returns the string representation of a token type.
 func (t TokenType) String() string {
 	if s, ok := tokenStrings[t]; ok {
 		return s
@@ -162,7 +162,7 @@ func (t TokenType) String() string {
 	return fmt.Sprintf("Unknown(%d)", t)
 }
 
-// Token represents a SQL token
+// Token represents a SQL token.
 type Token struct {
 	Type     TokenType
 	Value    string
@@ -171,7 +171,7 @@ type Token struct {
 	Column   int
 }
 
-// String returns a string representation of the token
+// String returns a string representation of the token.
 func (t Token) String() string {
 	if t.Type == TokenIdentifier || t.Type == TokenNumber || t.Type == TokenString {
 		return fmt.Sprintf("%s(%s)", t.Type, t.Value)
@@ -179,7 +179,7 @@ func (t Token) String() string {
 	return t.Type.String()
 }
 
-// Keywords maps keyword strings to token types
+// Keywords maps keyword strings to token types.
 var keywords = map[string]TokenType{
 	"CREATE":    TokenCreate,
 	"TABLE":     TokenTable,
@@ -232,11 +232,10 @@ var keywords = map[string]TokenType{
 	"IS":        TokenIs,
 }
 
-// LookupKeyword returns the token type for a keyword
+// LookupKeyword returns the token type for a keyword.
 func LookupKeyword(ident string) TokenType {
 	if tok, ok := keywords[ident]; ok {
 		return tok
 	}
 	return TokenIdentifier
 }
-

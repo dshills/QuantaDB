@@ -724,11 +724,10 @@ func TestParseLiterals(t *testing.T) {
 	}
 }
 
-// Helper function to normalize whitespace for string comparison
+// Helper function to normalize whitespace for string comparison.
 func normalizeWhitespace(s string) string {
 	// Replace multiple spaces with single space
 	s = strings.Join(strings.Fields(s), " ")
 	// Trim leading/trailing whitespace
 	return strings.TrimSpace(s)
 }
-

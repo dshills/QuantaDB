@@ -8,7 +8,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
-// Parser parses SQL statements from tokens
+// Parser parses SQL statements from tokens.
 type Parser struct {
 	lexer    *Lexer
 	current  Token
@@ -16,7 +16,7 @@ type Parser struct {
 	errors   []error
 }
 
-// NewParser creates a new parser for the given SQL input
+// NewParser creates a new parser for the given SQL input.
 func NewParser(sql string) *Parser {
 	lexer := NewLexer(sql)
 	parser := &Parser{
@@ -27,7 +27,7 @@ func NewParser(sql string) *Parser {
 	return parser
 }
 
-// Parse parses a SQL statement
+// Parse parses a SQL statement.
 func (p *Parser) Parse() (Statement, error) {
 	stmt, err := p.parseStatement()
 	if err != nil {
@@ -42,7 +42,7 @@ func (p *Parser) Parse() (Statement, error) {
 	return stmt, nil
 }
 
-// ParseMultiple parses multiple SQL statements separated by semicolons
+// ParseMultiple parses multiple SQL statements separated by semicolons.
 func (p *Parser) ParseMultiple() ([]Statement, error) {
 	var statements []Statement
 
@@ -67,9 +67,9 @@ func (p *Parser) ParseMultiple() ([]Statement, error) {
 	return statements, nil
 }
 
-// parseStatement parses a single SQL statement
+// parseStatement parses a single SQL statement.
 func (p *Parser) parseStatement() (Statement, error) {
-	switch p.current.Type {
+	switch p.current.Type { //nolint:exhaustive
 	case TokenCreate:
 		return p.parseCreateTable()
 	case TokenInsert:
@@ -87,7 +87,7 @@ func (p *Parser) parseStatement() (Statement, error) {
 	}
 }
 
-// parseCreateTable parses a CREATE TABLE statement
+// parseCreateTable parses a CREATE TABLE statement.
 func (p *Parser) parseCreateTable() (*CreateTableStmt, error) {
 	if !p.consume(TokenCreate, "expected CREATE") {
 		return nil, p.lastError()
@@ -145,7 +145,7 @@ func (p *Parser) parseCreateTable() (*CreateTableStmt, error) {
 	}, nil
 }
 
-// parseColumnDef parses a column definition
+// parseColumnDef parses a column definition.
 func (p *Parser) parseColumnDef() (ColumnDef, error) {
 	// Get column name
 	name := p.current.Value
@@ -176,9 +176,9 @@ func (p *Parser) parseColumnDef() (ColumnDef, error) {
 	}, nil
 }
 
-// parseDataType parses a data type
+// parseDataType parses a data type.
 func (p *Parser) parseDataType() (types.DataType, error) {
-	switch p.current.Type {
+	switch p.current.Type { //nolint:exhaustive
 	case TokenInteger:
 		p.advance()
 		return types.Integer, nil
@@ -275,9 +275,9 @@ func (p *Parser) parseDataType() (types.DataType, error) {
 	}
 }
 
-// parseColumnConstraint parses a column constraint
+// parseColumnConstraint parses a column constraint.
 func (p *Parser) parseColumnConstraint() (ColumnConstraint, bool) {
-	switch p.current.Type {
+	switch p.current.Type { //nolint:exhaustive
 	case TokenNot:
 		if p.peek(TokenNull) {
 			p.advance() // consume NOT
@@ -308,7 +308,7 @@ func (p *Parser) parseColumnConstraint() (ColumnConstraint, bool) {
 	}
 }
 
-// parseTableConstraint parses a table-level constraint
+// parseTableConstraint parses a table-level constraint.
 func (p *Parser) parseTableConstraint() (TableConstraint, error) {
 	if p.match(TokenPrimary) {
 		if !p.consume(TokenKey, "expected KEY after PRIMARY") {
@@ -343,7 +343,7 @@ func (p *Parser) parseTableConstraint() (TableConstraint, error) {
 	return nil, p.error("unsupported table constraint")
 }
 
-// parseInsert parses an INSERT statement
+// parseInsert parses an INSERT statement.
 func (p *Parser) parseInsert() (*InsertStmt, error) {
 	if !p.consume(TokenInsert, "expected INSERT") {
 		return nil, p.lastError()
@@ -421,7 +421,7 @@ func (p *Parser) parseInsert() (*InsertStmt, error) {
 	}, nil
 }
 
-// parseSelect parses a SELECT statement
+// parseSelect parses a SELECT statement.
 func (p *Parser) parseSelect() (*SelectStmt, error) {
 	if !p.consume(TokenSelect, "expected SELECT") {
 		return nil, p.lastError()
@@ -534,7 +534,7 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 	return stmt, nil
 }
 
-// parseUpdate parses an UPDATE statement
+// parseUpdate parses an UPDATE statement.
 func (p *Parser) parseUpdate() (*UpdateStmt, error) {
 	if !p.consume(TokenUpdate, "expected UPDATE") {
 		return nil, p.lastError()
@@ -594,7 +594,7 @@ func (p *Parser) parseUpdate() (*UpdateStmt, error) {
 	return stmt, nil
 }
 
-// parseDelete parses a DELETE statement
+// parseDelete parses a DELETE statement.
 func (p *Parser) parseDelete() (*DeleteStmt, error) {
 	if !p.consume(TokenDelete, "expected DELETE") {
 		return nil, p.lastError()
@@ -626,7 +626,7 @@ func (p *Parser) parseDelete() (*DeleteStmt, error) {
 	return stmt, nil
 }
 
-// parseDrop parses a DROP statement
+// parseDrop parses a DROP statement.
 func (p *Parser) parseDrop() (*DropTableStmt, error) {
 	if !p.consume(TokenDrop, "expected DROP") {
 		return nil, p.lastError()
@@ -647,12 +647,12 @@ func (p *Parser) parseDrop() (*DropTableStmt, error) {
 	}, nil
 }
 
-// parseExpression parses an expression with operator precedence
+// parseExpression parses an expression with operator precedence.
 func (p *Parser) parseExpression() (Expression, error) {
 	return p.parseOr()
 }
 
-// parseOr parses OR expressions
+// parseOr parses OR expressions.
 func (p *Parser) parseOr() (Expression, error) {
 	expr, err := p.parseAnd()
 	if err != nil {
@@ -675,7 +675,7 @@ func (p *Parser) parseOr() (Expression, error) {
 	return expr, nil
 }
 
-// parseAnd parses AND expressions
+// parseAnd parses AND expressions.
 func (p *Parser) parseAnd() (Expression, error) {
 	expr, err := p.parseNot()
 	if err != nil {
@@ -698,7 +698,7 @@ func (p *Parser) parseAnd() (Expression, error) {
 	return expr, nil
 }
 
-// parseNot parses NOT expressions
+// parseNot parses NOT expressions.
 func (p *Parser) parseNot() (Expression, error) {
 	if p.match(TokenNot) {
 		expr, err := p.parseNot()
@@ -714,7 +714,7 @@ func (p *Parser) parseNot() (Expression, error) {
 	return p.parseComparison()
 }
 
-// parseComparison parses comparison expressions
+// parseComparison parses comparison expressions.
 func (p *Parser) parseComparison() (Expression, error) {
 	expr, err := p.parseTerm()
 	if err != nil {
@@ -822,7 +822,7 @@ func (p *Parser) parseComparison() (Expression, error) {
 	return expr, nil
 }
 
-// parseTerm parses addition and subtraction
+// parseTerm parses addition and subtraction.
 func (p *Parser) parseTerm() (Expression, error) {
 	expr, err := p.parseFactor()
 	if err != nil {
@@ -845,7 +845,7 @@ func (p *Parser) parseTerm() (Expression, error) {
 	return expr, nil
 }
 
-// parseFactor parses multiplication, division, and modulo
+// parseFactor parses multiplication, division, and modulo.
 func (p *Parser) parseFactor() (Expression, error) {
 	expr, err := p.parseUnary()
 	if err != nil {
@@ -868,7 +868,7 @@ func (p *Parser) parseFactor() (Expression, error) {
 	return expr, nil
 }
 
-// parseUnary parses unary expressions
+// parseUnary parses unary expressions.
 func (p *Parser) parseUnary() (Expression, error) {
 	if p.matchAny(TokenPlus, TokenMinus) {
 		op := p.previous.Type
@@ -885,10 +885,10 @@ func (p *Parser) parseUnary() (Expression, error) {
 	return p.parsePrimary()
 }
 
-// parsePrimary parses primary expressions
+// parsePrimary parses primary expressions.
 func (p *Parser) parsePrimary() (Expression, error) {
 	// Literals
-	switch p.current.Type {
+	switch p.current.Type { //nolint:exhaustive
 	case TokenNumber:
 		value := p.current.Value
 		p.advance()
@@ -945,7 +945,7 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	}
 }
 
-// Helper methods
+// Helper methods.
 
 func (p *Parser) advance() {
 	p.previous = p.current
@@ -1015,9 +1015,9 @@ func (p *Parser) lastError() error {
 	return fmt.Errorf("unknown parse error")
 }
 
-// Additional AST node definitions
+// Additional AST node definitions.
 
-// UpdateStmt represents an UPDATE statement
+// UpdateStmt represents an UPDATE statement.
 type UpdateStmt struct {
 	TableName   string
 	Assignments []Assignment
@@ -1042,13 +1042,13 @@ func (s *UpdateStmt) String() string {
 	return strings.Join(parts, " ")
 }
 
-// Assignment represents a column assignment in UPDATE
+// Assignment represents a column assignment in UPDATE.
 type Assignment struct {
 	Column string
 	Value  Expression
 }
 
-// DeleteStmt represents a DELETE statement
+// DeleteStmt represents a DELETE statement.
 type DeleteStmt struct {
 	TableName string
 	Where     Expression
@@ -1063,7 +1063,7 @@ func (s *DeleteStmt) String() string {
 	return strings.Join(parts, " ")
 }
 
-// DropTableStmt represents a DROP TABLE statement
+// DropTableStmt represents a DROP TABLE statement.
 type DropTableStmt struct {
 	TableName string
 }

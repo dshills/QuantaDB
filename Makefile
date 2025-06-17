@@ -1,4 +1,4 @@
-.PHONY: all build test clean fmt vet lint install
+.PHONY: all build test test-verbose clean fmt vet lint install
 
 # Build variables
 BINARY_NAME=quantadb
@@ -39,6 +39,11 @@ build-ctl:
 
 test:
 	@echo "Running tests..."
+	@$(GOTEST) -cover ./... || (echo "TESTS FAILED" && exit 1)
+	@echo "All tests passed!"
+
+test-verbose:
+	@echo "Running tests (verbose)..."
 	$(GOTEST) -v -cover ./...
 
 test-coverage:
@@ -90,7 +95,8 @@ help:
 	@echo "  make build        - Build both server and CLI"
 	@echo "  make build-server - Build only the server"
 	@echo "  make build-ctl    - Build only the CLI"
-	@echo "  make test         - Run tests"
+	@echo "  make test         - Run tests (quiet, shows only failures)"
+	@echo "  make test-verbose - Run tests with detailed output"
 	@echo "  make test-coverage- Run tests with coverage report"
 	@echo "  make bench        - Run benchmarks"
 	@echo "  make clean        - Clean build artifacts"

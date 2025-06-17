@@ -7,24 +7,24 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
-// Node is the base interface for all AST nodes
+// Node is the base interface for all AST nodes.
 type Node interface {
 	String() string
 }
 
-// Statement is the base interface for all SQL statements
+// Statement is the base interface for all SQL statements.
 type Statement interface {
 	Node
 	statementNode()
 }
 
-// Expression is the base interface for all SQL expressions
+// Expression is the base interface for all SQL expressions.
 type Expression interface {
 	Node
 	expressionNode()
 }
 
-// CreateTableStmt represents a CREATE TABLE statement
+// CreateTableStmt represents a CREATE TABLE statement.
 type CreateTableStmt struct {
 	TableName   string
 	Columns     []ColumnDef
@@ -50,7 +50,7 @@ func (s *CreateTableStmt) String() string {
 	return strings.Join(parts, "")
 }
 
-// ColumnDef represents a column definition
+// ColumnDef represents a column definition.
 type ColumnDef struct {
 	Name        string
 	DataType    types.DataType
@@ -65,27 +65,27 @@ func (c ColumnDef) String() string {
 	return strings.Join(parts, " ")
 }
 
-// ColumnConstraint represents a column constraint
+// ColumnConstraint represents a column constraint.
 type ColumnConstraint interface {
 	String() string
 }
 
-// NotNullConstraint represents a NOT NULL constraint
+// NotNullConstraint represents a NOT NULL constraint.
 type NotNullConstraint struct{}
 
 func (NotNullConstraint) String() string { return "NOT NULL" }
 
-// PrimaryKeyConstraint represents a PRIMARY KEY constraint
+// PrimaryKeyConstraint represents a PRIMARY KEY constraint.
 type PrimaryKeyConstraint struct{}
 
 func (PrimaryKeyConstraint) String() string { return "PRIMARY KEY" }
 
-// UniqueConstraint represents a UNIQUE constraint
+// UniqueConstraint represents a UNIQUE constraint.
 type UniqueConstraint struct{}
 
 func (UniqueConstraint) String() string { return "UNIQUE" }
 
-// DefaultConstraint represents a DEFAULT constraint
+// DefaultConstraint represents a DEFAULT constraint.
 type DefaultConstraint struct {
 	Value Expression
 }
@@ -94,12 +94,12 @@ func (d DefaultConstraint) String() string {
 	return fmt.Sprintf("DEFAULT %s", d.Value.String())
 }
 
-// TableConstraint represents a table-level constraint
+// TableConstraint represents a table-level constraint.
 type TableConstraint interface {
 	String() string
 }
 
-// TablePrimaryKeyConstraint represents a table-level PRIMARY KEY constraint
+// TablePrimaryKeyConstraint represents a table-level PRIMARY KEY constraint.
 type TablePrimaryKeyConstraint struct {
 	Columns []string
 }
@@ -108,7 +108,7 @@ func (c TablePrimaryKeyConstraint) String() string {
 	return fmt.Sprintf("PRIMARY KEY (%s)", strings.Join(c.Columns, ", "))
 }
 
-// InsertStmt represents an INSERT statement
+// InsertStmt represents an INSERT statement.
 type InsertStmt struct {
 	TableName string
 	Columns   []string
@@ -139,7 +139,7 @@ func (s *InsertStmt) String() string {
 	return strings.Join(parts, " ")
 }
 
-// SelectStmt represents a SELECT statement
+// SelectStmt represents a SELECT statement.
 type SelectStmt struct {
 	Columns []SelectColumn
 	From    string
@@ -190,7 +190,7 @@ func (s *SelectStmt) String() string {
 	return strings.Join(parts, " ")
 }
 
-// SelectColumn represents a column in a SELECT statement
+// SelectColumn represents a column in a SELECT statement.
 type SelectColumn struct {
 	Expr  Expression
 	Alias string
@@ -203,7 +203,7 @@ func (c SelectColumn) String() string {
 	return c.Expr.String()
 }
 
-// OrderByClause represents an ORDER BY clause
+// OrderByClause represents an ORDER BY clause.
 type OrderByClause struct {
 	Expr Expression
 	Desc bool
@@ -216,7 +216,7 @@ func (o OrderByClause) String() string {
 	return fmt.Sprintf("%s ASC", o.Expr.String())
 }
 
-// Literal represents a literal value
+// Literal represents a literal value.
 type Literal struct {
 	Value types.Value
 }
@@ -240,7 +240,7 @@ func (l *Literal) String() string {
 	}
 }
 
-// Identifier represents a column or table identifier
+// Identifier represents a column or table identifier.
 type Identifier struct {
 	Name string
 }
@@ -250,7 +250,7 @@ func (i *Identifier) String() string {
 	return i.Name
 }
 
-// Star represents the * in SELECT *
+// Star represents the * in SELECT *.
 type Star struct{}
 
 func (s *Star) expressionNode() {}
@@ -258,7 +258,7 @@ func (s *Star) String() string {
 	return "*"
 }
 
-// BinaryExpr represents a binary expression
+// BinaryExpr represents a binary expression.
 type BinaryExpr struct {
 	Left     Expression
 	Operator TokenType
@@ -270,7 +270,7 @@ func (b *BinaryExpr) String() string {
 	return fmt.Sprintf("(%s %s %s)", b.Left.String(), b.Operator.String(), b.Right.String())
 }
 
-// UnaryExpr represents a unary expression
+// UnaryExpr represents a unary expression.
 type UnaryExpr struct {
 	Operator TokenType
 	Expr     Expression
@@ -281,7 +281,7 @@ func (u *UnaryExpr) String() string {
 	return fmt.Sprintf("%s %s", u.Operator.String(), u.Expr.String())
 }
 
-// ParenExpr represents a parenthesized expression
+// ParenExpr represents a parenthesized expression.
 type ParenExpr struct {
 	Expr Expression
 }
@@ -291,7 +291,7 @@ func (p *ParenExpr) String() string {
 	return fmt.Sprintf("(%s)", p.Expr.String())
 }
 
-// ComparisonExpr represents a comparison expression
+// ComparisonExpr represents a comparison expression.
 type ComparisonExpr struct {
 	Left     Expression
 	Operator TokenType
@@ -303,7 +303,7 @@ func (c *ComparisonExpr) String() string {
 	return fmt.Sprintf("%s %s %s", c.Left.String(), c.Operator.String(), c.Right.String())
 }
 
-// InExpr represents an IN expression
+// InExpr represents an IN expression.
 type InExpr struct {
 	Expr   Expression
 	Values []Expression
@@ -323,7 +323,7 @@ func (i *InExpr) String() string {
 	return fmt.Sprintf("%s IN (%s)", i.Expr.String(), strings.Join(values, ", "))
 }
 
-// BetweenExpr represents a BETWEEN expression
+// BetweenExpr represents a BETWEEN expression.
 type BetweenExpr struct {
 	Expr  Expression
 	Lower Expression
@@ -339,7 +339,7 @@ func (b *BetweenExpr) String() string {
 	return fmt.Sprintf("%s BETWEEN %s AND %s", b.Expr.String(), b.Lower.String(), b.Upper.String())
 }
 
-// IsNullExpr represents an IS NULL expression
+// IsNullExpr represents an IS NULL expression.
 type IsNullExpr struct {
 	Expr Expression
 	Not  bool
