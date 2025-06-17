@@ -345,6 +345,19 @@ func (p *BasicPlanner) convertSelectColumns(columns []parser.SelectColumn) ([]Ex
 	var schemaCols []Column
 	
 	for _, col := range columns {
+		// Check if this is a star expression
+		if _, isStar := col.Expr.(*parser.Star); isStar {
+			// For star expressions, we need the input schema
+			// In a full implementation, we'd expand star to all columns
+			// For now, we'll create a special Star expression that the executor will handle
+			projections = append(projections, &Star{})
+			aliases = append(aliases, "")
+			
+			// Star should preserve the input schema
+			// This is a simplified approach - in reality we'd need to expand columns
+			continue
+		}
+		
 		expr, err := p.convertExpression(col.Expr)
 		if err != nil {
 			return nil, nil, nil, err
@@ -364,6 +377,14 @@ func (p *BasicPlanner) convertSelectColumns(columns []parser.SelectColumn) ([]Ex
 			DataType: expr.DataType(),
 			Nullable: true, // TODO: Determine nullability
 		})
+	}
+	
+	// If we have a star expression and no other columns, return nil schema
+	// The actual schema will be determined from the input
+	if len(projections) == 1 {
+		if _, isStar := projections[0].(*Star); isStar {
+			return projections, aliases, nil, nil
+		}
 	}
 	
 	schema := &Schema{Columns: schemaCols}
