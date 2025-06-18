@@ -111,3 +111,115 @@ func (p *LogicalInsert) Children() []Plan {
 
 // logicalNode marks this as a logical plan node
 func (p *LogicalInsert) logicalNode() {}
+
+// LogicalUpdate represents an UPDATE operation
+type LogicalUpdate struct {
+	basePlan
+	TableName   string
+	SchemaName  string
+	Assignments []parser.Assignment   // Column assignments
+	Where       parser.Expression     // WHERE clause (optional)
+	TableRef    *catalog.Table        // Reference to table metadata
+}
+
+// NewLogicalUpdate creates a new UPDATE plan node
+func NewLogicalUpdate(schemaName, tableName string, assignments []parser.Assignment, where parser.Expression, tableRef *catalog.Table) *LogicalUpdate {
+	return &LogicalUpdate{
+		basePlan:    basePlan{},
+		SchemaName:  schemaName,
+		TableName:   tableName,
+		Assignments: assignments,
+		Where:       where,
+		TableRef:    tableRef,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalUpdate) Type() string {
+	return "Update"
+}
+
+// Schema returns the output schema (rows affected)
+func (p *LogicalUpdate) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "rows_affected",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalUpdate) String() string {
+	whereStr := ""
+	if p.Where != nil {
+		whereStr = " WHERE ..."
+	}
+	return fmt.Sprintf("Update(%s.%s, %d assignments%s)", p.SchemaName, p.TableName, len(p.Assignments), whereStr)
+}
+
+// Children returns child plans (none for UPDATE)
+func (p *LogicalUpdate) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalUpdate) logicalNode() {}
+
+// LogicalDelete represents a DELETE operation
+type LogicalDelete struct {
+	basePlan
+	TableName  string
+	SchemaName string
+	Where      parser.Expression // WHERE clause (optional)
+	TableRef   *catalog.Table    // Reference to table metadata
+}
+
+// NewLogicalDelete creates a new DELETE plan node
+func NewLogicalDelete(schemaName, tableName string, where parser.Expression, tableRef *catalog.Table) *LogicalDelete {
+	return &LogicalDelete{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		Where:      where,
+		TableRef:   tableRef,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalDelete) Type() string {
+	return "Delete"
+}
+
+// Schema returns the output schema (rows affected)
+func (p *LogicalDelete) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "rows_affected",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalDelete) String() string {
+	whereStr := ""
+	if p.Where != nil {
+		whereStr = " WHERE ..."
+	}
+	return fmt.Sprintf("Delete(%s.%s%s)", p.SchemaName, p.TableName, whereStr)
+}
+
+// Children returns child plans (none for DELETE)
+func (p *LogicalDelete) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalDelete) logicalNode() {}

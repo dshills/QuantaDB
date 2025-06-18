@@ -59,6 +59,17 @@ func (v Value) String() string {
 	return fmt.Sprintf("%v", v.Data)
 }
 
+// AsBool returns the value as a boolean
+func (v Value) AsBool() (bool, error) {
+	if v.Null {
+		return false, fmt.Errorf("cannot convert NULL to bool")
+	}
+	if b, ok := v.Data.(bool); ok {
+		return b, nil
+	}
+	return false, fmt.Errorf("cannot convert %T to bool", v.Data)
+}
+
 // CompareValues compares two values, handling NULLs
 // NULL is considered less than any non-NULL value
 func CompareValues(a, b Value) int {
@@ -71,8 +82,74 @@ func CompareValues(a, b Value) int {
 	if b.Null {
 		return 1
 	}
-	// Both non-null, compare actual values
-	return 0 // Will be overridden by specific type
+	// Both non-null, compare actual values based on type
+	switch v1 := a.Data.(type) {
+	case int32:
+		if v2, ok := b.Data.(int32); ok {
+			if v1 < v2 {
+				return -1
+			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		}
+	case int64:
+		if v2, ok := b.Data.(int64); ok {
+			if v1 < v2 {
+				return -1
+			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		}
+	case int:
+		if v2, ok := b.Data.(int); ok {
+			if v1 < v2 {
+				return -1
+			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		}
+	case string:
+		if v2, ok := b.Data.(string); ok {
+			if v1 < v2 {
+				return -1
+			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		}
+	case bool:
+		if v2, ok := b.Data.(bool); ok {
+			if !v1 && v2 {
+				return -1
+			} else if v1 && !v2 {
+				return 1
+			}
+			return 0
+		}
+	case float64:
+		if v2, ok := b.Data.(float64); ok {
+			if v1 < v2 {
+				return -1
+			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		}
+	case time.Time:
+		if v2, ok := b.Data.(time.Time); ok {
+			if v1.Before(v2) {
+				return -1
+			} else if v1.After(v2) {
+				return 1
+			}
+			return 0
+		}
+	}
+	// For unsupported types or type mismatches, panic to catch bugs early
+	panic(fmt.Sprintf("CompareValues: unsupported or mismatched types: %T vs %T", a.Data, b.Data))
 }
 
 // Common SQL types

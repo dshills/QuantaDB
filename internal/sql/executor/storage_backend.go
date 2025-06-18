@@ -89,8 +89,11 @@ func (d *DiskStorageBackend) CreateTable(table *catalog.Table) error {
 	pageID := page.Header.PageID
 	defer d.bufferPool.UnpinPage(pageID, true)
 	
-	// Set page type
+	// Set page type and initialize
 	page.Header.Type = storage.PageTypeData
+	page.Header.FreeSpacePtr = storage.PageSize // Start from end of page
+	page.Header.FreeSpace = storage.PageSize - storage.PageHeaderSize
+	page.Header.ItemCount = 0
 	
 	// Create table metadata
 	schema := &Schema{
@@ -185,6 +188,9 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 		pageID = newPageID
 		page = newPage
 		page.Header.Type = storage.PageTypeData
+		page.Header.FreeSpacePtr = storage.PageSize
+		page.Header.FreeSpace = storage.PageSize - storage.PageHeaderSize
+		page.Header.ItemCount = 0
 	}
 	
 	// Insert row into page using slotted page format
@@ -332,8 +338,44 @@ func (it *diskRowIterator) Close() error {
 
 // UpdateRow updates an existing row
 func (d *DiskStorageBackend) UpdateRow(tableID int64, rowID RowID, row *Row) error {
-	// TODO: Implement update with MVCC versioning
-	return fmt.Errorf("update not yet implemented")
+	// Check table exists first with read lock
+	d.mu.RLock()
+	_, exists := d.tableMeta[tableID]
+	d.mu.RUnlock()
+	
+	if !exists {
+		return fmt.Errorf("table %d not found", tableID)
+	}
+	
+	// For MVCC, we don't update in place. Instead:
+	// 1. Insert a new row version
+	// 2. Mark the old row as deleted (but keep it for older transactions)
+	
+	// Insert the new row version first (atomic operation)
+	newRowID, err := d.InsertRow(tableID, row)
+	if err != nil {
+		return fmt.Errorf("failed to insert new row version: %w", err)
+	}
+	
+	// Now mark the old row as deleted using the proper DeleteRow method
+	if err := d.DeleteRow(tableID, rowID); err != nil {
+		// Delete failed, we need to rollback the new row to maintain consistency
+		if rollbackErr := d.DeleteRow(tableID, newRowID); rollbackErr != nil {
+			// Rollback also failed - we're in an inconsistent state
+			return fmt.Errorf("failed to mark old row as deleted: %v; rollback of new row also failed: %w", err, rollbackErr)
+		}
+		return fmt.Errorf("failed to mark old row as deleted, rolled back new version: %w", err)
+	}
+	
+	// In a full MVCC implementation, we would:
+	// - Store transaction IDs with each row version
+	// - Keep track of which versions are visible to which transactions
+	// - Clean up old versions during vacuum
+	
+	// For now, we just inserted a new version and marked the old one as deleted
+	_ = newRowID // The new row ID could be returned or stored for reference
+	
+	return nil
 }
 
 // DeleteRow deletes a row

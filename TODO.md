@@ -2,8 +2,8 @@
 
 ## Summary
 **Total Items**: 5
-**Completed**: 2 ✅
-**Pending**: 3 (2 High 🔴, 1 Medium 🟡)
+**Completed**: 3 ✅
+**Pending**: 2 (1 High 🔴, 1 Medium 🟡)
 **Last Updated**: June 18, 2025
 
 ## Completed Items ✅
@@ -16,19 +16,20 @@
 **Estimated Time**: 1-2 hours
 **Completed**: June 18, 2025 - Added write deadline calls before all write operations in connection handler
 
-## Pending High Priority Items 🔴
-
-### 1. Implement UPDATE and DELETE Operations
+### 2. Implement UPDATE and DELETE Operations ✅
 **Status**: SQL parser ready, needs storage integration
-**Components to implement**:
+**Components implemented**:
 - UpdateOperator with storage backend
 - DeleteOperator with storage backend
-- MVCC versioning for updates
+- MVCC versioning for updates (simplified)
 - Tombstone marking for deletes
 **Impact**: Core SQL functionality incomplete without these operations
 **Estimated Time**: 8-12 hours
+**Completed**: June 18, 2025 - Implemented UPDATE and DELETE operators with MVCC support
 
-### 2. Add Write-Ahead Logging (WAL)
+## Pending High Priority Items 🔴
+
+### 1. Add Write-Ahead Logging (WAL)
 **Purpose**: Essential for durability and crash recovery
 **Components**:
 - Design log record format
@@ -55,7 +56,7 @@
 
 **Recommended Order**:
 1. ✅ **Apply Write Timeouts** (Quick security fix, 1-2 hours) - COMPLETED
-2. **UPDATE/DELETE Operations** (Core functionality, 8-12 hours)
+2. ✅ **UPDATE/DELETE Operations** (Core functionality, 8-12 hours) - COMPLETED
 3. **WAL Implementation** (Critical for production, 2-3 days)
 4. **Index Integration** (Performance optimization, 1-2 days)
 

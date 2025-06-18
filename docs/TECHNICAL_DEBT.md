@@ -68,8 +68,49 @@ err := binary.Read(rand.Reader, binary.BigEndian, &secretKey)
 
 Items are tracked in the main todo list and CURRENT_STATUS.md. This document provides detailed technical context for each issue.
 
+## Query Processing Issues
+
+### MEDIUM: Planner Expression Validation Too Permissive
+**Location**: `internal/sql/planner/planner.go:530`
+**Issue**: validateExpressionColumns default case silently accepts unknown expression types
+**Impact**: Future expression types (e.g., function calls) may have invalid columns that go unvalidated
+**Solution**: Change default case to return error for unsupported expression types
+```go
+default:
+    return fmt.Errorf("unsupported expression type in WHERE: %T", expr)
+}
+```
+
+### MEDIUM: UPDATE Only Supports Literal Values
+**Location**: `internal/sql/executor/update.go:140`
+**Issue**: UPDATE operator rejects non-literal assignments (e.g., SET col = col + 1)
+**Impact**: Limited UPDATE functionality compared to standard SQL
+**Solution**: Either:
+1. Document limitation clearly in planner and reject early
+2. Implement expression evaluation for assignments
+```go
+// In planUpdate:
+for _, assign := range stmt.Assignments {
+    if _, ok := assign.Value.(*parser.Literal); !ok {
+        return nil, fmt.Errorf("UPDATE only supports literal assignments, got %T", assign.Value)
+    }
+}
+```
+
+## Documentation Issues
+
+### LOW: TODO.md List Numbering
+**Location**: `TODO.md:8`
+**Issue**: High-priority section numbers inconsistent (1→2→1)
+**Impact**: Confusing documentation
+**Solution**: Fix numbering to be sequential
+
 ## Review History
 
 - 2024-12-18: Initial review after PostgreSQL connection stability fixes
   - Identified by: Zen Code Review (flash model)
   - Main fix validated: SSL negotiation using Peek() is correct
+- 2024-12-18: Review after UPDATE/DELETE implementation
+  - Identified by: Zen Code Review (o4-mini model)
+  - Critical and high issues fixed before commit
+  - Medium/low issues documented here for future work

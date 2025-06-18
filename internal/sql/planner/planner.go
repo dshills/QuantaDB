@@ -60,6 +60,10 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 		return p.planSelect(s)
 	case *parser.InsertStmt:
 		return p.planInsert(s)
+	case *parser.UpdateStmt:
+		return p.planUpdate(s)
+	case *parser.DeleteStmt:
+		return p.planDelete(s)
 	case *parser.CreateTableStmt:
 		return p.planCreateTable(s)
 	default:
@@ -167,6 +171,62 @@ func (p *BasicPlanner) planInsert(stmt *parser.InsertStmt) (LogicalPlan, error) 
 	}
 	
 	return NewLogicalInsert("public", stmt.TableName, columns, stmt.Values, table), nil
+}
+
+// planUpdate converts an UPDATE statement to a logical plan.
+func (p *BasicPlanner) planUpdate(stmt *parser.UpdateStmt) (LogicalPlan, error) {
+	// Default to public schema if not specified
+	schemaName := "public"
+	
+	// Get table from catalog
+	table, err := p.catalog.GetTable(schemaName, stmt.TableName)
+	if err != nil {
+		return nil, fmt.Errorf("table '%s' not found: %w", stmt.TableName, err)
+	}
+	
+	// Validate that all columns in assignments exist
+	for _, assignment := range stmt.Assignments {
+		found := false
+		for _, col := range table.Columns {
+			if col.Name == assignment.Column {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("column '%s' not found in table '%s'", assignment.Column, stmt.TableName)
+		}
+	}
+	
+	// Validate WHERE clause column references if present
+	if stmt.Where != nil {
+		if err := p.validateExpressionColumns(stmt.Where, table); err != nil {
+			return nil, fmt.Errorf("invalid WHERE clause: %w", err)
+		}
+	}
+	
+	return NewLogicalUpdate(schemaName, stmt.TableName, stmt.Assignments, stmt.Where, table), nil
+}
+
+// planDelete converts a DELETE statement to a logical plan.
+func (p *BasicPlanner) planDelete(stmt *parser.DeleteStmt) (LogicalPlan, error) {
+	// Default to public schema if not specified
+	schemaName := "public"
+	
+	// Get table from catalog
+	table, err := p.catalog.GetTable(schemaName, stmt.TableName)
+	if err != nil {
+		return nil, fmt.Errorf("table '%s' not found: %w", stmt.TableName, err)
+	}
+	
+	// Validate WHERE clause column references if present
+	if stmt.Where != nil {
+		if err := p.validateExpressionColumns(stmt.Where, table); err != nil {
+			return nil, fmt.Errorf("invalid WHERE clause: %w", err)
+		}
+	}
+	
+	return NewLogicalDelete(schemaName, stmt.TableName, stmt.Where, table), nil
 }
 
 // planCreateTable converts a CREATE TABLE statement to a logical plan.
@@ -472,4 +532,44 @@ func (p *BasicPlanner) optimize(plan LogicalPlan) LogicalPlan {
 		return p.optimizer.Optimize(plan)
 	}
 	return plan
+}
+
+// validateExpressionColumns validates that all column references in an expression exist in the table
+func (p *BasicPlanner) validateExpressionColumns(expr parser.Expression, table *catalog.Table) error {
+	switch e := expr.(type) {
+	case *parser.Identifier:
+		// Check if column exists in table
+		found := false
+		for _, col := range table.Columns {
+			if col.Name == e.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("column '%s' not found in table '%s'", e.Name, table.TableName)
+		}
+		return nil
+		
+	case *parser.BinaryExpr:
+		// Validate both sides of binary expression
+		if err := p.validateExpressionColumns(e.Left, table); err != nil {
+			return err
+		}
+		return p.validateExpressionColumns(e.Right, table)
+		
+	case *parser.UnaryExpr:
+		return p.validateExpressionColumns(e.Expr, table)
+		
+	case *parser.ParenExpr:
+		return p.validateExpressionColumns(e.Expr, table)
+		
+	case *parser.Literal:
+		// Literals don't need validation
+		return nil
+		
+	default:
+		// For other expression types, no validation needed
+		return nil
+	}
 }

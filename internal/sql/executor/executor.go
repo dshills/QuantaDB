@@ -138,6 +138,10 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildCreateTableOperator(p, ctx)
 	case *planner.LogicalInsert:
 		return e.buildInsertOperator(p, ctx)
+	case *planner.LogicalUpdate:
+		return e.buildUpdateOperator(p, ctx)
+	case *planner.LogicalDelete:
+		return e.buildDeleteOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -398,6 +402,24 @@ func (e *BasicExecutor) buildInsertOperator(plan *planner.LogicalInsert, ctx *Ex
 	}
 	
 	return NewInsertOperator(plan.TableRef, e.storage, plan.Values), nil
+}
+
+// buildUpdateOperator builds an UPDATE operator.
+func (e *BasicExecutor) buildUpdateOperator(plan *planner.LogicalUpdate, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	return NewUpdateOperator(plan.TableRef, e.storage, plan.Assignments, plan.Where), nil
+}
+
+// buildDeleteOperator builds a DELETE operator.
+func (e *BasicExecutor) buildDeleteOperator(plan *planner.LogicalDelete, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	return NewDeleteOperator(plan.TableRef, e.storage, plan.Where), nil
 }
 
 // convertSchema converts a planner schema to executor schema.
