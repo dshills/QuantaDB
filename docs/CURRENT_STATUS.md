@@ -111,9 +111,12 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 ## Known Issues
 
 1. **PostgreSQL Client Connection**: ✅ FIXED - SSL negotiation issue resolved, connections now stable
+   - Outstanding: Insecure secret key generation, missing write timeouts
 2. **Transaction Isolation**: MVCC not integrated with storage layer
 3. **Index Usage**: B+Tree indexes exist but aren't used by query planner
 4. **Memory Management**: No memory limits on buffer pool or query execution
+5. **Extended Query Protocol**: Parse/Bind/Execute commands not implemented
+6. **Error Codes**: Generic error codes used instead of specific PostgreSQL SQLSTATE codes
 
 ## Performance Characteristics
 
@@ -125,11 +128,21 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 
 ## Next Steps (Priority Order)
 
-1. **Implement UPDATE and DELETE operations** - SQL parser ready, needs storage integration
-2. **Add Write-Ahead Logging for durability** - Essential for crash recovery
-3. **Integrate indexes with query planner** - B+Tree exists but unused
-4. **Add transaction-storage integration** - MVCC ready but not connected
-5. **Performance optimizations** - Memory limits, query optimization
+### High Priority
+1. **Security: Fix BackendKeyData secret generation** - Use crypto/rand for secure keys
+2. **Stability: Apply write timeouts** - Prevent connection hangs on write operations
+3. **Implement UPDATE and DELETE operations** - SQL parser ready, needs storage integration
+
+### Medium Priority
+4. **Add Write-Ahead Logging for durability** - Essential for crash recovery
+5. **Integrate indexes with query planner** - B+Tree exists but unused
+6. **Implement extended query protocol** - Parse/Bind/Execute for prepared statements
+7. **Improve error handling** - Map errors to specific PostgreSQL SQLSTATE codes
+8. **Fix transaction state timing** - Update state only after successful commit/rollback
+
+### Lower Priority
+9. **Add transaction-storage integration** - MVCC ready but not connected
+10. **Performance optimizations** - Memory limits, query optimization
 
 ## Development Guidelines
 
