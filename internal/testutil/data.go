@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// GenerateKey generates a random key with given prefix
+// GenerateKey generates a random key with given prefix.
 func GenerateKey(prefix string, n int) []byte {
 	return []byte(fmt.Sprintf("%s_%d", prefix, n))
 }

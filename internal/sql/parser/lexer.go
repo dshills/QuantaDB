@@ -102,15 +102,16 @@ func (l *Lexer) NextToken() Token {
 func (l *Lexer) skipWhitespace() {
 	for l.position < len(l.input) {
 		ch := l.input[l.position]
-		if ch == ' ' || ch == '\t' || ch == '\r' {
+		switch ch {
+		case ' ', '\t', '\r':
 			l.position++
 			l.column++
-		} else if ch == '\n' {
+		case '\n':
 			l.position++
 			l.line++
 			l.column = 1
-		} else {
-			break
+		default:
+			return
 		}
 	}
 }
@@ -179,7 +180,7 @@ func (l *Lexer) readIdentifier() Token {
 	tokenType := LookupKeyword(strings.ToUpper(value))
 
 	// Special handling for ORDER BY
-	if tokenType == TokenOrderBy && strings.ToUpper(value) == "ORDER" {
+	if strings.ToUpper(value) == "ORDER" {
 		l.skipWhitespace()
 		if l.position < len(l.input)-1 && strings.ToUpper(l.input[l.position:l.position+2]) == "BY" {
 			l.position += 2
@@ -241,7 +242,8 @@ func (l *Lexer) readQuoted(quoteChar byte, tokenType TokenType, errorMsg string)
 
 	for l.position < len(l.input) {
 		ch := l.input[l.position]
-		if ch == quoteChar {
+		switch ch {
+		case quoteChar:
 			// Check for escaped quote
 			if l.peek(1) == quoteChar {
 				builder.WriteByte(quoteChar)
@@ -259,7 +261,7 @@ func (l *Lexer) readQuoted(quoteChar byte, tokenType TokenType, errorMsg string)
 					Column:   startCol,
 				}
 			}
-		} else if ch == '\n' {
+		case '\n':
 			return Token{
 				Type:     TokenError,
 				Value:    errorMsg,
@@ -267,7 +269,7 @@ func (l *Lexer) readQuoted(quoteChar byte, tokenType TokenType, errorMsg string)
 				Line:     l.line,
 				Column:   startCol,
 			}
-		} else {
+		default:
 			builder.WriteByte(ch)
 			l.position++
 			l.column++

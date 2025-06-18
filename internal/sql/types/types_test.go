@@ -285,7 +285,7 @@ func TestNullHandling(t *testing.T) {
 		// Serialize null
 		data, err := dt.Serialize(nullVal)
 		testutil.AssertNoError(t, err)
-		testutil.AssertTrue(t, data == nil || len(data) == 0, "null should serialize to nil or empty")
+		testutil.AssertTrue(t, len(data) == 0, "null should serialize to nil or empty")
 		
 		// Deserialize null
 		val, err := dt.Deserialize(nil)

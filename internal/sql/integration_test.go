@@ -84,10 +84,10 @@ func TestSQLIntegration(t *testing.T) {
 		// Create row
 		row := &executor.Row{
 			Values: []types.Value{
-				types.NewValue(int64(testRow.id)),
-				types.NewValue(testRow.name),
-				types.NewValue(testRow.department),
-				types.NewValue(int64(testRow.salary)),
+				types.NewIntegerValue(int32(testRow.id)),
+				types.NewTextValue(testRow.name),
+				types.NewTextValue(testRow.department),
+				types.NewIntegerValue(int32(testRow.salary)),
 			},
 		}
 
@@ -257,9 +257,9 @@ func TestEndToEndQuery(t *testing.T) {
 		for _, user := range testUsers {
 			row := &executor.Row{
 				Values: []types.Value{
-					types.NewValue(int64(user.id)),
-					types.NewValue(user.name),
-					types.NewValue(int64(user.age)),
+					types.NewIntegerValue(int32(user.id)),
+					types.NewTextValue(user.name),
+					types.NewIntegerValue(int32(user.age)),
 				},
 			}
 

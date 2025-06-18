@@ -113,10 +113,28 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
-	case "INTEGER", "BIGINT", "SMALLINT":
+	case "INTEGER":
+		v, ok := val.Data.(int32)
+		if !ok {
+			return fmt.Errorf("expected int32, got %T", val.Data)
+		}
+		if err := binary.Write(w, binary.LittleEndian, v); err != nil {
+			return err
+		}
+
+	case "BIGINT":
 		v, ok := val.Data.(int64)
 		if !ok {
 			return fmt.Errorf("expected int64, got %T", val.Data)
+		}
+		if err := binary.Write(w, binary.LittleEndian, v); err != nil {
+			return err
+		}
+
+	case "SMALLINT":
+		v, ok := val.Data.(int16)
+		if !ok {
+			return fmt.Errorf("expected int16, got %T", val.Data)
 		}
 		if err := binary.Write(w, binary.LittleEndian, v); err != nil {
 			return err
@@ -199,8 +217,22 @@ func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (typ
 		}
 		return types.NewValue(v), nil
 
-	case "INTEGER", "BIGINT", "SMALLINT":
+	case "INTEGER":
+		var v int32
+		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+			return types.Value{}, err
+		}
+		return types.NewValue(v), nil
+
+	case "BIGINT":
 		var v int64
+		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+			return types.Value{}, err
+		}
+		return types.NewValue(v), nil
+
+	case "SMALLINT":
+		var v int16
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}

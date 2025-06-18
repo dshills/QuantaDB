@@ -65,12 +65,12 @@ func TestBasicExecutor(t *testing.T) {
 	for _, user := range testUsers {
 		row := &Row{
 			Values: []types.Value{
-				types.NewValue(int64(user.id)),
-				types.NewValue(user.name),
+				types.NewIntegerValue(int32(user.id)),
+				types.NewTextValue(user.name),
 			},
 		}
 		if user.age != nil {
-			row.Values = append(row.Values, types.NewValue(int64(*user.age)))
+			row.Values = append(row.Values, types.NewIntegerValue(int32(*user.age)))
 		} else {
 			row.Values = append(row.Values, types.NewNullValue())
 		}

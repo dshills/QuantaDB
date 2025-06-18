@@ -78,9 +78,19 @@ func (s *ScanOperator) Open(ctx *ExecContext) error {
 
 	// Create iterator for table scan
 	var err error
-	// For now, we don't support scanning within transactions
-	// We'll need to extend the Transaction interface to support this
-	s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
+	// Use transaction if available, otherwise use engine directly
+	if ctx.Txn != nil {
+		// For MVCC transactions, we need to implement scan separately
+		// For now, fall back to engine scan with transaction context
+		if ctx.LegacyTxn != nil {
+			// TODO: Implement transactional scan when Transaction interface supports it
+			s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
+		} else {
+			s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
+		}
+	} else {
+		s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
+	}
 
 	if err != nil {
 		return fmt.Errorf("failed to create scan iterator: %w", err)
@@ -98,15 +108,35 @@ func (s *ScanOperator) Next() (*Row, error) {
 	// Keep scanning until we find a valid row key
 	for s.iterator.Next() {
 		key := s.iterator.Key()
-		value := s.iterator.Value()
-
-		if key == nil || value == nil {
+		
+		if key == nil {
 			continue
 		}
 
 		// Check if this is a row key for our table
 		if !s.keyFormat.IsRowKey(key) {
 			continue
+		}
+
+		var value []byte
+		var err error
+		
+		// If we have an MVCC transaction, read through it to get proper versioning
+		if s.ctx.Txn != nil {
+			value, err = s.ctx.Txn.Get(key)
+			if err != nil {
+				// Skip keys that are not visible in this transaction
+				if err == engine.ErrKeyNotFound {
+					continue
+				}
+				return nil, fmt.Errorf("failed to read key %s through transaction: %w", string(key), err)
+			}
+		} else {
+			// Direct engine read
+			value = s.iterator.Value()
+			if value == nil {
+				continue
+			}
 		}
 
 		// Update statistics

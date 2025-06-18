@@ -29,10 +29,10 @@ func TestRowSerialization(t *testing.T) {
 			name: "All non-null values",
 			row: &Row{
 				Values: []types.Value{
-					types.NewValue(int64(1)),
-					types.NewValue("John Doe"),
-					types.NewValue(int64(30)),
-					types.NewValue(true),
+					types.NewIntegerValue(int32(1)),
+					types.NewTextValue("John Doe"),
+					types.NewIntegerValue(int32(30)),
+					types.NewBooleanValue(true),
 					types.NewValue(float64(75000.50)), // For decimal, we'll use float64 for now
 				},
 			},
@@ -41,10 +41,10 @@ func TestRowSerialization(t *testing.T) {
 			name: "With null values",
 			row: &Row{
 				Values: []types.Value{
-					types.NewValue(int64(2)),
-					types.NewValue("Jane Smith"),
+					types.NewIntegerValue(int32(2)),
+					types.NewTextValue("Jane Smith"),
 					types.NewNullValue(), // null age
-					types.NewValue(false),
+					types.NewBooleanValue(false),
 					types.NewNullValue(), // null salary
 				},
 			},
@@ -53,10 +53,10 @@ func TestRowSerialization(t *testing.T) {
 			name: "Empty string",
 			row: &Row{
 				Values: []types.Value{
-					types.NewValue(int64(3)),
-					types.NewValue(""),
-					types.NewValue(int64(25)),
-					types.NewValue(true),
+					types.NewIntegerValue(int32(3)),
+					types.NewTextValue(""),
+					types.NewIntegerValue(int32(25)),
+					types.NewBooleanValue(true),
 					types.NewValue(float64(0.0)),
 				},
 			},

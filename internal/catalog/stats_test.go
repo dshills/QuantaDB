@@ -174,11 +174,10 @@ func (op ComparisonOp) String() string {
 
 func TestHistogramBucket(t *testing.T) {
 	bucket := HistogramBucket{
-		LowerBound:    types.NewValue(int64(0)),
-		UpperBound:    types.NewValue(int64(100)),
 		Frequency:     1000,
 		DistinctCount: 50,
 	}
+	bucket.UpperBound = types.NewValue(int64(100))
 
 	if bucket.Frequency != 1000 {
 		t.Errorf("Expected frequency 1000, got %d", bucket.Frequency)

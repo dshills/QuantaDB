@@ -17,16 +17,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\n")
 		flag.PrintDefaults()
 	}
-	
+
 	flag.Parse()
-	
+
 	if flag.NArg() < 1 {
 		flag.Usage()
 		os.Exit(1)
 	}
-	
+
 	command := flag.Arg(0)
-	
+
 	switch command {
 	case "status":
 		fmt.Println("Cluster status: Not implemented")

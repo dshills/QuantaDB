@@ -153,13 +153,11 @@ func (c *MemoryCatalog) CreateTable(tableSchema *TableSchema) (*Table, error) {
 		
 		// Handle column constraints
 		for _, constraint := range colDef.Constraints {
-			switch constraint.(type) {
+			switch constraint := constraint.(type) {
 			case NotNullConstraint:
 				column.IsNullable = false
 			case DefaultConstraint:
-				if dc, ok := constraint.(DefaultConstraint); ok {
-					column.DefaultValue = dc.Value
-				}
+				column.DefaultValue = constraint.Value
 			}
 		}
 	}

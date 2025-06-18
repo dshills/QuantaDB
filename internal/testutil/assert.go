@@ -29,7 +29,7 @@ func AssertError(t *testing.T, err error) {
 	}
 }
 
-// AssertTrue checks that condition is true
+// AssertTrue checks that condition is true.
 func AssertTrue(t *testing.T, condition bool, msg string) {
 	t.Helper()
 	if !condition {
@@ -37,7 +37,7 @@ func AssertTrue(t *testing.T, condition bool, msg string) {
 	}
 }
 
-// AssertFalse checks that condition is false
+// AssertFalse checks that condition is false.
 func AssertFalse(t *testing.T, condition bool, msg string) {
 	t.Helper()
 	if condition {

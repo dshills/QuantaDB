@@ -7,6 +7,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/txn"
 )
 
 // Executor executes query plans.
@@ -30,8 +31,12 @@ type ExecContext struct {
 	Catalog catalog.Catalog
 	// Storage engine for data access
 	Engine engine.Engine
-	// Transaction context (optional)
-	Txn engine.Transaction
+	// Transaction manager for MVCC transactions
+	TxnManager *txn.Manager
+	// Current transaction (optional)
+	Txn *txn.MvccTransaction
+	// Legacy transaction for backward compatibility
+	LegacyTxn engine.Transaction
 	// Parameters for prepared statements
 	Params []types.Value
 	// Statistics collector

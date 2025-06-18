@@ -48,7 +48,8 @@ func (t *integerType) Serialize(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("expected int32, got %T", v.Data)
 	}
 
-	if val < -2147483648 || val > 2147483647 { // int32 bounds
+	// Check if value is within int32 bounds
+	if val > 2147483647 { // int32 max
 		return nil, fmt.Errorf("integer value %d out of range for int32", val)
 	}
 	buf := make([]byte, 4)
