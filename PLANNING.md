@@ -1,5 +1,25 @@
 # PLANNING.md
 
+## Project Status Summary
+**Current Version**: v0.1.0-alpha  
+**Development Stage**: Pre-production (Core functionality complete)  
+**Key Achievement**: PostgreSQL-compatible SQL database with MVCC transactions
+
+### What Works Today
+- ✅ Connect with any PostgreSQL client (psql, pgAdmin, etc.)
+- ✅ Execute SELECT queries with WHERE, ORDER BY, LIMIT
+- ✅ JOIN operations (Hash Join, Nested Loop)
+- ✅ Aggregate functions with GROUP BY
+- ✅ Transaction support with full MVCC
+- ✅ Multiple concurrent connections
+
+### What's Missing for Production
+- ❌ Data persistence (memory-only currently)
+- ❌ INSERT, UPDATE, DELETE operations
+- ❌ Indexes for performance
+- ❌ Authentication and security
+- ❌ Distributed capabilities
+
 ## Project Overview
 QuantaDB is a distributed, high-performance SQL database designed for scalability and reliability. It aims to provide:
 - Full SQL compatibility (starting with core SQL-92 features)
@@ -67,8 +87,9 @@ QuantaDB/
 │   │   ├── planner/     # Query planner (COMPLETED)
 │   │   └── executor/    # Query executor (COMPLETED)
 │   ├── catalog/         # Table/schema metadata (COMPLETED)
+│   ├── txn/             # Transaction management with MVCC (COMPLETED)
+│   ├── network/         # PostgreSQL wire protocol (COMPLETED)
 │   ├── cluster/         # Distributed systems logic (TODO)
-│   ├── network/         # Network layer (TODO)
 │   └── testutil/        # Testing utilities (COMPLETED)
 ├── pkg/                 # Public packages
 │   ├── client/          # Go client library (TODO)
@@ -85,11 +106,13 @@ QuantaDB/
 - Load testing framework for distributed scenarios
 - Current test coverage:
   - Storage engine: 90.4%
-  - SQL parser: 83.3%
+  - SQL parser: 83.2%
   - SQL types: 78.6%
   - SQL planner: 58.9%
-  - SQL executor: 59.2%
-  - Catalog: 78.4%
+  - SQL executor: 58.2%
+  - Catalog: 78.3%
+  - Transaction manager: 77.1%
+  - Network layer: Basic tests
   - Logging: 79.2%
   - Testutil: 70.6%
 
@@ -104,6 +127,25 @@ make fmt           # Format code
 make vet           # Run go vet
 make lint          # Run golangci-lint
 make clean         # Clean build artifacts
+```
+
+## Quick Start
+```bash
+# Clone and build
+git clone https://github.com/dshills/QuantaDB
+cd QuantaDB
+make build
+
+# Start the server
+./build/quantadb --port 5432
+
+# Connect with psql (in another terminal)
+psql -h localhost -p 5432 -U user -d database
+
+# Try some queries
+SELECT * FROM users;
+SELECT name, COUNT(*) FROM users GROUP BY name;
+SELECT u.name, p.name FROM users u JOIN products p ON u.id = p.id;
 ```
 
 ## Environment setup
@@ -134,32 +176,46 @@ make clean         # Clean build artifacts
 - **SQL Parser**: Full SQL parsing with AST generation
 - **Type System**: Complete SQL data types (INTEGER, VARCHAR, TIMESTAMP, etc.)
 - **Query Planner**: Logical and physical query planning with cost-based optimization
-- **Query Executor**: Full operator pipeline (Scan, Filter, Project, Limit, Sort, Join, Aggregate)
+- **Query Executor**: Full operator pipeline (scan, filter, join, aggregate, sort, project, limit)
+- **Catalog Manager**: Schema and table metadata management
+- **Transaction Manager**: MVCC implementation with isolation levels
+- **Network Layer**: PostgreSQL wire protocol v3 implementation
 - **Storage Engine**: Memory-based storage with pluggable interface
-- **Catalog System**: Schema and table metadata management
 - **Logging Framework**: Structured logging with slog
 
 ### Implemented Features
-- Basic SQL operations (SELECT, INSERT, CREATE TABLE, etc.)
+- Basic SQL operations (SELECT with WHERE, ORDER BY, LIMIT)
 - JOIN operations (Hash Join, Nested Loop Join)
 - Aggregation functions (SUM, COUNT, AVG, MIN, MAX)
-- Sorting (ORDER BY)
-- Filtering (WHERE clauses)
+- Transaction support (BEGIN, COMMIT, ROLLBACK)
+- MVCC with multiple isolation levels
+- PostgreSQL client compatibility
 - Expression evaluation (arithmetic, logical, comparison)
-- Comprehensive linting and code quality (0 critical issues)
+- Comprehensive test coverage and code quality
 
-## Future considerations
-- Transaction support with MVCC
-- Distributed consensus (Raft implementation)
-- Network layer (PostgreSQL wire protocol)
-- Index management (B+Tree implementation)
+### Production Readiness Status
+- ✅ Core SQL engine functional
+- ✅ PostgreSQL wire protocol implemented
+- ✅ Transaction support with MVCC
+- ⚠️  Memory-only storage (no persistence)
+- ⚠️  No authentication/authorization
+- ⚠️  Limited SQL operations (SELECT only)
+- ❌ No distributed capabilities
+- ❌ No backup/recovery
+- ❌ No monitoring/metrics
+
+### Immediate Next Steps
+1. **B+Tree Indexing**: Essential for query performance
+2. **Persistent Storage**: Replace memory engine with disk-based storage
+3. **DML Operations**: Implement INSERT, UPDATE, DELETE
+4. **Authentication**: Add user management and auth
+5. **Extended Protocol**: Support prepared statements
+
+### Future Roadmap
+- Distributed consensus (Raft)
+- Replication and sharding
 - Query optimization improvements
-- Window functions
-- Stored procedures
-- Triggers
-- Views and materialized views
-- Full-text search
-- JSON/JSONB data type
-- Geospatial support
-- Parallel query execution
-- Column-store option for analytics
+- Advanced SQL features (CTEs, window functions)
+- Monitoring and observability
+- Backup and recovery
+- Performance optimizations

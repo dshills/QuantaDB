@@ -22,9 +22,10 @@ type BasicPlanner struct {
 
 // NewBasicPlanner creates a new basic planner.
 func NewBasicPlanner() *BasicPlanner {
+	cat := catalog.NewMemoryCatalog()
 	return &BasicPlanner{
-		catalog:   catalog.NewMemoryCatalog(),
-		optimizer: NewOptimizer(),
+		catalog:   cat,
+		optimizer: NewOptimizerWithCatalog(cat),
 	}
 }
 
@@ -32,7 +33,7 @@ func NewBasicPlanner() *BasicPlanner {
 func NewBasicPlannerWithCatalog(cat catalog.Catalog) *BasicPlanner {
 	return &BasicPlanner{
 		catalog:   cat,
-		optimizer: NewOptimizer(),
+		optimizer: NewOptimizerWithCatalog(cat),
 	}
 }
 

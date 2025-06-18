@@ -1,5 +1,7 @@
 package planner
 
+import "github.com/dshills/QuantaDB/internal/catalog"
+
 // OptimizationRule represents a rule that transforms logical plans.
 type OptimizationRule interface {
 	// Apply attempts to apply this rule to the given plan.
@@ -9,7 +11,8 @@ type OptimizationRule interface {
 
 // Optimizer applies optimization rules to logical plans.
 type Optimizer struct {
-	rules []OptimizationRule
+	rules   []OptimizationRule
+	catalog catalog.Catalog
 }
 
 // NewOptimizer creates a new optimizer with default rules.
@@ -19,6 +22,20 @@ func NewOptimizer() *Optimizer {
 			&PredicatePushdown{},
 			&ProjectionPushdown{},
 			&ConstantFolding{},
+		},
+	}
+}
+
+// NewOptimizerWithCatalog creates a new optimizer with catalog for index selection.
+func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
+	indexSelection := &IndexSelection{catalog: cat}
+	return &Optimizer{
+		catalog: cat,
+		rules: []OptimizationRule{
+			&PredicatePushdown{},
+			&ProjectionPushdown{},
+			&ConstantFolding{},
+			indexSelection,
 		},
 	}
 }
@@ -227,4 +244,22 @@ func explainPlan(plan Plan, indent string) string {
 // ExplainPlan returns a string representation of the plan tree.
 func ExplainPlan(plan Plan) string {
 	return explainPlan(plan, "")
+}
+
+// IndexSelection selects appropriate indexes for table scans.
+type IndexSelection struct {
+	catalog catalog.Catalog
+}
+
+// SetCatalog sets the catalog for index selection.
+func (is *IndexSelection) SetCatalog(cat catalog.Catalog) {
+	is.catalog = cat
+}
+
+// Apply attempts to replace scan+filter combinations with index scans.
+func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
+	// TODO: For now, this is a placeholder
+	// The actual implementation would need access to the catalog
+	// to check available indexes
+	return plan, false
 }
