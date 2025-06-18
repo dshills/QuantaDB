@@ -110,7 +110,7 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 
 ## Known Issues
 
-1. **PostgreSQL Client Connection**: psql connections timeout during protocol handshake
+1. **PostgreSQL Client Connection**: ✅ FIXED - SSL negotiation issue resolved, connections now stable
 2. **Transaction Isolation**: MVCC not integrated with storage layer
 3. **Index Usage**: B+Tree indexes exist but aren't used by query planner
 4. **Memory Management**: No memory limits on buffer pool or query execution
@@ -125,11 +125,11 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 
 ## Next Steps (Priority Order)
 
-1. **Fix PostgreSQL client connection stability**
-2. **Implement UPDATE and DELETE operations**
-3. **Add Write-Ahead Logging for durability**
-4. **Integrate indexes with query planner**
-5. **Add transaction-storage integration**
+1. **Implement UPDATE and DELETE operations** - SQL parser ready, needs storage integration
+2. **Add Write-Ahead Logging for durability** - Essential for crash recovery
+3. **Integrate indexes with query planner** - B+Tree exists but unused
+4. **Add transaction-storage integration** - MVCC ready but not connected
+5. **Performance optimizations** - Memory limits, query optimization
 
 ## Development Guidelines
 

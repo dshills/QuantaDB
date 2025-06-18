@@ -75,12 +75,12 @@ func (s *Server) SetStorageBackend(storage executor.StorageBackend) {
 // Start starts the server
 func (s *Server) Start(ctx context.Context) error {
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
-	
+
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
-	
+
 	s.listener = listener
 	s.logger.Info("Server listening", "address", addr)
 
@@ -93,25 +93,25 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop gracefully stops the server
 func (s *Server) Stop() error {
 	s.logger.Info("Stopping server")
-	
+
 	// Signal shutdown
 	close(s.shutdown)
-	
+
 	// Close listener
 	if s.listener != nil {
 		s.listener.Close()
 	}
-	
+
 	// Close all connections
 	s.mu.Lock()
 	for _, conn := range s.connections {
 		conn.Close()
 	}
 	s.mu.Unlock()
-	
+
 	// Wait for all goroutines
 	s.wg.Wait()
-	
+
 	s.logger.Info("Server stopped")
 	return nil
 }
@@ -129,7 +129,7 @@ func (s *Server) acceptLoop(ctx context.Context) {
 			if deadline, ok := ctx.Deadline(); ok {
 				s.listener.(*net.TCPListener).SetDeadline(deadline)
 			}
-			
+
 			conn, err := s.listener.Accept()
 			if err != nil {
 				select {
@@ -140,18 +140,18 @@ func (s *Server) acceptLoop(ctx context.Context) {
 					continue
 				}
 			}
-			
+
 			// Check connection limit
 			s.mu.RLock()
 			connCount := len(s.connections)
 			s.mu.RUnlock()
-			
+
 			if connCount >= s.config.MaxConnections {
 				s.logger.Warn("Connection limit reached", "limit", s.config.MaxConnections)
 				conn.Close()
 				continue
 			}
-			
+
 			// Handle connection
 			s.wg.Add(1)
 			go s.handleConnection(ctx, conn)
@@ -162,10 +162,10 @@ func (s *Server) acceptLoop(ctx context.Context) {
 // handleConnection handles a single client connection
 func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 	defer s.wg.Done()
-	
+
 	// Create connection ID
 	connID := atomic.AddUint32(&s.nextConnID, 1)
-	
+
 	// Create connection wrapper
 	conn := &Connection{
 		id:         connID,
@@ -179,28 +179,28 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 		state:      StateStartup,
 		params:     make(map[string]string),
 	}
-	
+
 	// Register connection
 	s.mu.Lock()
 	s.connections[connID] = conn
 	s.mu.Unlock()
-	
+
 	// Remove connection on exit
 	defer func() {
 		s.mu.Lock()
 		delete(s.connections, connID)
 		s.mu.Unlock()
 	}()
-	
+
 	// Set timeouts
 	conn.SetReadTimeout(s.config.ReadTimeout)
 	conn.SetWriteTimeout(s.config.WriteTimeout)
-	
+
 	// Handle connection
 	if err := conn.Handle(ctx); err != nil {
 		conn.logger.Error("Connection error", "error", err)
 	}
-	
+
 	// Close connection
 	conn.Close()
 }

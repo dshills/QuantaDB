@@ -248,8 +248,8 @@ type Bind struct {
 
 // Execute represents an Execute message
 type Execute struct {
-	Portal   string
-	MaxRows  int32
+	Portal  string
+	MaxRows int32
 }
 
 // ParseExecute parses an Execute message from data

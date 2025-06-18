@@ -30,6 +30,15 @@ const (
 	StateClosed
 )
 
+// stateNames maps connection states to readable names
+var stateNames = map[int]string{
+	StateStartup:        "Startup",
+	StateAuthentication: "Authentication",
+	StateReady:          "Ready",
+	StateBusy:           "Busy",
+	StateClosed:         "Closed",
+}
+
 // Connection represents a client connection
 type Connection struct {
 	id         uint32
@@ -61,22 +70,45 @@ type PreparedStatement struct {
 	Plan  planner.Plan
 }
 
+// setState sets the connection state and logs the transition
+func (c *Connection) setState(newState int) {
+	oldStateName := stateNames[c.state]
+	newStateName := stateNames[newState]
+
+	if c.state != newState {
+		c.logger.Debug("Connection state change",
+			"conn_id", c.id,
+			"old_state", oldStateName,
+			"new_state", newStateName)
+		c.state = newState
+	}
+}
+
 // Handle handles the connection lifecycle
 func (c *Connection) Handle(ctx context.Context) error {
 	c.reader = bufio.NewReader(c.conn)
 	c.writer = bufio.NewWriter(c.conn)
 	c.preparedStmts = make(map[string]*PreparedStatement)
 
+	// Set initial state
+	c.setState(StateStartup)
+
 	// Reset timeout for startup phase
-	c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-	
+	if c.server.config.ReadTimeout > 0 {
+		c.conn.SetReadDeadline(time.Now().Add(c.server.config.ReadTimeout))
+	}
+
 	// Handle startup
 	if err := c.handleStartup(); err != nil {
+		c.sendError(err)
+		c.writer.Flush() // Ensure error is sent
 		return fmt.Errorf("startup failed: %w", err)
 	}
 
 	// Handle authentication
 	if err := c.handleAuthentication(); err != nil {
+		c.sendError(err)
+		c.writer.Flush() // Ensure error is sent
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
@@ -92,8 +124,10 @@ func (c *Connection) Handle(ctx context.Context) error {
 			return ctx.Err()
 		default:
 			// Reset read deadline for each message
-			c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-			
+			if c.server.config.ReadTimeout > 0 {
+				c.conn.SetReadDeadline(time.Now().Add(c.server.config.ReadTimeout))
+			}
+
 			msg, err := protocol.ReadMessage(c.reader)
 			if err != nil {
 				if err == io.EOF {
@@ -115,92 +149,52 @@ func (c *Connection) Handle(ctx context.Context) error {
 
 // handleStartup handles the startup phase
 func (c *Connection) handleStartup() error {
-	// First, check for SSL request
 	// Peek at the first 8 bytes to check for SSL request
-	lengthBuf := make([]byte, 8)
-	_, err := io.ReadFull(c.reader, lengthBuf)
+	peekBuf, err := c.reader.Peek(8)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to peek startup message: %w", err)
 	}
-	
+
 	// Check if this is an SSL request
-	length := int(binary.BigEndian.Uint32(lengthBuf[:4]))
-	version := binary.BigEndian.Uint32(lengthBuf[4:])
-	
+	length := int(binary.BigEndian.Uint32(peekBuf[:4]))
+	version := binary.BigEndian.Uint32(peekBuf[4:])
+
+	c.logger.Debug("Startup message received", "length", length, "version", version)
+
 	if length == 8 && version == protocol.SSLRequestCode {
+		c.logger.Debug("SSL request detected")
+
+		// Consume the 8 bytes we peeked
+		_, err := c.reader.Discard(8)
+		if err != nil {
+			return fmt.Errorf("failed to discard SSL request bytes: %w", err)
+		}
+
 		// SSL request - respond with 'N' (no SSL support)
 		if _, err := c.conn.Write([]byte{'N'}); err != nil {
 			return fmt.Errorf("failed to send SSL response: %w", err)
 		}
-		
+
+		c.logger.Debug("SSL response sent (no SSL support)")
+
 		// Now read the actual startup message
 		params, err := protocol.ReadStartupMessage(c.reader)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read startup message after SSL: %w", err)
 		}
 		c.params = params
 	} else {
-		// Not an SSL request, handle as normal startup
-		// We already read 8 bytes, need to read the rest
-		remainingLength := length - 8
-		remainingData := make([]byte, remainingLength)
-		if _, err := io.ReadFull(c.reader, remainingData); err != nil {
-			return err
+		// Not an SSL request, read as normal startup message
+		c.logger.Debug("Regular startup message detected")
+
+		params, err := protocol.ReadStartupMessage(c.reader)
+		if err != nil {
+			return fmt.Errorf("failed to read startup message: %w", err)
 		}
-		
-		// Reconstruct the full message
-		fullData := append(lengthBuf[4:], remainingData...)
-		
-		// Parse startup message manually
-		version := binary.BigEndian.Uint32(fullData[:4])
-		if version != protocol.ProtocolVersion {
-			return fmt.Errorf("unsupported protocol version: %d", version)
-		}
-		
-		// Parse parameters
-		params := make(map[string]string)
-		data := fullData[4:] // Skip version
-		
-		for len(data) > 0 {
-			// Find null terminator
-			nullIdx := -1
-			for i, b := range data {
-				if b == 0 {
-					nullIdx = i
-					break
-				}
-			}
-			
-			if nullIdx == -1 || nullIdx == 0 {
-				break
-			}
-			
-			key := string(data[:nullIdx])
-			data = data[nullIdx+1:]
-			
-			// Find value null terminator
-			nullIdx = -1
-			for i, b := range data {
-				if b == 0 {
-					nullIdx = i
-					break
-				}
-			}
-			
-			if nullIdx == -1 {
-				break
-			}
-			
-			value := string(data[:nullIdx])
-			data = data[nullIdx+1:]
-			
-			params[key] = value
-		}
-		
 		c.params = params
 	}
 
-	c.logger.Info("Client connected", 
+	c.logger.Info("Client connected",
 		"user", c.params["user"],
 		"database", c.params["database"],
 		"application", c.params["application_name"])
@@ -215,12 +209,12 @@ func (c *Connection) handleStartup() error {
 
 	// Send parameter status messages
 	parameters := map[string]string{
-		"server_version":    "15.0 (QuantaDB 0.1.0)",
-		"server_encoding":   "UTF8",
-		"client_encoding":   "UTF8",
-		"DateStyle":         "ISO, MDY",
-		"integer_datetimes": "on",
-		"TimeZone":          "UTC",
+		"server_version":              "15.0 (QuantaDB 0.1.0)",
+		"server_encoding":             "UTF8",
+		"client_encoding":             "UTF8",
+		"DateStyle":                   "ISO, MDY",
+		"integer_datetimes":           "on",
+		"TimeZone":                    "UTC",
 		"standard_conforming_strings": "on",
 	}
 
@@ -248,8 +242,9 @@ func (c *Connection) handleStartup() error {
 
 // handleAuthentication handles authentication
 func (c *Connection) handleAuthentication() error {
+	c.setState(StateAuthentication)
 	// For now, we accept all connections
-	c.state = StateReady
+	c.setState(StateReady)
 	return nil
 }
 
@@ -267,7 +262,7 @@ func (c *Connection) handleMessage(ctx context.Context, msg *protocol.Message) e
 	case protocol.MsgSync:
 		return c.handleSync(ctx)
 	case protocol.MsgTerminate:
-		c.state = StateClosed
+		c.setState(StateClosed)
 		return nil
 	default:
 		return fmt.Errorf("unsupported message type: %c", msg.Type)
@@ -276,7 +271,7 @@ func (c *Connection) handleMessage(ctx context.Context, msg *protocol.Message) e
 
 // handleQuery handles a simple query
 func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) error {
-	c.state = StateBusy
+	c.setState(StateBusy)
 
 	// Parse query
 	q := &protocol.Query{}
@@ -486,7 +481,7 @@ func (c *Connection) sendReadyForQuery() error {
 		return err
 	}
 
-	c.state = StateReady
+	c.setState(StateReady)
 	return c.writer.Flush()
 }
 
@@ -517,8 +512,8 @@ func (c *Connection) SetWriteTimeout(timeout time.Duration) {
 
 // Close closes the connection
 func (c *Connection) Close() error {
-	c.state = StateClosed
-	
+	c.setState(StateClosed)
+
 	// Rollback any active transaction
 	if c.currentTxn != nil {
 		c.currentTxn.Rollback()
