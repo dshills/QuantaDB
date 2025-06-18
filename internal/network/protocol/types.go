@@ -9,6 +9,8 @@ import (
 // Protocol version
 const (
 	ProtocolVersion = 196608 // 3.0
+	SSLRequestCode  = 80877103 // SSL request
+	CancelRequestCode = 80877102 // Cancel request
 )
 
 // Message type identifiers
@@ -179,6 +181,17 @@ func ReadStartupMessage(r io.Reader) (map[string]string, error) {
 
 	// Check protocol version
 	version := binary.BigEndian.Uint32(data[:4])
+	
+	// Handle special requests
+	if version == SSLRequestCode {
+		// This is an SSL request, we need to handle it in the connection handler
+		return nil, fmt.Errorf("SSL request received")
+	}
+	
+	if version == CancelRequestCode {
+		return nil, fmt.Errorf("cancel request received")
+	}
+	
 	if version != ProtocolVersion {
 		return nil, fmt.Errorf("unsupported protocol version: %d", version)
 	}

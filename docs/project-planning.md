@@ -2,48 +2,64 @@
 
 ## Project Status Summary
 **Current Version**: v0.1.0-alpha  
-**Development Stage**: Pre-production (Core functionality complete)  
-**Key Achievement**: PostgreSQL-compatible SQL database with MVCC transactions
+**Development Stage**: Pre-production (Storage integration in progress)  
+**Key Achievement**: PostgreSQL-compatible SQL database with disk-based storage
 
 ### What Works Today
-- ✅ Connect with any PostgreSQL client (psql, pgAdmin, etc.)
+- ✅ Connect with PostgreSQL wire protocol
 - ✅ Execute SELECT queries with WHERE, ORDER BY, LIMIT
 - ✅ JOIN operations (Hash Join, Nested Loop)
 - ✅ Aggregate functions with GROUP BY
 - ✅ Transaction support with full MVCC
 - ✅ Multiple concurrent connections
+- ✅ CREATE TABLE with persistent storage
+- ✅ Basic INSERT operations to disk
+- ✅ Page-based storage with buffer pool
+- ✅ B+Tree index implementation (not integrated)
+
+### What's In Progress
+- 🔄 PostgreSQL client connection stability
+- 🔄 UPDATE and DELETE operations
+- 🔄 Storage-transaction integration
 
 ### What's Missing for Production
-- ❌ Data persistence (memory-only currently)
-- ❌ INSERT, UPDATE, DELETE operations
-- ❌ Indexes for performance
+- ❌ Write-Ahead Logging (WAL)
+- ❌ Index usage in query planning
 - ❌ Authentication and security
 - ❌ Distributed capabilities
+- ❌ Backup and recovery
 
 ## Progress Metrics
-- **Core Components**: 9/9 completed (100%)
+- **Core Components**: 12/12 completed (100%)
+- **Storage Integration**: 70% complete
 - **Test Coverage**: Average 75%+ across all packages
 - **Code Quality**: 0 critical linting issues
-- **Client Compatibility**: PostgreSQL wire protocol v3 ✅
-- **Performance**: 886K+ TPS (in-memory)
+- **Client Compatibility**: PostgreSQL wire protocol v3 (SSL negotiation added)
+- **Performance**: 886K+ TPS (in-memory), disk performance TBD
 
 ## Current Sprint (Q1 2025)
 
 ### High Priority - Core Functionality
-- [ ] **B+Tree Indexing** - Essential for query performance
-  - [ ] Implement B+Tree data structure
-  - [ ] Add index storage and retrieval
+- [x] **Storage Integration** - Connect executor to persistent storage
+  - [x] Implement storage backend interface
+  - [x] Create disk-based table storage
+  - [x] Connect scan operators to storage
+  - [x] Basic row serialization/deserialization
+- [x] **B+Tree Implementation** - Data structure complete
+  - [x] Implement B+Tree data structure
+  - [x] Add basic operations (insert, search, delete)
   - [ ] Integrate with query planner for index selection
-  - [ ] Support primary key and secondary indexes
-- [ ] **Persistent Storage Engine**
-  - [ ] Design page-based storage format
-  - [ ] Implement buffer pool manager
+  - [ ] Persist indexes to disk storage
+- [x] **Persistent Storage Engine** - Basic implementation done
+  - [x] Page-based storage format (8KB pages)
+  - [x] Buffer pool manager with LRU eviction
   - [ ] Add write-ahead logging (WAL)
   - [ ] Create checkpoint mechanism
-- [ ] **DML Operations**
-  - [ ] Implement INSERT statement execution
-  - [ ] Implement UPDATE statement execution
-  - [ ] Implement DELETE statement execution
+- [ ] **DML Operations** - Partially complete
+  - [x] CREATE TABLE with storage persistence
+  - [x] INSERT statement execution (basic)
+  - [ ] UPDATE statement execution
+  - [ ] DELETE statement execution
   - [ ] Add constraint checking during DML
 
 ### Medium Priority - Production Features
@@ -110,17 +126,22 @@ git clone https://github.com/dshills/QuantaDB
 cd QuantaDB
 make build
 
-# Start the server
-./build/quantadb --port 5432
+# Start the server with persistent storage
+./build/quantadb --data ./data --port 5432
 
 # Connect with psql (in another terminal)
 psql -h localhost -p 5432 -U user -d database
 
-# Try some queries
+# Create tables and insert data
+CREATE TABLE users (id INTEGER NOT NULL, name TEXT NOT NULL);
+INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob');
+
+# Query the data
 SELECT * FROM users;
 SELECT name, COUNT(*) FROM users GROUP BY name;
-SELECT u.name, p.name FROM users u JOIN products p ON u.id = p.id;
 ```
+
+**Note**: PostgreSQL client connections are currently unstable. Use for development only.
 
 ## Environment Setup
 1. Install Go 1.24.4 or later

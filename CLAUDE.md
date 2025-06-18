@@ -4,7 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-QuantaDB is a distributed, high-performance database written in Go. This is an early-stage project with minimal initial structure.
+QuantaDB is a PostgreSQL-compatible distributed database written in Go. The project now has persistent storage, SQL query execution, and transaction support.
+
+## Current Status (December 2024)
+
+- ✅ PostgreSQL wire protocol implementation
+- ✅ Full SQL parser and query planner
+- ✅ Disk-based storage with buffer pool
+- ✅ MVCC transaction support
+- ✅ B+Tree index implementation
+- 🔄 Storage integration (70% complete)
+- ❌ Write-Ahead Logging (WAL)
+- ❌ Distributed features
 
 ## Tech Stack
 
@@ -51,9 +62,14 @@ QuantaDB/
 
 ## Key Components
 
-- **Storage Engine** (`internal/engine/`): Pluggable storage interface with in-memory implementation
-- **Logging** (`internal/log/`): Structured logging using slog with JSON/text output
-- **Test Utilities** (`internal/testutil/`): Helper functions for testing
+- **SQL Parser** (`internal/sql/parser/`): Complete SQL parser with lexer and AST
+- **Query Planner** (`internal/sql/planner/`): Logical and physical query planning
+- **Query Executor** (`internal/sql/executor/`): Physical operators and storage integration
+- **Storage Engine** (`internal/storage/`): Page-based disk storage with buffer pool
+- **Transaction Manager** (`internal/txn/`): MVCC-based transaction support
+- **Network Layer** (`internal/network/`): PostgreSQL wire protocol implementation
+- **Index Manager** (`internal/index/`): B+Tree implementation for indexes
+- **Catalog** (`internal/catalog/`): Schema and metadata management
 
 ## Development Notes
 
@@ -61,6 +77,10 @@ QuantaDB/
 - Use Go modules for dependency management
 - Implement comprehensive testing for database reliability
 - Consider performance implications in all design decisions
+- Storage integration is partially complete - CREATE TABLE and INSERT work
+- PostgreSQL client connections have stability issues that need debugging
+- UPDATE/DELETE operations are parsed but not implemented with storage
+- Indexes exist but aren't integrated with query planning yet
 
 ## Linting
 
@@ -69,3 +89,7 @@ QuantaDB/
 ## Commit Guidelines
 
 - Run tests before committing, fix any errors
+
+## Memory Management
+
+- Use files in docs directory for planning and task mgmt

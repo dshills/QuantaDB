@@ -71,6 +71,7 @@ type ExecStats struct {
 type BasicExecutor struct {
 	catalog catalog.Catalog
 	engine  engine.Engine
+	storage StorageBackend
 }
 
 // NewBasicExecutor creates a new basic executor.
@@ -78,7 +79,13 @@ func NewBasicExecutor(catalog catalog.Catalog, engine engine.Engine) *BasicExecu
 	return &BasicExecutor{
 		catalog: catalog,
 		engine:  engine,
+		storage: nil, // Will be set later with SetStorageBackend
 	}
+}
+
+// SetStorageBackend sets the storage backend for the executor
+func (e *BasicExecutor) SetStorageBackend(storage StorageBackend) {
+	e.storage = storage
 }
 
 // Execute executes a query plan.
@@ -127,6 +134,10 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildJoinOperator(p, ctx)
 	case *planner.LogicalAggregate:
 		return e.buildAggregateOperator(p, ctx)
+	case *planner.LogicalCreateTable:
+		return e.buildCreateTableOperator(p, ctx)
+	case *planner.LogicalInsert:
+		return e.buildInsertOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -140,6 +151,12 @@ func (e *BasicExecutor) buildScanOperator(plan *planner.LogicalScan, ctx *ExecCo
 		return nil, fmt.Errorf("table not found: %w", err)
 	}
 
+	// Use storage-backed scan if available
+	if e.storage != nil {
+		return NewStorageScanOperator(table, e.storage), nil
+	}
+	
+	// Fall back to key-value scan
 	return NewScanOperator(table, ctx), nil
 }
 
@@ -356,6 +373,31 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 	}
 
 	return NewAggregateOperator(child, groupBy, aggregates), nil
+}
+
+// buildCreateTableOperator builds a CREATE TABLE operator.
+func (e *BasicExecutor) buildCreateTableOperator(plan *planner.LogicalCreateTable, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	return NewCreateTableOperator(
+		plan.SchemaName,
+		plan.TableName,
+		plan.Columns,
+		plan.Constraints,
+		ctx.Catalog,
+		e.storage,
+	), nil
+}
+
+// buildInsertOperator builds an INSERT operator.
+func (e *BasicExecutor) buildInsertOperator(plan *planner.LogicalInsert, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	return NewInsertOperator(plan.TableRef, e.storage, plan.Values), nil
 }
 
 // convertSchema converts a planner schema to executor schema.

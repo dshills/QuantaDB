@@ -11,6 +11,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/log"
+	"github.com/dshills/QuantaDB/internal/sql/executor"
 	"github.com/dshills/QuantaDB/internal/txn"
 )
 
@@ -20,6 +21,7 @@ type Server struct {
 	listener   net.Listener
 	catalog    catalog.Catalog
 	engine     engine.Engine
+	storage    executor.StorageBackend
 	txnManager *txn.Manager
 	logger     log.Logger
 
@@ -57,11 +59,17 @@ func NewServer(config Config, cat catalog.Catalog, eng engine.Engine, logger log
 		config:      config,
 		catalog:     cat,
 		engine:      eng,
+		storage:     nil, // Set with SetStorageBackend
 		txnManager:  txn.NewManager(eng, nil),
 		logger:      logger,
 		connections: make(map[uint32]*Connection),
 		shutdown:    make(chan struct{}),
 	}
+}
+
+// SetStorageBackend sets the storage backend for the server
+func (s *Server) SetStorageBackend(storage executor.StorageBackend) {
+	s.storage = storage
 }
 
 // Start starts the server
@@ -165,6 +173,7 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 		server:     s,
 		catalog:    s.catalog,
 		engine:     s.engine,
+		storage:    s.storage,
 		txnManager: s.txnManager,
 		logger:     s.logger.With("conn_id", connID),
 		state:      StateStartup,

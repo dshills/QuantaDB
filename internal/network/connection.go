@@ -3,6 +3,7 @@ package network
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -38,6 +39,7 @@ type Connection struct {
 	server     *Server
 	catalog    catalog.Catalog
 	engine     engine.Engine
+	storage    executor.StorageBackend
 	txnManager *txn.Manager
 	logger     log.Logger
 
@@ -65,6 +67,9 @@ func (c *Connection) Handle(ctx context.Context) error {
 	c.writer = bufio.NewWriter(c.conn)
 	c.preparedStmts = make(map[string]*PreparedStatement)
 
+	// Reset timeout for startup phase
+	c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	
 	// Handle startup
 	if err := c.handleStartup(); err != nil {
 		return fmt.Errorf("startup failed: %w", err)
@@ -86,6 +91,9 @@ func (c *Connection) Handle(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+			// Reset read deadline for each message
+			c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+			
 			msg, err := protocol.ReadMessage(c.reader)
 			if err != nil {
 				if err == io.EOF {
@@ -107,17 +115,95 @@ func (c *Connection) Handle(ctx context.Context) error {
 
 // handleStartup handles the startup phase
 func (c *Connection) handleStartup() error {
-	// Read startup message
-	params, err := protocol.ReadStartupMessage(c.reader)
+	// First, check for SSL request
+	// Peek at the first 8 bytes to check for SSL request
+	lengthBuf := make([]byte, 8)
+	_, err := io.ReadFull(c.reader, lengthBuf)
 	if err != nil {
 		return err
 	}
+	
+	// Check if this is an SSL request
+	length := int(binary.BigEndian.Uint32(lengthBuf[:4]))
+	version := binary.BigEndian.Uint32(lengthBuf[4:])
+	
+	if length == 8 && version == protocol.SSLRequestCode {
+		// SSL request - respond with 'N' (no SSL support)
+		if _, err := c.conn.Write([]byte{'N'}); err != nil {
+			return fmt.Errorf("failed to send SSL response: %w", err)
+		}
+		
+		// Now read the actual startup message
+		params, err := protocol.ReadStartupMessage(c.reader)
+		if err != nil {
+			return err
+		}
+		c.params = params
+	} else {
+		// Not an SSL request, handle as normal startup
+		// We already read 8 bytes, need to read the rest
+		remainingLength := length - 8
+		remainingData := make([]byte, remainingLength)
+		if _, err := io.ReadFull(c.reader, remainingData); err != nil {
+			return err
+		}
+		
+		// Reconstruct the full message
+		fullData := append(lengthBuf[4:], remainingData...)
+		
+		// Parse startup message manually
+		version := binary.BigEndian.Uint32(fullData[:4])
+		if version != protocol.ProtocolVersion {
+			return fmt.Errorf("unsupported protocol version: %d", version)
+		}
+		
+		// Parse parameters
+		params := make(map[string]string)
+		data := fullData[4:] // Skip version
+		
+		for len(data) > 0 {
+			// Find null terminator
+			nullIdx := -1
+			for i, b := range data {
+				if b == 0 {
+					nullIdx = i
+					break
+				}
+			}
+			
+			if nullIdx == -1 || nullIdx == 0 {
+				break
+			}
+			
+			key := string(data[:nullIdx])
+			data = data[nullIdx+1:]
+			
+			// Find value null terminator
+			nullIdx = -1
+			for i, b := range data {
+				if b == 0 {
+					nullIdx = i
+					break
+				}
+			}
+			
+			if nullIdx == -1 {
+				break
+			}
+			
+			value := string(data[:nullIdx])
+			data = data[nullIdx+1:]
+			
+			params[key] = value
+		}
+		
+		c.params = params
+	}
 
-	c.params = params
 	c.logger.Info("Client connected", 
-		"user", params["user"],
-		"database", params["database"],
-		"application", params["application_name"])
+		"user", c.params["user"],
+		"database", c.params["database"],
+		"application", c.params["application_name"])
 
 	// Send authentication request
 	auth := &protocol.Authentication{
@@ -230,6 +316,9 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 
 	// Execute query
 	exec := executor.NewBasicExecutor(c.catalog, c.engine)
+	if c.storage != nil {
+		exec.SetStorageBackend(c.storage)
+	}
 	execCtx := &executor.ExecContext{
 		Catalog:    c.catalog,
 		Engine:     c.engine,

@@ -146,14 +146,64 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 
 // planInsert converts an INSERT statement to a logical plan.
 func (p *BasicPlanner) planInsert(stmt *parser.InsertStmt) (LogicalPlan, error) {
-	// TODO: Implement INSERT planning
-	return nil, fmt.Errorf("INSERT planning not yet implemented")
+	// Get table from catalog
+	table, err := p.catalog.GetTable("public", stmt.TableName)
+	if err != nil {
+		return nil, fmt.Errorf("table '%s' not found: %w", stmt.TableName, err)
+	}
+	
+	// Validate column count if columns are specified
+	if len(stmt.Columns) > 0 && len(stmt.Columns) != len(stmt.Values[0]) {
+		return nil, fmt.Errorf("column count mismatch")
+	}
+	
+	// If no columns specified, assume all columns in order
+	columns := stmt.Columns
+	if len(columns) == 0 {
+		columns = make([]string, len(table.Columns))
+		for i, col := range table.Columns {
+			columns[i] = col.Name
+		}
+	}
+	
+	return NewLogicalInsert("public", stmt.TableName, columns, stmt.Values, table), nil
 }
 
 // planCreateTable converts a CREATE TABLE statement to a logical plan.
 func (p *BasicPlanner) planCreateTable(stmt *parser.CreateTableStmt) (LogicalPlan, error) {
-	// TODO: Implement CREATE TABLE planning
-	return nil, fmt.Errorf("CREATE TABLE planning not yet implemented")
+	// Convert parser columns to catalog columns
+	columns := make([]catalog.Column, len(stmt.Columns))
+	for i, col := range stmt.Columns {
+		// Determine if column is nullable by checking constraints
+		nullable := true
+		for _, constraint := range col.Constraints {
+			if _, ok := constraint.(*parser.NotNullConstraint); ok {
+				nullable = false
+				break
+			}
+		}
+		
+		columns[i] = catalog.Column{
+			Name:       col.Name,
+			DataType:   col.DataType,
+			IsNullable: nullable,
+			// TODO: Handle default values
+		}
+	}
+	
+	// Convert table constraints
+	constraints := make([]catalog.Constraint, 0)
+	for _, constraint := range stmt.Constraints {
+		switch con := constraint.(type) {
+		case *parser.TablePrimaryKeyConstraint:
+			constraints = append(constraints, catalog.PrimaryKeyConstraint{
+				Columns: con.Columns,
+			})
+		// TODO: Handle other constraint types
+		}
+	}
+	
+	return NewLogicalCreateTable("public", stmt.TableName, columns, constraints), nil
 }
 
 // convertExpression converts a parser expression to a planner expression.

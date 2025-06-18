@@ -7,13 +7,15 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/log"
 	"github.com/dshills/QuantaDB/internal/network"
-	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/sql/executor"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 var (
@@ -58,16 +60,31 @@ func main() {
 		"port", *port,
 		"data_dir", *dataDir)
 
-	// Initialize catalog
-	cat := catalog.NewMemoryCatalog()
-	
-	// Create some test tables for development
-	if err := createTestTables(cat); err != nil {
-		logger.Error("Failed to create test tables", "error", err)
+	// Ensure data directory exists
+	if err := os.MkdirAll(*dataDir, 0755); err != nil {
+		logger.Error("Failed to create data directory", "error", err)
 		os.Exit(1)
 	}
 
-	// Initialize storage engine
+	// Initialize catalog
+	cat := catalog.NewMemoryCatalog()
+	
+	// Initialize storage components
+	dbPath := filepath.Join(*dataDir, "quantadb.db")
+	diskManager, err := storage.NewDiskManager(dbPath)
+	if err != nil {
+		logger.Error("Failed to create disk manager", "error", err)
+		os.Exit(1)
+	}
+	defer diskManager.Close()
+	
+	// Create buffer pool (128MB default)
+	bufferPool := storage.NewBufferPool(diskManager, 128*1024*1024/storage.PageSize)
+	
+	// Create storage backend
+	storageBackend := executor.NewDiskStorageBackend(bufferPool, cat)
+
+	// Initialize storage engine (for backward compatibility)
 	eng := engine.NewMemoryEngine()
 	defer eng.Close()
 
@@ -80,6 +97,7 @@ func main() {
 
 	// Create and start server
 	server := network.NewServer(config, cat, eng, logger)
+	server.SetStorageBackend(storageBackend)
 	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -103,45 +121,3 @@ func main() {
 	logger.Info("Server stopped")
 }
 
-// createTestTables creates some test tables for development
-func createTestTables(cat catalog.Catalog) error {
-	// Create users table
-	usersTable := &catalog.TableSchema{
-		SchemaName: "public",
-		TableName:  "users",
-		Columns: []catalog.ColumnDef{
-			{Name: "id", DataType: types.Integer, IsNullable: false},
-			{Name: "name", DataType: types.Text, IsNullable: false},
-			{Name: "email", DataType: types.Text, IsNullable: true},
-			{Name: "age", DataType: types.Integer, IsNullable: true},
-		},
-		Constraints: []catalog.Constraint{
-			catalog.PrimaryKeyConstraint{Columns: []string{"id"}},
-		},
-	}
-	
-	if _, err := cat.CreateTable(usersTable); err != nil {
-		return fmt.Errorf("failed to create users table: %w", err)
-	}
-
-	// Create products table
-	productsTable := &catalog.TableSchema{
-		SchemaName: "public",
-		TableName:  "products",
-		Columns: []catalog.ColumnDef{
-			{Name: "id", DataType: types.Integer, IsNullable: false},
-			{Name: "name", DataType: types.Text, IsNullable: false},
-			{Name: "price", DataType: types.Integer, IsNullable: false},
-			{Name: "stock", DataType: types.Integer, IsNullable: false},
-		},
-		Constraints: []catalog.Constraint{
-			catalog.PrimaryKeyConstraint{Columns: []string{"id"}},
-		},
-	}
-	
-	if _, err := cat.CreateTable(productsTable); err != nil {
-		return fmt.Errorf("failed to create products table: %w", err)
-	}
-
-	return nil
-}
