@@ -6,6 +6,7 @@ import (
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/wal"
 )
 
 // StorageBackend provides an interface for table storage operations
@@ -30,6 +31,9 @@ type StorageBackend interface {
 	
 	// GetRow retrieves a specific row by ID
 	GetRow(tableID int64, rowID RowID) (*Row, error)
+	
+	// SetTransactionID sets the current transaction ID for operations
+	SetTransactionID(txnID uint64)
 }
 
 // RowID uniquely identifies a row in storage
@@ -50,11 +54,17 @@ type RowIterator interface {
 type DiskStorageBackend struct {
 	bufferPool *storage.BufferPool
 	catalog    catalog.Catalog
+	walManager *wal.Manager
 	
 	// Table metadata mapping
 	mu          sync.RWMutex
 	tablePages  map[int64]storage.PageID // Table ID -> First page ID
 	tableMeta   map[int64]*TableMetadata
+	
+	// Current transaction ID
+	// TODO: In a production system, this should be passed as a parameter to each operation
+	// or managed via context.Context to ensure thread safety for concurrent transactions
+	currentTxnID uint64
 }
 
 // TableMetadata stores metadata about a table's storage
@@ -74,6 +84,23 @@ func NewDiskStorageBackend(bufferPool *storage.BufferPool, catalog catalog.Catal
 		tablePages:  make(map[int64]storage.PageID),
 		tableMeta:   make(map[int64]*TableMetadata),
 	}
+}
+
+// NewDiskStorageBackendWithWAL creates a new disk-based storage backend with WAL support
+func NewDiskStorageBackendWithWAL(bufferPool *storage.BufferPool, catalog catalog.Catalog, walManager *wal.Manager) *DiskStorageBackend {
+	return &DiskStorageBackend{
+		bufferPool:  bufferPool,
+		catalog:     catalog,
+		walManager:  walManager,
+		tablePages:  make(map[int64]storage.PageID),
+		tableMeta:   make(map[int64]*TableMetadata),
+		currentTxnID: 1, // Start with transaction ID 1
+	}
+}
+
+// SetTransactionID sets the current transaction ID for WAL logging
+func (d *DiskStorageBackend) SetTransactionID(txnID uint64) {
+	d.currentTxnID = txnID
 }
 
 // CreateTable creates storage for a new table
@@ -195,6 +222,19 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 	
 	// Insert row into page using slotted page format
 	slotID := d.insertIntoPage(page, rowData)
+	
+	// Log the insert if WAL is enabled
+	if d.walManager != nil {
+		lsn, err := d.walManager.LogInsert(d.currentTxnID, tableID, uint32(pageID), slotID, rowData)
+		if err != nil {
+			// Rollback the insert on WAL failure
+			d.bufferPool.UnpinPage(pageID, false)
+			return RowID{}, fmt.Errorf("failed to log insert: %w", err)
+		}
+		// Set page LSN
+		page.Header.LSN = uint64(lsn)
+	}
+	
 	d.bufferPool.UnpinPage(pageID, true)
 	
 	// Update row count
@@ -218,21 +258,24 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 	
 	// Calculate data position (grows from end)
 	dataSize := uint16(len(data))
-	dataOffset := page.Header.FreeSpacePtr - dataSize
+	// FreeSpacePtr is relative to page start, we need offset in Data array
+	dataOffset := page.Header.FreeSpacePtr - dataSize - storage.PageHeaderSize
 	
 	// Write slot entry (offset and size)
-	slotData := page.Data[slotOffset-storage.PageHeaderSize:]
-	slotData[0] = byte(dataOffset >> 8)
-	slotData[1] = byte(dataOffset)
+	// Store the offset as relative to page start (including header)
+	slotData := page.Data[slotOffset : slotOffset+4]
+	pageDataOffset := dataOffset + storage.PageHeaderSize
+	slotData[0] = byte(pageDataOffset >> 8)
+	slotData[1] = byte(pageDataOffset)
 	slotData[2] = byte(dataSize >> 8)
 	slotData[3] = byte(dataSize)
 	
 	// Write data
-	copy(page.Data[dataOffset-storage.PageHeaderSize:], data)
+	copy(page.Data[dataOffset:], data)
 	
 	// Update page header
 	page.Header.ItemCount++
-	page.Header.FreeSpacePtr = dataOffset
+	page.Header.FreeSpacePtr = pageDataOffset
 	page.Header.FreeSpace -= dataSize + 4
 	
 	return slotID
@@ -297,8 +340,8 @@ func (it *diskRowIterator) Next() (*Row, RowID, error) {
 		
 		// Read slot entry
 		slotOffset := storage.PageHeaderSize + it.slotID*4
-		slotData := it.currentPage.Data[slotOffset-storage.PageHeaderSize:]
-		dataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
+		slotData := it.currentPage.Data[slotOffset : slotOffset+4]
+		pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 		dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
 		
 		// Skip deleted slots (size = 0)
@@ -307,8 +350,9 @@ func (it *diskRowIterator) Next() (*Row, RowID, error) {
 			continue
 		}
 		
-		// Read row data
-		rowData := it.currentPage.Data[dataOffset-storage.PageHeaderSize : dataOffset-storage.PageHeaderSize+dataSize]
+		// Read row data - pageDataOffset includes header, so subtract it
+		dataOffset := pageDataOffset - storage.PageHeaderSize
+		rowData := it.currentPage.Data[dataOffset : dataOffset+dataSize]
 		
 		// Deserialize row
 		row, err := it.rowFormat.Deserialize(rowData)
@@ -385,13 +429,30 @@ func (d *DiskStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch page: %w", err)
 	}
-	defer d.bufferPool.UnpinPage(rowID.PageID, true)
+	
+	// Log the delete if WAL is enabled
+	if d.walManager != nil {
+		lsn, err := d.walManager.LogDelete(d.currentTxnID, tableID, uint32(rowID.PageID), rowID.SlotID)
+		if err != nil {
+			d.bufferPool.UnpinPage(rowID.PageID, false)
+			return fmt.Errorf("failed to log delete: %w", err)
+		}
+		// Set page LSN
+		page.Header.LSN = uint64(lsn)
+	}
 	
 	// Mark slot as deleted by setting size to 0
 	slotOffset := storage.PageHeaderSize + rowID.SlotID*4
-	slotData := page.Data[slotOffset-storage.PageHeaderSize:]
+	// Correct slice access: directly index into page.Data
+	if int(slotOffset)+4 > len(page.Data)+storage.PageHeaderSize {
+		d.bufferPool.UnpinPage(rowID.PageID, false)
+		return fmt.Errorf("slot offset out of bounds")
+	}
+	slotData := page.Data[slotOffset : slotOffset+4]
 	slotData[2] = 0
 	slotData[3] = 0
+	
+	d.bufferPool.UnpinPage(rowID.PageID, true)
 	
 	return nil
 }
@@ -416,16 +477,17 @@ func (d *DiskStorageBackend) GetRow(tableID int64, rowID RowID) (*Row, error) {
 	
 	// Read slot entry
 	slotOffset := storage.PageHeaderSize + rowID.SlotID*4
-	slotData := page.Data[slotOffset-storage.PageHeaderSize:]
-	dataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
+	slotData := page.Data[slotOffset : slotOffset+4]
+	pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 	dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
 	
 	if dataSize == 0 {
 		return nil, fmt.Errorf("row has been deleted")
 	}
 	
-	// Read row data
-	rowData := page.Data[dataOffset-storage.PageHeaderSize : dataOffset-storage.PageHeaderSize+dataSize]
+	// Read row data - pageDataOffset includes header, so subtract it
+	dataOffset := pageDataOffset - storage.PageHeaderSize
+	rowData := page.Data[dataOffset : dataOffset+dataSize]
 	
 	// Deserialize row
 	return rowFormat.Deserialize(rowData)
