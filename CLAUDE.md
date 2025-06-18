@@ -13,8 +13,9 @@ QuantaDB is a PostgreSQL-compatible distributed database written in Go. The proj
 - ✅ Disk-based storage with buffer pool
 - ✅ MVCC transaction support
 - ✅ B+Tree index implementation
-- 🔄 Storage integration (70% complete)
-- ❌ Write-Ahead Logging (WAL)
+- ✅ Storage integration with UPDATE/DELETE operations
+- ✅ Write-Ahead Logging (WAL) with crash recovery
+- ❌ Index-Query Planner integration
 - ❌ Distributed features
 
 ## Tech Stack
@@ -70,6 +71,7 @@ QuantaDB/
 - **Network Layer** (`internal/network/`): PostgreSQL wire protocol implementation
 - **Index Manager** (`internal/index/`): B+Tree implementation for indexes
 - **Catalog** (`internal/catalog/`): Schema and metadata management
+- **Write-Ahead Log** (`internal/wal/`): Durability and crash recovery system
 
 ## Development Notes
 
@@ -77,9 +79,9 @@ QuantaDB/
 - Use Go modules for dependency management
 - Implement comprehensive testing for database reliability
 - Consider performance implications in all design decisions
-- Storage integration is partially complete - CREATE TABLE and INSERT work
-- PostgreSQL client connections have stability issues that need debugging
-- UPDATE/DELETE operations are parsed but not implemented with storage
+- Storage integration is complete - CREATE TABLE, INSERT, UPDATE, DELETE all work
+- PostgreSQL client connections are now stable with proper SSL handling
+- WAL provides durability and crash recovery capabilities
 - Indexes exist but aren't integrated with query planning yet
 
 ## Linting

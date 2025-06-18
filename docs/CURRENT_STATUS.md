@@ -85,14 +85,22 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
    - Insert, search, delete operations
    - Range scan support
 
+8. **Write-Ahead Logging** (`internal/wal/`)
+   - Segment-based WAL files with automatic rotation
+   - CRC32 checksums for data integrity
+   - In-memory buffer with configurable size
+   - Three-phase recovery (analysis, redo, undo)
+   - Checkpoint mechanism for limiting recovery time
+   - Full integration with storage operations
+
 ### 🔄 In Progress
 
 1. **Storage Integration**
    - ✅ Storage backend interface
    - ✅ CREATE TABLE persistence
    - ✅ Basic INSERT operations
-   - ❌ UPDATE operations
-   - ❌ DELETE operations
+   - ✅ UPDATE operations (MVCC-based)
+   - ✅ DELETE operations (tombstone marking)
    - ❌ Transaction-storage integration
 
 2. **PostgreSQL Client Compatibility**
@@ -101,8 +109,7 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 
 ### ❌ Not Started
 
-1. **Write-Ahead Logging (WAL)**
-2. **Index-Query Planner Integration**
+1. **Index-Query Planner Integration**
 3. **Authentication System**
 4. **Distributed Features**
 5. **Backup and Recovery**
@@ -111,7 +118,8 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 ## Known Issues
 
 1. **PostgreSQL Client Connection**: ✅ FIXED - SSL negotiation issue resolved, connections now stable
-   - Outstanding: Insecure secret key generation, missing write timeouts
+   - ✅ FIXED: Secure secret key generation using crypto/rand
+   - ✅ FIXED: Write timeouts properly applied
 2. **Transaction Isolation**: MVCC not integrated with storage layer
 3. **Index Usage**: B+Tree indexes exist but aren't used by query planner
 4. **Memory Management**: No memory limits on buffer pool or query execution
@@ -129,13 +137,13 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 ## Next Steps (Priority Order)
 
 ### High Priority
-1. **Security: Fix BackendKeyData secret generation** - Use crypto/rand for secure keys
-2. **Stability: Apply write timeouts** - Prevent connection hangs on write operations
-3. **Implement UPDATE and DELETE operations** - SQL parser ready, needs storage integration
+1. ✅ **COMPLETED: Security: Fix BackendKeyData secret generation** - Now uses crypto/rand for secure keys
+2. ✅ **COMPLETED: Stability: Apply write timeouts** - Write deadlines prevent connection hangs
+3. ✅ **COMPLETED: Implement UPDATE and DELETE operations** - MVCC-based updates and tombstone deletes
+4. ✅ **COMPLETED: Add Write-Ahead Logging for durability** - Full WAL implementation with recovery
 
 ### Medium Priority
-4. **Add Write-Ahead Logging for durability** - Essential for crash recovery
-5. **Integrate indexes with query planner** - B+Tree exists but unused
+1. **Integrate indexes with query planner** - B+Tree exists but unused
 6. **Implement extended query protocol** - Parse/Bind/Execute for prepared statements
 7. **Improve error handling** - Map errors to specific PostgreSQL SQLSTATE codes
 8. **Fix transaction state timing** - Update state only after successful commit/rollback
