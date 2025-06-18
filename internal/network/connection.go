@@ -3,6 +3,7 @@ package network
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -55,6 +56,9 @@ type Connection struct {
 	// Connection state
 	state  int
 	params map[string]string
+
+	// Security
+	secretKey uint32
 
 	// Current transaction
 	currentTxn *txn.MvccTransaction
@@ -228,10 +232,15 @@ func (c *Connection) handleStartup() error {
 		}
 	}
 
+	// Generate cryptographically secure secret key
+	if err := binary.Read(rand.Reader, binary.BigEndian, &c.secretKey); err != nil {
+		return fmt.Errorf("failed to generate secret key: %w", err)
+	}
+
 	// Send backend key data
 	keyData := &protocol.BackendKeyData{
 		ProcessID: c.id,
-		SecretKey: c.id * 12345, // Simple secret key generation
+		SecretKey: c.secretKey,
 	}
 	if err := protocol.WriteMessage(c.writer, keyData.ToMessage()); err != nil {
 		return err
