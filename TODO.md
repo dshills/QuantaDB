@@ -1,98 +1,149 @@
 # QuantaDB TODO List
 
 ## Summary
-**Total Items**: 5
-**Completed**: 5 ✅
-**Pending**: 0
 **Last Updated**: December 18, 2024
+**Project Status**: Core features complete! Ready for performance optimizations and enterprise features.
+
+## Current Sprint (Q1 2025 - Phase 1: Performance Optimization)
+
+### High Priority 🔴
+
+#### 1. Index-Query Planner Integration
+**Status**: B+Tree implementation exists but not integrated
+**Location**: `internal/sql/planner/` and `internal/index/`
+**Tasks**:
+- [ ] Update query planner to consider indexes in plan generation
+- [ ] Implement index-backed scan operators
+- [ ] Add cost estimation for index vs sequential scan  
+- [ ] Create statistics collection for index selection
+- [ ] Write integration tests for index usage
+**Estimated Time**: 1-2 weeks
+**Impact**: Significant query performance improvement for indexed columns
+
+#### 2. Extended Query Protocol Implementation
+**Status**: Simple query protocol only, no prepared statements
+**Location**: `internal/network/` and `internal/sql/`
+**Tasks**:
+- [ ] Implement Parse message handling
+- [ ] Implement Bind message for parameter binding
+- [ ] Implement Execute with portal management
+- [ ] Add prepared statement caching
+- [ ] Test with JDBC/ODBC drivers
+**Estimated Time**: 1-2 weeks
+**Impact**: Required for most database drivers and ORMs
+
+### Medium Priority 🟡
+
+#### 3. PostgreSQL Error Code Mapping
+**Status**: Generic errors, need SQLSTATE codes
+**Location**: Throughout codebase, centralize in `internal/errors/`
+**Tasks**:
+- [ ] Create error code mapping system
+- [ ] Map all errors to PostgreSQL SQLSTATE codes
+- [ ] Update network layer to send proper error responses
+- [ ] Document error codes
+**Estimated Time**: 3-4 days
+**Impact**: Better client compatibility and debugging
+
+#### 4. Transaction-Storage Full Integration
+**Status**: MVCC exists but not fully integrated with storage
+**Location**: `internal/txn/` and `internal/storage/`
+**Tasks**:
+- [ ] Connect transaction manager with storage operations
+- [ ] Implement visibility checks in scan operators
+- [ ] Add transaction ID to all row operations
+- [ ] Implement vacuum process for old versions
+**Estimated Time**: 1 week
+**Impact**: True ACID compliance with proper isolation
+
+#### 5. Query Optimization Improvements
+**Status**: Basic optimizer, needs statistics-based decisions
+**Tasks**:
+- [ ] Implement table statistics collection
+- [ ] Add histogram-based selectivity estimation
+- [ ] Implement join reordering based on cost
+- [ ] Add predicate pushdown optimization
+**Estimated Time**: 2 weeks
+**Impact**: Better query plans for complex queries
 
 ## Completed Items ✅
 
-### 1. Apply Write Timeouts in Connection Handler ✅
-**Location**: `internal/network/connection.go`
-**Issue**: SetWriteTimeout method exists but is never called
-**Impact**: Connections can hang indefinitely on write operations, causing resource exhaustion
-**Solution**: Apply write deadlines alongside read deadlines in the main message loop
-**Estimated Time**: 1-2 hours
-**Completed**: December 17, 2024 - Added write deadline calls before all write operations in connection handler
+### Security & Stability
+- ✅ Fixed BackendKeyData generation (crypto/rand)
+- ✅ Applied write timeouts in connection handler
+- ✅ Resolved SSL negotiation issues
 
-### 2. Implement UPDATE and DELETE Operations ✅
-**Status**: SQL parser ready, needs storage integration
-**Components implemented**:
-- UpdateOperator with storage backend
-- DeleteOperator with storage backend
-- MVCC versioning for updates (simplified)
-- Tombstone marking for deletes
-**Impact**: Core SQL functionality incomplete without these operations
-**Estimated Time**: 8-12 hours
-**Completed**: December 17, 2024 - Implemented UPDATE and DELETE operators with MVCC support
+### Core SQL Features  
+- ✅ SQL parser with full syntax support
+- ✅ Query planner and executor
+- ✅ CREATE TABLE with persistence
+- ✅ INSERT operations with storage
+- ✅ UPDATE operations with MVCC
+- ✅ DELETE operations with tombstones
+- ✅ SELECT with joins, aggregates, sorting
 
-### 3. Add Write-Ahead Logging (WAL) ✅
-**Purpose**: Essential for durability and crash recovery
-**Components implemented**:
-- Log record format with CRC32 checksums
-- In-memory WAL buffer with configurable size
-- Segment-based log files with automatic rotation
-- Recovery manager with three-phase recovery (analysis, redo, undo)
-- Checkpoint mechanism for limiting recovery time
-- Integration with storage operations (InsertRow, DeleteRow)
-- Page LSN tracking for recovery
-- Transaction record chaining
-**Impact**: Database now has durability and crash recovery capabilities
-**Estimated Time**: 2-3 days
-**Completed**: December 18, 2024 - Implemented complete WAL system with recovery and checkpoints
+### Storage & Durability
+- ✅ Page-based disk storage  
+- ✅ Buffer pool with LRU eviction
+- ✅ Write-Ahead Logging (WAL)
+- ✅ Crash recovery system
+- ✅ Checkpoint mechanism
 
-## Pending High Priority Items 🔴
+### Infrastructure
+- ✅ PostgreSQL wire protocol v3
+- ✅ B+Tree index implementation (not integrated)
+- ✅ MVCC transaction support
+- ✅ Network connection management
 
-None currently!
+## Future Roadmap (from ROADMAP.md)
 
-### 4. Integrate B+Tree Indexes with Query Planner ✅
-**Status**: Moved to future roadmap - B+Tree implementation exists for future use
-**Tasks identified for future implementation**:
-- Update query planner to consider indexes
-- Implement index-backed scan operators
-- Add cost estimation for index vs sequential scan
-- Update statistics based on actual data
-**Impact**: Would improve query performance for indexed columns
-**Estimated Time**: 1-2 days
-**Completed**: December 18, 2024 - Documented as future enhancement
+### Phase 2: Enterprise Features (Q2 2025)
+- Authentication & user management
+- Role-based access control
+- Backup & recovery tools
+- Monitoring & metrics
+- Admin dashboard
 
-## Pending High Priority Items 🔴
+### Phase 3: Advanced SQL (Q3 2025)
+- Common Table Expressions (CTEs)
+- Window functions
+- Stored procedures & triggers
+- JSON/JSONB support
+- Array types
 
-None currently!
+### Phase 4: Distributed Features (Q4 2025)
+- Streaming replication
+- Horizontal sharding
+- Raft consensus
+- Distributed transactions
 
-## Pending Medium Priority Items 🟡
+## Quick Reference
 
-None currently!
+### Build & Test
+```bash
+make build          # Build server and CLI
+make test          # Run all tests
+make test-coverage # Generate coverage report
+golangci-lint run  # Run linter
+```
 
-## Next Steps
+### Test Storage Features
+```sql
+-- All these operations now work with persistence!
+CREATE TABLE users (id INTEGER, name TEXT, email TEXT);
+INSERT INTO users VALUES (1, 'Alice', 'alice@example.com');
+UPDATE users SET email = 'newemail@example.com' WHERE id = 1;
+DELETE FROM users WHERE id = 1;
+SELECT * FROM users;
+```
 
-All initially planned high-priority items have been completed! 🎉
+## Contributing
 
-**Core Features Completed**:
-1. ✅ **Security**: Fixed BackendKeyData generation and write timeouts
-2. ✅ **Core SQL**: UPDATE and DELETE operations with MVCC
-3. ✅ **Durability**: Write-Ahead Logging with crash recovery
-4. ✅ **Storage**: Full integration with disk-based storage
+See CONTRIBUTING.md for guidelines. Priority areas:
+- Performance optimizations
+- PostgreSQL compatibility improvements  
+- Test coverage expansion
+- Documentation updates
 
-**Future Roadmap Items** (from Additional Items section below):
-
-## Additional Items for Future Consideration
-
-From `docs/TECHNICAL_DEBT.md`:
-- **PostgreSQL Compatibility**: Generic error codes, missing extended query protocol
-- **Transaction State**: Timing issues with transaction cleanup
-- **Code Quality**: Redundant flush calls, hardcoded version strings
-
-From `docs/CURRENT_STATUS.md`:
-- **Authentication System**: No user authentication implemented
-- **Distributed Features**: Single-node only currently
-- **Advanced SQL**: CTEs, Window Functions not supported
-- **Monitoring**: No metrics or health endpoints
-
-## Resources
-
-- **Planning Docs**: `docs/` directory contains detailed plans
-- **Current Status**: `docs/CURRENT_STATUS.md`
-- **Technical Debt**: `docs/TECHNICAL_DEBT.md`
-- **Storage Plan**: `docs/STORAGE_INTEGRATION_PLAN.md`
+---
+*For detailed planning, see `docs/ROADMAP.md` and `docs/CURRENT_STATUS.md`*

@@ -5,6 +5,7 @@ import (
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
+	"github.com/dshills/QuantaDB/internal/index"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 	"github.com/dshills/QuantaDB/internal/txn"
@@ -69,23 +70,30 @@ type ExecStats struct {
 
 // BasicExecutor is a basic query executor.
 type BasicExecutor struct {
-	catalog catalog.Catalog
-	engine  engine.Engine
-	storage StorageBackend
+	catalog  catalog.Catalog
+	engine   engine.Engine
+	storage  StorageBackend
+	indexMgr interface{} // Will be set to *index.Manager when available
 }
 
 // NewBasicExecutor creates a new basic executor.
 func NewBasicExecutor(catalog catalog.Catalog, engine engine.Engine) *BasicExecutor {
 	return &BasicExecutor{
-		catalog: catalog,
-		engine:  engine,
-		storage: nil, // Will be set later with SetStorageBackend
+		catalog:  catalog,
+		engine:   engine,
+		storage:  nil, // Will be set later with SetStorageBackend
+		indexMgr: nil, // Will be set later with SetIndexManager
 	}
 }
 
 // SetStorageBackend sets the storage backend for the executor
 func (e *BasicExecutor) SetStorageBackend(storage StorageBackend) {
 	e.storage = storage
+}
+
+// SetIndexManager sets the index manager for the executor
+func (e *BasicExecutor) SetIndexManager(indexMgr interface{}) {
+	e.indexMgr = indexMgr
 }
 
 // Execute executes a query plan.
@@ -142,6 +150,12 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildUpdateOperator(p, ctx)
 	case *planner.LogicalDelete:
 		return e.buildDeleteOperator(p, ctx)
+	case *planner.LogicalCreateIndex:
+		return e.buildCreateIndexOperator(p, ctx)
+	case *planner.LogicalDropTable:
+		return e.buildDropTableOperator(p, ctx)
+	case *planner.LogicalDropIndex:
+		return e.buildDropIndexOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -420,6 +434,70 @@ func (e *BasicExecutor) buildDeleteOperator(plan *planner.LogicalDelete, ctx *Ex
 	}
 	
 	return NewDeleteOperator(plan.TableRef, e.storage, plan.Where), nil
+}
+
+// buildCreateIndexOperator builds a CREATE INDEX operator.
+func (e *BasicExecutor) buildCreateIndexOperator(plan *planner.LogicalCreateIndex, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	if e.indexMgr == nil {
+		return nil, fmt.Errorf("index manager not configured")
+	}
+	
+	// Type assert to get the actual index.Manager
+	indexMgr, ok := e.indexMgr.(*index.Manager)
+	if !ok {
+		return nil, fmt.Errorf("invalid index manager type")
+	}
+	
+	return NewCreateIndexOperator(
+		plan.SchemaName,
+		plan.TableName,
+		plan.IndexName,
+		plan.Columns,
+		plan.Unique,
+		plan.IndexType,
+		ctx.Catalog,
+		e.storage,
+		indexMgr,
+	), nil
+}
+
+// buildDropTableOperator builds a DROP TABLE operator.
+func (e *BasicExecutor) buildDropTableOperator(plan *planner.LogicalDropTable, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	// For now, return an error as DROP TABLE is not implemented
+	return nil, fmt.Errorf("DROP TABLE not yet implemented")
+}
+
+// buildDropIndexOperator builds a DROP INDEX operator.
+func (e *BasicExecutor) buildDropIndexOperator(plan *planner.LogicalDropIndex, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	if e.indexMgr == nil {
+		return nil, fmt.Errorf("index manager not configured")
+	}
+	
+	// Type assert to get the actual index.Manager
+	indexMgr, ok := e.indexMgr.(*index.Manager)
+	if !ok {
+		return nil, fmt.Errorf("invalid index manager type")
+	}
+	
+	return NewDropIndexOperator(
+		plan.SchemaName,
+		plan.TableName,
+		plan.IndexName,
+		ctx.Catalog,
+		indexMgr,
+	), nil
 }
 
 // convertSchema converts a planner schema to executor schema.

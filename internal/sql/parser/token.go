@@ -47,6 +47,9 @@ const (
 	TokenUpdate
 	TokenSet
 	TokenDelete
+	TokenIndex
+	TokenOn
+	TokenUsing
 
 	// Data types
 	TokenInteger
@@ -122,6 +125,9 @@ var tokenStrings = map[TokenType]string{
 	TokenUpdate:       "UPDATE",
 	TokenSet:          "SET",
 	TokenDelete:       "DELETE",
+	TokenIndex:        "INDEX",
+	TokenOn:           "ON",
+	TokenUsing:        "USING",
 	TokenInteger:      "INTEGER",
 	TokenBigint:       "BIGINT",
 	TokenSmallint:     "SMALLINT",
@@ -210,6 +216,9 @@ var keywords = map[string]TokenType{
 	"UPDATE":    TokenUpdate,
 	"SET":       TokenSet,
 	"DELETE":    TokenDelete,
+	"INDEX":     TokenIndex,
+	"ON":        TokenOn,
+	"USING":     TokenUsing,
 	"INTEGER":   TokenInteger,
 	"INT":       TokenInteger,
 	"BIGINT":    TokenBigint,

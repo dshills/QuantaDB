@@ -3,6 +3,7 @@ package planner
 import (
 	"testing"
 
+	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -197,18 +198,51 @@ func TestPlannerOptimization(t *testing.T) {
 	})
 }
 
-func TestPlannerErrors(t *testing.T) {
+func TestPlannerDDL(t *testing.T) {
+	// Create a catalog with a test table for INSERT
+	cat := catalog.NewMemoryCatalog()
+	tableSchema := &catalog.TableSchema{
+		SchemaName: "public",
+		TableName:  "users",
+		Columns: []catalog.ColumnDef{
+			{Name: "id", DataType: types.Integer, IsNullable: false},
+			{Name: "name", DataType: types.Text, IsNullable: false},
+		},
+	}
+	_, err := cat.CreateTable(tableSchema)
+	if err != nil {
+		t.Fatalf("Failed to create test table: %v", err)
+	}
+
 	tests := []struct {
-		name string
-		sql  string
+		name        string
+		sql         string
+		expectError bool
+		useCatalog  bool
 	}{
 		{
-			name: "INSERT not implemented",
-			sql:  "INSERT INTO users (id, name) VALUES (1, 'John')",
+			name:        "INSERT is supported",
+			sql:         "INSERT INTO users (id, name) VALUES (1, 'John')",
+			expectError: false,
+			useCatalog:  true,
 		},
 		{
-			name: "CREATE TABLE not implemented",
-			sql:  "CREATE TABLE users (id INTEGER)",
+			name:        "CREATE TABLE is supported",
+			sql:         "CREATE TABLE new_table (id INTEGER)",
+			expectError: false,
+			useCatalog:  false,
+		},
+		{
+			name:        "CREATE INDEX is supported",
+			sql:         "CREATE INDEX idx_users_id ON users (id)",
+			expectError: false,
+			useCatalog:  false,
+		},
+		{
+			name:        "DROP INDEX is supported",
+			sql:         "DROP INDEX idx_users_id",
+			expectError: false,
+			useCatalog:  false,
 		},
 	}
 
@@ -221,11 +255,22 @@ func TestPlannerErrors(t *testing.T) {
 				t.Fatalf("Failed to parse SQL: %v", err)
 			}
 
-			// Plan query - should return error
-			planner := NewBasicPlanner()
-			_, err = planner.Plan(stmt)
-			if err == nil {
-				t.Error("Expected error for unsupported statement")
+			// Plan query
+			var planner Planner
+			if tt.useCatalog {
+				planner = NewBasicPlannerWithCatalog(cat)
+			} else {
+				planner = NewBasicPlanner()
+			}
+			
+			plan, err := planner.Plan(stmt)
+			
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			} else if !tt.expectError && err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			} else if !tt.expectError && plan == nil {
+				t.Error("Expected plan but got nil")
 			}
 		})
 	}

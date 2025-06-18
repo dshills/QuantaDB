@@ -71,7 +71,7 @@ func (p *Parser) ParseMultiple() ([]Statement, error) {
 func (p *Parser) parseStatement() (Statement, error) {
 	switch p.current.Type { //nolint:exhaustive
 	case TokenCreate:
-		return p.parseCreateTable()
+		return p.parseCreate()
 	case TokenInsert:
 		return p.parseInsert()
 	case TokenSelect:
@@ -87,12 +87,31 @@ func (p *Parser) parseStatement() (Statement, error) {
 	}
 }
 
-// parseCreateTable parses a CREATE TABLE statement.
-func (p *Parser) parseCreateTable() (*CreateTableStmt, error) {
+// parseCreate parses CREATE statements (TABLE, INDEX, etc.).
+func (p *Parser) parseCreate() (Statement, error) {
 	if !p.consume(TokenCreate, "expected CREATE") {
 		return nil, p.lastError()
 	}
 
+	switch p.current.Type { //nolint:exhaustive
+	case TokenTable:
+		return p.parseCreateTable()
+	case TokenIndex:
+		return p.parseCreateIndex()
+	case TokenUnique:
+		// Handle CREATE UNIQUE INDEX
+		p.advance() // consume UNIQUE
+		if !p.consume(TokenIndex, "expected INDEX after UNIQUE") {
+			return nil, p.lastError()
+		}
+		return p.parseCreateIndexWithUnique(true)
+	default:
+		return nil, p.error(fmt.Sprintf("unexpected token after CREATE: %s", p.current))
+	}
+}
+
+// parseCreateTable parses a CREATE TABLE statement.
+func (p *Parser) parseCreateTable() (*CreateTableStmt, error) {
 	if !p.consume(TokenTable, "expected TABLE") {
 		return nil, p.lastError()
 	}
@@ -626,12 +645,24 @@ func (p *Parser) parseDelete() (*DeleteStmt, error) {
 	return stmt, nil
 }
 
-// parseDrop parses a DROP statement.
-func (p *Parser) parseDrop() (*DropTableStmt, error) {
+// parseDrop parses DROP statements (TABLE, INDEX, etc.).
+func (p *Parser) parseDrop() (Statement, error) {
 	if !p.consume(TokenDrop, "expected DROP") {
 		return nil, p.lastError()
 	}
 
+	switch p.current.Type { //nolint:exhaustive
+	case TokenTable:
+		return p.parseDropTable()
+	case TokenIndex:
+		return p.parseDropIndex()
+	default:
+		return nil, p.error(fmt.Sprintf("unexpected token after DROP: %s", p.current))
+	}
+}
+
+// parseDropTable parses a DROP TABLE statement.
+func (p *Parser) parseDropTable() (*DropTableStmt, error) {
 	if !p.consume(TokenTable, "expected TABLE") {
 		return nil, p.lastError()
 	}
@@ -644,6 +675,104 @@ func (p *Parser) parseDrop() (*DropTableStmt, error) {
 
 	return &DropTableStmt{
 		TableName: tableName,
+	}, nil
+}
+
+// parseDropIndex parses a DROP INDEX statement.
+func (p *Parser) parseDropIndex() (*DropIndexStmt, error) {
+	if !p.consume(TokenIndex, "expected INDEX") {
+		return nil, p.lastError()
+	}
+
+	// Get index name
+	indexName := p.current.Value
+	if !p.consume(TokenIdentifier, "expected index name") {
+		return nil, p.lastError()
+	}
+
+	// Optional ON table_name
+	tableName := ""
+	if p.match(TokenOn) {
+		tableName = p.current.Value
+		if !p.consume(TokenIdentifier, "expected table name") {
+			return nil, p.lastError()
+		}
+	}
+
+	return &DropIndexStmt{
+		IndexName: indexName,
+		TableName: tableName,
+	}, nil
+}
+
+// parseCreateIndex parses a CREATE INDEX statement.
+func (p *Parser) parseCreateIndex() (*CreateIndexStmt, error) {
+	if !p.consume(TokenIndex, "expected INDEX") {
+		return nil, p.lastError()
+	}
+	return p.parseCreateIndexWithUnique(false)
+}
+
+// parseCreateIndexWithUnique parses CREATE [UNIQUE] INDEX statement.
+func (p *Parser) parseCreateIndexWithUnique(unique bool) (*CreateIndexStmt, error) {
+	// Get index name
+	indexName := p.current.Value
+	if !p.consume(TokenIdentifier, "expected index name") {
+		return nil, p.lastError()
+	}
+
+	if !p.consume(TokenOn, "expected ON") {
+		return nil, p.lastError()
+	}
+
+	// Get table name
+	tableName := p.current.Value
+	if !p.consume(TokenIdentifier, "expected table name") {
+		return nil, p.lastError()
+	}
+
+	if !p.consume(TokenLeftParen, "expected '('") {
+		return nil, p.lastError()
+	}
+
+	// Parse column list
+	var columns []string
+	for {
+		colName := p.current.Value
+		if !p.consume(TokenIdentifier, "expected column name") {
+			return nil, p.lastError()
+		}
+		columns = append(columns, colName)
+
+		// Optional ASC/DESC (ignored for now)
+		if p.match(TokenAsc) || p.match(TokenDesc) {
+			// Skip sort order for now
+		}
+
+		if !p.match(TokenComma) {
+			break
+		}
+	}
+
+	if !p.consume(TokenRightParen, "expected ')'") {
+		return nil, p.lastError()
+	}
+
+	// Optional USING clause
+	indexType := "BTREE" // default
+	if p.match(TokenUsing) {
+		indexType = p.current.Value
+		if !p.consume(TokenIdentifier, "expected index type") {
+			return nil, p.lastError()
+		}
+	}
+
+	return &CreateIndexStmt{
+		IndexName: indexName,
+		TableName: tableName,
+		Columns:   columns,
+		Unique:    unique,
+		IndexType: indexType,
 	}, nil
 }
 
@@ -1071,4 +1200,41 @@ type DropTableStmt struct {
 func (s *DropTableStmt) statementNode() {}
 func (s *DropTableStmt) String() string {
 	return fmt.Sprintf("DROP TABLE %s", s.TableName)
+}
+
+// CreateIndexStmt represents a CREATE INDEX statement.
+type CreateIndexStmt struct {
+	IndexName  string
+	TableName  string
+	Columns    []string
+	Unique     bool
+	IndexType  string // BTREE, HASH, etc.
+}
+
+func (s *CreateIndexStmt) statementNode() {}
+func (s *CreateIndexStmt) String() string {
+	unique := ""
+	if s.Unique {
+		unique = "UNIQUE "
+	}
+	indexType := ""
+	if s.IndexType != "" {
+		indexType = fmt.Sprintf(" USING %s", s.IndexType)
+	}
+	return fmt.Sprintf("CREATE %sINDEX %s ON %s (%s)%s", 
+		unique, s.IndexName, s.TableName, strings.Join(s.Columns, ", "), indexType)
+}
+
+// DropIndexStmt represents a DROP INDEX statement.
+type DropIndexStmt struct {
+	IndexName string
+	TableName string // Optional in some SQL dialects
+}
+
+func (s *DropIndexStmt) statementNode() {}
+func (s *DropIndexStmt) String() string {
+	if s.TableName != "" {
+		return fmt.Sprintf("DROP INDEX %s ON %s", s.IndexName, s.TableName)
+	}
+	return fmt.Sprintf("DROP INDEX %s", s.IndexName)
 }

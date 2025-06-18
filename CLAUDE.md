@@ -91,6 +91,7 @@ QuantaDB/
 ## Commit Guidelines
 
 - Run tests before committing, fix any errors
+- Update TODO.md before committing work to git
 
 ## Memory Management
 

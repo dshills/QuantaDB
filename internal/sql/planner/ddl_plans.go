@@ -223,3 +223,161 @@ func (p *LogicalDelete) Children() []Plan {
 
 // logicalNode marks this as a logical plan node
 func (p *LogicalDelete) logicalNode() {}
+
+// LogicalCreateIndex represents a CREATE INDEX operation
+type LogicalCreateIndex struct {
+	basePlan
+	IndexName  string
+	TableName  string
+	SchemaName string
+	Columns    []string
+	Unique     bool
+	IndexType  string
+}
+
+// NewLogicalCreateIndex creates a new CREATE INDEX plan node
+func NewLogicalCreateIndex(schemaName, tableName, indexName string, columns []string, unique bool, indexType string) *LogicalCreateIndex {
+	return &LogicalCreateIndex{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		IndexName:  indexName,
+		Columns:    columns,
+		Unique:     unique,
+		IndexType:  indexType,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalCreateIndex) Type() string {
+	return "CreateIndex"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalCreateIndex) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalCreateIndex) String() string {
+	unique := ""
+	if p.Unique {
+		unique = "UNIQUE "
+	}
+	return fmt.Sprintf("CreateIndex(%s%s ON %s.%s)", unique, p.IndexName, p.SchemaName, p.TableName)
+}
+
+// Children returns child plans (none for CREATE INDEX)
+func (p *LogicalCreateIndex) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalCreateIndex) logicalNode() {}
+
+// LogicalDropTable represents a DROP TABLE operation
+type LogicalDropTable struct {
+	basePlan
+	TableName  string
+	SchemaName string
+}
+
+// NewLogicalDropTable creates a new DROP TABLE plan node
+func NewLogicalDropTable(schemaName, tableName string) *LogicalDropTable {
+	return &LogicalDropTable{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalDropTable) Type() string {
+	return "DropTable"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalDropTable) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalDropTable) String() string {
+	return fmt.Sprintf("DropTable(%s.%s)", p.SchemaName, p.TableName)
+}
+
+// Children returns child plans (none for DROP TABLE)
+func (p *LogicalDropTable) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalDropTable) logicalNode() {}
+
+// LogicalDropIndex represents a DROP INDEX operation
+type LogicalDropIndex struct {
+	basePlan
+	IndexName  string
+	TableName  string
+	SchemaName string
+}
+
+// NewLogicalDropIndex creates a new DROP INDEX plan node
+func NewLogicalDropIndex(schemaName, tableName, indexName string) *LogicalDropIndex {
+	return &LogicalDropIndex{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		IndexName:  indexName,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalDropIndex) Type() string {
+	return "DropIndex"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalDropIndex) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalDropIndex) String() string {
+	if p.TableName != "" {
+		return fmt.Sprintf("DropIndex(%s ON %s.%s)", p.IndexName, p.SchemaName, p.TableName)
+	}
+	return fmt.Sprintf("DropIndex(%s)", p.IndexName)
+}
+
+// Children returns child plans (none for DROP INDEX)
+func (p *LogicalDropIndex) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalDropIndex) logicalNode() {}

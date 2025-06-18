@@ -66,6 +66,12 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 		return p.planDelete(s)
 	case *parser.CreateTableStmt:
 		return p.planCreateTable(s)
+	case *parser.CreateIndexStmt:
+		return p.planCreateIndex(s)
+	case *parser.DropTableStmt:
+		return p.planDropTable(s)
+	case *parser.DropIndexStmt:
+		return p.planDropIndex(s)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}
@@ -264,6 +270,31 @@ func (p *BasicPlanner) planCreateTable(stmt *parser.CreateTableStmt) (LogicalPla
 	}
 	
 	return NewLogicalCreateTable("public", stmt.TableName, columns, constraints), nil
+}
+
+// planCreateIndex converts a CREATE INDEX statement to a logical plan.
+func (p *BasicPlanner) planCreateIndex(stmt *parser.CreateIndexStmt) (LogicalPlan, error) {
+	// Default to public schema
+	schemaName := "public"
+	
+	return NewLogicalCreateIndex(schemaName, stmt.TableName, stmt.IndexName, 
+		stmt.Columns, stmt.Unique, stmt.IndexType), nil
+}
+
+// planDropTable converts a DROP TABLE statement to a logical plan.
+func (p *BasicPlanner) planDropTable(stmt *parser.DropTableStmt) (LogicalPlan, error) {
+	// Default to public schema
+	schemaName := "public"
+	
+	return NewLogicalDropTable(schemaName, stmt.TableName), nil
+}
+
+// planDropIndex converts a DROP INDEX statement to a logical plan.
+func (p *BasicPlanner) planDropIndex(stmt *parser.DropIndexStmt) (LogicalPlan, error) {
+	// Default to public schema
+	schemaName := "public"
+	
+	return NewLogicalDropIndex(schemaName, stmt.TableName, stmt.IndexName), nil
 }
 
 // convertExpression converts a parser expression to a planner expression.
