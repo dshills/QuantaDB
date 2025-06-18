@@ -104,6 +104,10 @@ func (c *Connection) Handle(ctx context.Context) error {
 
 	// Handle startup
 	if err := c.handleStartup(); err != nil {
+		// Set write deadline before sending error
+		if c.server.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+		}
 		c.sendError(err)
 		c.writer.Flush() // Ensure error is sent
 		return fmt.Errorf("startup failed: %w", err)
@@ -111,6 +115,10 @@ func (c *Connection) Handle(ctx context.Context) error {
 
 	// Handle authentication
 	if err := c.handleAuthentication(); err != nil {
+		// Set write deadline before sending error
+		if c.server.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+		}
 		c.sendError(err)
 		c.writer.Flush() // Ensure error is sent
 		return fmt.Errorf("authentication failed: %w", err)
@@ -142,6 +150,10 @@ func (c *Connection) Handle(ctx context.Context) error {
 			}
 
 			if err := c.handleMessage(ctx, msg); err != nil {
+				// Set write deadline before sending error
+				if c.server.config.WriteTimeout > 0 {
+					c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+				}
 				c.sendError(err)
 				if c.state == StateClosed {
 					return err
@@ -175,6 +187,10 @@ func (c *Connection) handleStartup() error {
 		}
 
 		// SSL request - respond with 'N' (no SSL support)
+		// Set write deadline
+		if c.server.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+		}
 		if _, err := c.conn.Write([]byte{'N'}); err != nil {
 			return fmt.Errorf("failed to send SSL response: %w", err)
 		}
@@ -204,6 +220,10 @@ func (c *Connection) handleStartup() error {
 		"application", c.params["application_name"])
 
 	// Send authentication request
+	// Set write deadline for all subsequent writes
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	auth := &protocol.Authentication{
 		Type: protocol.AuthOK, // No authentication for now
 	}
@@ -212,6 +232,10 @@ func (c *Connection) handleStartup() error {
 	}
 
 	// Send parameter status messages
+	// Set write deadline for parameter status messages
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	parameters := map[string]string{
 		"server_version":              "15.0 (QuantaDB 0.1.0)",
 		"server_encoding":             "UTF8",
@@ -238,6 +262,10 @@ func (c *Connection) handleStartup() error {
 	}
 
 	// Send backend key data
+	// Set write deadline for backend key data
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	keyData := &protocol.BackendKeyData{
 		ProcessID: c.id,
 		SecretKey: c.secretKey,
@@ -246,6 +274,10 @@ func (c *Connection) handleStartup() error {
 		return err
 	}
 
+	// Set write deadline before final flush
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	return c.writer.Flush()
 }
 
@@ -360,6 +392,10 @@ func (c *Connection) handleBegin(ctx context.Context) error {
 	c.currentTxn = txn
 	c.logger.Debug("Transaction started", "txn_id", txn.ID())
 
+	// Set write deadline before sending command complete
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	// Send command complete
 	complete := &protocol.CommandComplete{Tag: "BEGIN"}
 	if err := protocol.WriteMessage(c.writer, complete.ToMessage()); err != nil {
@@ -382,6 +418,10 @@ func (c *Connection) handleCommit(ctx context.Context) error {
 		return err
 	}
 
+	// Set write deadline before sending command complete
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	// Send command complete
 	complete := &protocol.CommandComplete{Tag: "COMMIT"}
 	if err := protocol.WriteMessage(c.writer, complete.ToMessage()); err != nil {
@@ -404,6 +444,10 @@ func (c *Connection) handleRollback(ctx context.Context) error {
 		return err
 	}
 
+	// Set write deadline before sending command complete
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	// Send command complete
 	complete := &protocol.CommandComplete{Tag: "ROLLBACK"}
 	if err := protocol.WriteMessage(c.writer, complete.ToMessage()); err != nil {
@@ -415,6 +459,10 @@ func (c *Connection) handleRollback(ctx context.Context) error {
 
 // sendResults sends query results to the client
 func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) error {
+	// Set write deadline for all result writes
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	schema := result.Schema()
 
 	// Send row description
@@ -480,6 +528,10 @@ func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) 
 
 // sendReadyForQuery sends ready for query message
 func (c *Connection) sendReadyForQuery() error {
+	// Set write deadline
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	status := byte(protocol.TxnStatusIdle)
 	if c.currentTxn != nil {
 		status = byte(protocol.TxnStatusInBlock)
@@ -496,6 +548,10 @@ func (c *Connection) sendReadyForQuery() error {
 
 // sendError sends an error response
 func (c *Connection) sendError(err error) error {
+	// Set write deadline
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
 	errResp := &protocol.ErrorResponse{
 		Severity: protocol.SeverityError,
 		Code:     "42000", // Syntax error

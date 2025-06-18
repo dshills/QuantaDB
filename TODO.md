@@ -1,30 +1,24 @@
 # QuantaDB TODO List
 
 ## Summary
-**Total Items**: 5  
-**Completed**: 1 ✅  
-**Pending**: 4 (3 High 🔴, 1 Medium 🟡)  
-**Last Updated**: December 18, 2024
+**Total Items**: 5
+**Completed**: 2 ✅
+**Pending**: 3 (2 High 🔴, 1 Medium 🟡)
+**Last Updated**: June 18, 2025
 
 ## Completed Items ✅
 
-### 1. ✅ Fix Insecure Secret Key Generation (December 18, 2024)
-**Location**: `internal/network/connection.go:236`
-**Issue**: BackendKeyData used predictable formula (`c.id * 12345`) for secret key generation
-**Impact**: Potential session hijacking vulnerability
-**Solution**: Implemented using `crypto/rand` for cryptographically secure random generation
-**Tests**: Added comprehensive security tests in `connection_security_test.go`
-
-## Pending High Priority Items 🔴
-
-### 1. Apply Write Timeouts in Connection Handler
+### 1. Apply Write Timeouts in Connection Handler ✅
 **Location**: `internal/network/connection.go`
 **Issue**: SetWriteTimeout method exists but is never called
 **Impact**: Connections can hang indefinitely on write operations, causing resource exhaustion
 **Solution**: Apply write deadlines alongside read deadlines in the main message loop
 **Estimated Time**: 1-2 hours
+**Completed**: June 18, 2025 - Added write deadline calls before all write operations in connection handler
 
-### 2. Implement UPDATE and DELETE Operations
+## Pending High Priority Items 🔴
+
+### 1. Implement UPDATE and DELETE Operations
 **Status**: SQL parser ready, needs storage integration
 **Components to implement**:
 - UpdateOperator with storage backend
@@ -34,7 +28,7 @@
 **Impact**: Core SQL functionality incomplete without these operations
 **Estimated Time**: 8-12 hours
 
-### 3. Add Write-Ahead Logging (WAL)
+### 2. Add Write-Ahead Logging (WAL)
 **Purpose**: Essential for durability and crash recovery
 **Components**:
 - Design log record format
@@ -60,7 +54,7 @@
 ## Next Steps
 
 **Recommended Order**:
-1. **Apply Write Timeouts** (Quick security fix, 1-2 hours)
+1. ✅ **Apply Write Timeouts** (Quick security fix, 1-2 hours) - COMPLETED
 2. **UPDATE/DELETE Operations** (Core functionality, 8-12 hours)
 3. **WAL Implementation** (Critical for production, 2-3 days)
 4. **Index Integration** (Performance optimization, 1-2 days)

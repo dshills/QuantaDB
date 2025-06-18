@@ -93,3 +93,4 @@ QuantaDB/
 ## Memory Management
 
 - Use files in docs directory for planning and task mgmt
+- When starting a new task review ./TODO.md and planning documents in docs/
