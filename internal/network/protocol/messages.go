@@ -365,3 +365,70 @@ func readCString(r io.Reader) (string, error) {
 
 	return buf.String(), nil
 }
+
+// ParameterDescription describes prepared statement parameters
+type ParameterDescription struct {
+	TypeOIDs []uint32
+}
+
+// ToMessage converts ParameterDescription to a Message
+func (p *ParameterDescription) ToMessage() *Message {
+	buf := new(bytes.Buffer)
+	
+	// Parameter count
+	binary.Write(buf, binary.BigEndian, int16(len(p.TypeOIDs)))
+	
+	// Parameter type OIDs
+	for _, oid := range p.TypeOIDs {
+		binary.Write(buf, binary.BigEndian, oid)
+	}
+	
+	return &Message{
+		Type: 't', // lowercase 't' for parameter description
+		Data: buf.Bytes(),
+	}
+}
+
+// NoData indicates no data will be returned
+type NoData struct{}
+
+// ToMessage converts NoData to a Message
+func (n *NoData) ToMessage() *Message {
+	return &Message{
+		Type: 'n', // 'n' for no data
+		Data: []byte{},
+	}
+}
+
+// CloseComplete indicates successful close
+type CloseComplete struct{}
+
+// ToMessage converts CloseComplete to a Message
+func (c *CloseComplete) ToMessage() *Message {
+	return &Message{
+		Type: MsgCloseComplete,
+		Data: []byte{},
+	}
+}
+
+// ParseComplete indicates successful parse
+type ParseComplete struct{}
+
+// ToMessage converts ParseComplete to a Message
+func (p *ParseComplete) ToMessage() *Message {
+	return &Message{
+		Type: MsgParseComplete,
+		Data: []byte{},
+	}
+}
+
+// BindComplete indicates successful bind
+type BindComplete struct{}
+
+// ToMessage converts BindComplete to a Message  
+func (b *BindComplete) ToMessage() *Message {
+	return &Message{
+		Type: MsgBindComplete,
+		Data: []byte{},
+	}
+}

@@ -294,6 +294,10 @@ func (c *Connection) handleMessage(ctx context.Context, msg *protocol.Message) e
 		return c.handleBind(ctx, msg)
 	case protocol.MsgExecute:
 		return c.handleExecute(ctx, msg)
+	case protocol.MsgDescribe:
+		return c.handleDescribe(ctx, msg)
+	case protocol.MsgClose:
+		return c.handleClose(ctx, msg)
 	case protocol.MsgSync:
 		return c.handleSync(ctx)
 	case protocol.MsgTerminate:
@@ -539,6 +543,25 @@ func (c *Connection) sendError(err error) error {
 		Severity: protocol.SeverityError,
 		Code:     "42000", // Syntax error
 		Message:  err.Error(),
+	}
+
+	if err := protocol.WriteMessage(c.writer, errResp.ToMessage()); err != nil {
+		return err
+	}
+
+	return c.writer.Flush()
+}
+
+// sendErrorWithCode sends an error response with a specific error code
+func (c *Connection) sendErrorWithCode(code string, message string) error {
+	// Set write deadline
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
+	errResp := &protocol.ErrorResponse{
+		Severity: protocol.SeverityError,
+		Code:     code,
+		Message:  message,
 	}
 
 	if err := protocol.WriteMessage(c.writer, errResp.ToMessage()); err != nil {
@@ -902,6 +925,156 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 	return c.writer.Flush()
 }
 
+// handleDescribe handles Describe message (D)
+func (c *Connection) handleDescribe(ctx context.Context, msg *protocol.Message) error {
+	if len(msg.Data) < 1 {
+		return fmt.Errorf("invalid Describe message")
+	}
+
+	// Read describe type: 'S' for statement, 'P' for portal
+	describeType := msg.Data[0]
+	nameBytes := msg.Data[1:]
+
+	// Find null terminator
+	nameEnd := 0
+	for i, b := range nameBytes {
+		if b == 0 {
+			nameEnd = i
+			break
+		}
+	}
+	name := string(nameBytes[:nameEnd])
+
+	switch describeType {
+	case 'S': // Describe statement
+		stmt, err := c.extQuerySession.GetPreparedStatement(name)
+		if err != nil {
+			// Statement not found
+			return c.sendErrorWithCode("26000", fmt.Sprintf("prepared statement %q does not exist", name))
+		}
+
+		// Send ParameterDescription
+		paramOIDs := make([]uint32, len(stmt.ParamTypes))
+		for i, dt := range stmt.ParamTypes {
+			paramOIDs[i] = getTypeOID(dt)
+		}
+		paramDesc := &protocol.ParameterDescription{
+			TypeOIDs: paramOIDs,
+		}
+		if err := protocol.WriteMessage(c.writer, paramDesc.ToMessage()); err != nil {
+			return err
+		}
+
+		// Send RowDescription if statement produces results
+		if statementReturnsData(stmt.ParseTree) {
+			// Convert ResultFields to protocol.FieldDescription
+			fields := make([]protocol.FieldDescription, len(stmt.ResultFields))
+			for i, rf := range stmt.ResultFields {
+				fields[i] = protocol.FieldDescription{
+					Name:         rf.Name,
+					TableOID:     rf.TableOID,
+					ColumnNumber: rf.ColumnAttribute,
+					DataTypeOID:  rf.TypeOID,
+					DataTypeSize: rf.TypeSize,
+					TypeModifier: rf.TypeModifier,
+					Format:       rf.Format,
+				}
+			}
+			rowDesc := &protocol.RowDescription{
+				Fields: fields,
+			}
+			if err := protocol.WriteMessage(c.writer, rowDesc.ToMessage()); err != nil {
+				return err
+			}
+		} else {
+			// Send NoData for statements that don't return data
+			noData := &protocol.NoData{}
+			if err := protocol.WriteMessage(c.writer, noData.ToMessage()); err != nil {
+				return err
+			}
+		}
+
+	case 'P': // Describe portal
+		portal, err := c.extQuerySession.GetPortal(name)
+		if err != nil {
+			// Portal not found
+			return c.sendErrorWithCode("26000", fmt.Sprintf("portal %q does not exist", name))
+		}
+
+		// Send RowDescription if portal produces results
+		if statementReturnsData(portal.Statement.ParseTree) {
+			// Convert ResultFields to protocol.FieldDescription
+			fields := make([]protocol.FieldDescription, len(portal.Statement.ResultFields))
+			for i, rf := range portal.Statement.ResultFields {
+				fields[i] = protocol.FieldDescription{
+					Name:         rf.Name,
+					TableOID:     rf.TableOID,
+					ColumnNumber: rf.ColumnAttribute,
+					DataTypeOID:  rf.TypeOID,
+					DataTypeSize: rf.TypeSize,
+					TypeModifier: rf.TypeModifier,
+					Format:       rf.Format,
+				}
+			}
+			rowDesc := &protocol.RowDescription{
+				Fields: fields,
+			}
+			if err := protocol.WriteMessage(c.writer, rowDesc.ToMessage()); err != nil {
+				return err
+			}
+		} else {
+			// Send NoData for statements that don't return data
+			noData := &protocol.NoData{}
+			if err := protocol.WriteMessage(c.writer, noData.ToMessage()); err != nil {
+				return err
+			}
+		}
+
+	default:
+		return fmt.Errorf("invalid describe type: %c", describeType)
+	}
+
+	return c.writer.Flush()
+}
+
+// handleClose handles Close message (C)
+func (c *Connection) handleClose(ctx context.Context, msg *protocol.Message) error {
+	if len(msg.Data) < 1 {
+		return fmt.Errorf("invalid Close message")
+	}
+
+	// Read close type: 'S' for statement, 'P' for portal
+	closeType := msg.Data[0]
+	nameBytes := msg.Data[1:]
+
+	// Find null terminator
+	nameEnd := 0
+	for i, b := range nameBytes {
+		if b == 0 {
+			nameEnd = i
+			break
+		}
+	}
+	name := string(nameBytes[:nameEnd])
+
+	switch closeType {
+	case 'S': // Close statement
+		c.extQuerySession.CloseStatement(name)
+	case 'P': // Close portal
+		c.extQuerySession.ClosePortal(name)
+	default:
+		return fmt.Errorf("invalid close type: %c", closeType)
+	}
+
+	// Send CloseComplete
+	closeComplete := &protocol.CloseComplete{}
+	if err := protocol.WriteMessage(c.writer, closeComplete.ToMessage()); err != nil {
+		return err
+	}
+
+	return c.writer.Flush()
+}
+
 func (c *Connection) handleSync(ctx context.Context) error {
 	return c.sendReadyForQuery()
 }
@@ -956,5 +1129,15 @@ func getCommandTag(stmt parser.Statement, rowCount int) string {
 		return "CREATE TABLE"
 	default:
 		return "OK"
+	}
+}
+
+// statementReturnsData returns true if the statement returns result rows
+func statementReturnsData(stmt parser.Statement) bool {
+	switch stmt.(type) {
+	case *parser.SelectStmt:
+		return true
+	default:
+		return false
 	}
 }
