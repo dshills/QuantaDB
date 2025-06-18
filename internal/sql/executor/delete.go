@@ -73,10 +73,7 @@ func (d *DeleteOperator) Open(ctx *ExecContext) error {
 
 		// Check WHERE clause if present
 		if d.whereClause != nil {
-			evalCtx := &evalContext{
-				row:     row,
-				columns: columns,
-			}
+			evalCtx := newEvalContext(row, columns, d.ctx.Params)
 
 			match, err := evaluateExpression(d.whereClause, evalCtx)
 			if err != nil {

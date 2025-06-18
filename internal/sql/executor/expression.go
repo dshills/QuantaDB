@@ -78,6 +78,12 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		// For now, return an error as we only support aggregate functions
 		return nil, fmt.Errorf("non-aggregate function calls not yet supported: %s", e.Name)
 
+	case *planner.ParameterRef:
+		return &parameterRefEvaluator{
+			index:    e.Index,
+			dataType: e.Type,
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
@@ -386,4 +392,25 @@ func (e *unaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error)
 	default:
 		return types.NewNullValue(), fmt.Errorf("unsupported unary operator: %v", e.operator)
 	}
+}
+
+// parameterRefEvaluator evaluates parameter references ($1, $2, etc).
+type parameterRefEvaluator struct {
+	index    int
+	dataType types.DataType
+}
+
+func (e *parameterRefEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// Check if parameters are available
+	if ctx == nil || ctx.Params == nil {
+		return types.NewNullValue(), fmt.Errorf("no parameters available in execution context")
+	}
+
+	// Validate parameter index (1-based)
+	if e.index < 1 || e.index > len(ctx.Params) {
+		return types.NewNullValue(), fmt.Errorf("parameter $%d out of range (have %d parameters)", e.index, len(ctx.Params))
+	}
+
+	// Return the parameter value (convert 1-based to 0-based index)
+	return ctx.Params[e.index-1], nil
 }

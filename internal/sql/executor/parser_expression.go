@@ -12,6 +12,16 @@ import (
 type evalContext struct {
 	row     *Row
 	columns []catalog.Column
+	params  []types.Value
+}
+
+// newEvalContext creates a new evaluation context
+func newEvalContext(row *Row, columns []catalog.Column, params []types.Value) *evalContext {
+	return &evalContext{
+		row:     row,
+		columns: columns,
+		params:  params,
+	}
 }
 
 // evaluateExpression evaluates a parser expression in the context of a row
@@ -73,6 +83,13 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 		default:
 			return types.Value{}, fmt.Errorf("unsupported binary operator: %v", e.Operator)
 		}
+		
+	case *parser.ParameterRef:
+		// Handle parameter references ($1, $2, etc.)
+		if e.Index < 1 || e.Index > len(ctx.params) {
+			return types.Value{}, fmt.Errorf("parameter $%d out of range (have %d parameters)", e.Index, len(ctx.params))
+		}
+		return ctx.params[e.Index-1], nil
 		
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type: %T", expr)

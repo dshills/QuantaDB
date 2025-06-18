@@ -193,6 +193,12 @@ func (op *IndexScanOperator) evaluateExpression(expr planner.Expression) (types.
 		// For index scans, column references in start/end keys should not occur
 		// since they represent constant values from the WHERE clause
 		return types.Value{}, fmt.Errorf("column references not supported in index key expressions")
+	case *planner.ParameterRef:
+		// Handle parameter references
+		if e.Index < 1 || e.Index > len(op.ctx.Params) {
+			return types.Value{}, fmt.Errorf("parameter $%d out of range (have %d parameters)", e.Index, len(op.ctx.Params))
+		}
+		return op.ctx.Params[e.Index-1], nil
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type in index key: %T", expr)
 	}

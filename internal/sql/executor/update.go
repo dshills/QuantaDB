@@ -93,10 +93,7 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 
 		// Check WHERE clause if present
 		if u.whereClause != nil {
-			evalCtx := &evalContext{
-				row:     row,
-				columns: columns,
-			}
+			evalCtx := newEvalContext(row, columns, u.ctx.Params)
 
 			match, err := evaluateExpression(u.whereClause, evalCtx)
 			if err != nil {
@@ -131,25 +128,25 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 			}
 
 			// Evaluate assignment expression
-			// For UPDATE, we only support literal values for now
-			literal, ok := assignment.Value.(*parser.Literal)
-			if !ok {
-				return fmt.Errorf("UPDATE only supports literal values, got %T for column %s", assignment.Value, assignment.Column)
+			evalCtx := newEvalContext(row, columns, u.ctx.Params)
+			value, err := evaluateExpression(assignment.Value, evalCtx)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate assignment for column '%s': %w", assignment.Column, err)
 			}
 
 			// Type check against column
 			col := u.table.Columns[columnIndex]
-			if !col.IsNullable && literal.Value.IsNull() {
+			if !col.IsNullable && value.IsNull() {
 				return fmt.Errorf("null value for non-nullable column '%s'", col.Name)
 			}
 
 			// Check type compatibility
-			if !isTypeCompatible(col.DataType, literal.Value) {
+			if !isTypeCompatible(col.DataType, value) {
 				return fmt.Errorf("type mismatch: cannot assign %T to column '%s' of type %s", 
-					literal.Value.Data, col.Name, col.DataType.Name())
+					value.Data, col.Name, col.DataType.Name())
 			}
 			
-			updatedRow.Values[columnIndex] = literal.Value
+			updatedRow.Values[columnIndex] = value
 		}
 
 		// Update the row in storage

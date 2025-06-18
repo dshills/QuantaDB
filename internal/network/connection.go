@@ -401,37 +401,26 @@ func (c *Connection) handleBegin(ctx context.Context) error {
 
 // handleCommit commits the current transaction
 func (c *Connection) handleCommit(ctx context.Context) error {
-	if c.currentTxn == nil {
-		return fmt.Errorf("not in a transaction")
-	}
-
-	err := c.currentTxn.Commit()
-	c.currentTxn = nil
-
-	if err != nil {
-		return err
-	}
-
-	// Set write deadline before sending command complete
-	if c.server.config.WriteTimeout > 0 {
-		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
-	}
-	// Send command complete
-	complete := &protocol.CommandComplete{Tag: "COMMIT"}
-	if err := protocol.WriteMessage(c.writer, complete.ToMessage()); err != nil {
-		return err
-	}
-
-	return c.sendReadyForQuery()
+	return c.endTransaction(true, "COMMIT")
 }
 
 // handleRollback rolls back the current transaction
 func (c *Connection) handleRollback(ctx context.Context) error {
+	return c.endTransaction(false, "ROLLBACK")
+}
+
+// endTransaction handles transaction commit or rollback
+func (c *Connection) endTransaction(commit bool, tag string) error {
 	if c.currentTxn == nil {
 		return fmt.Errorf("not in a transaction")
 	}
 
-	err := c.currentTxn.Rollback()
+	var err error
+	if commit {
+		err = c.currentTxn.Commit()
+	} else {
+		err = c.currentTxn.Rollback()
+	}
 	c.currentTxn = nil
 
 	if err != nil {
@@ -443,7 +432,7 @@ func (c *Connection) handleRollback(ctx context.Context) error {
 		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
 	}
 	// Send command complete
-	complete := &protocol.CommandComplete{Tag: "ROLLBACK"}
+	complete := &protocol.CommandComplete{Tag: tag}
 	if err := protocol.WriteMessage(c.writer, complete.ToMessage()); err != nil {
 		return err
 	}
@@ -779,6 +768,7 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 		Engine:     c.engine,
 		TxnManager: c.txnManager,
 		Txn:        c.currentTxn,
+		Params:     portal.ParamValues,
 		Stats:      &executor.ExecStats{},
 	}
 
