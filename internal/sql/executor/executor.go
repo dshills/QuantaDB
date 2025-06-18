@@ -156,6 +156,8 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildDropTableOperator(p, ctx)
 	case *planner.LogicalDropIndex:
 		return e.buildDropIndexOperator(p, ctx)
+	case *planner.IndexScan:
+		return e.buildIndexScanOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -176,6 +178,41 @@ func (e *BasicExecutor) buildScanOperator(plan *planner.LogicalScan, ctx *ExecCo
 	
 	// Fall back to key-value scan
 	return NewScanOperator(table, ctx), nil
+}
+
+// buildIndexScanOperator builds an index scan operator.
+func (e *BasicExecutor) buildIndexScanOperator(plan *planner.IndexScan, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured for index scan")
+	}
+	
+	if e.indexMgr == nil {
+		return nil, fmt.Errorf("index manager not configured for index scan")
+	}
+	
+	// Type assert to get the actual index.Manager
+	indexMgr, ok := e.indexMgr.(*index.Manager)
+	if !ok {
+		return nil, fmt.Errorf("invalid index manager type")
+	}
+	
+	// Get table from catalog - try multiple schemas like in the planner
+	var table *catalog.Table
+	var err error
+	
+	// Try "public" schema first, then "test", then empty
+	table, err = ctx.Catalog.GetTable("public", plan.TableName)
+	if err != nil {
+		table, err = ctx.Catalog.GetTable("test", plan.TableName)
+		if err != nil {
+			table, err = ctx.Catalog.GetTable("", plan.TableName)
+			if err != nil {
+				return nil, fmt.Errorf("table not found: %w", err)
+			}
+		}
+	}
+	
+	return NewIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartKey, plan.EndKey), nil
 }
 
 // buildFilterOperator builds a filter operator.

@@ -2,6 +2,7 @@ package planner
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 )
@@ -21,6 +22,22 @@ func (s *IndexScan) logicalNode() {}
 
 func (s *IndexScan) String() string {
 	return fmt.Sprintf("IndexScan(%s.%s)", s.TableName, s.IndexName)
+}
+
+// NewIndexScan creates a new index scan node.
+func NewIndexScan(tableName, indexName string, index *catalog.Index, schema *Schema, startKey, endKey Expression) *IndexScan {
+	return &IndexScan{
+		basePlan: basePlan{
+			children: []Plan{},
+			schema:   schema,
+		},
+		TableName: tableName,
+		IndexName: indexName,
+		Index:     index,
+		StartKey:  startKey,
+		EndKey:    endKey,
+		Reverse:   false,
+	}
 }
 
 // canUseIndexForFilter checks if an index can be used for a filter expression.
@@ -158,11 +175,23 @@ func extractIndexBounds(index *catalog.Index, filter Expression) (startKey, endK
 }
 
 // tryIndexScan attempts to convert a scan+filter into an index scan.
-func tryIndexScan(scan *LogicalScan, filter *LogicalFilter, catalog catalog.Catalog) Plan {
-	// Get table metadata
-	table, err := catalog.GetTable("", scan.TableName)
+func tryIndexScan(scan *LogicalScan, filter *LogicalFilter, cat catalog.Catalog) Plan {
+	// Try to get table metadata - try both common schemas
+	var table *catalog.Table
+	var err error
+	
+	// Try "public" schema first
+	table, err = cat.GetTable("public", scan.TableName)
 	if err != nil {
-		return nil
+		// Try "test" schema 
+		table, err = cat.GetTable("test", scan.TableName)
+		if err != nil {
+			// Try empty schema (might default to public)
+			table, err = cat.GetTable("", scan.TableName)
+			if err != nil {
+				return nil
+			}
+		}
 	}
 	
 	// Check each index to see if it can be used
@@ -170,15 +199,8 @@ func tryIndexScan(scan *LogicalScan, filter *LogicalFilter, catalog catalog.Cata
 		if canUseIndexForFilter(index, filter.Predicate) {
 			startKey, endKey, ok := extractIndexBounds(index, filter.Predicate)
 			if ok {
-				// Create index scan
-				indexScan := &IndexScan{
-					TableName: scan.TableName,
-					IndexName: index.Name,
-					Index:     index,
-					StartKey:  startKey,
-					EndKey:    endKey,
-				}
-				indexScan.basePlan.children = []Plan{scan}
+				// Create index scan using the constructor
+				indexScan := NewIndexScan(scan.TableName, index.Name, index, scan.Schema(), startKey, endKey)
 				
 				// Check if we still need a filter (for conditions not fully covered by index)
 				// For now, assume the index fully covers the filter
@@ -188,5 +210,59 @@ func tryIndexScan(scan *LogicalScan, filter *LogicalFilter, catalog catalog.Cata
 	}
 	
 	// No suitable index found
+	return nil
+}
+
+// tryIndexScanWithCost attempts to convert a scan+filter into an index scan using cost-based optimization.
+func tryIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat catalog.Catalog, costEstimator *CostEstimator) Plan {
+	// Get table metadata - try multiple schemas like in the original function
+	var table *catalog.Table
+	var err error
+	
+	// Try "public" schema first, then "test", then empty
+	table, err = cat.GetTable("public", scan.TableName)
+	if err != nil {
+		table, err = cat.GetTable("test", scan.TableName)
+		if err != nil {
+			table, err = cat.GetTable("", scan.TableName)
+			if err != nil {
+				return nil
+			}
+		}
+	}
+	
+	var bestIndex *catalog.Index
+	var bestStartKey, bestEndKey Expression
+	var bestCost float64 = math.Inf(1) // Start with infinite cost
+	
+	// Check each index to see if it can be used and calculate its cost
+	for _, index := range table.Indexes {
+		if canUseIndexForFilter(index, filter.Predicate) {
+			startKey, endKey, ok := extractIndexBounds(index, filter.Predicate)
+			if ok {
+				// Use cost estimator to determine if this index is worth using
+				if costEstimator != nil && costEstimator.ShouldUseIndex(table, index, filter.Predicate) {
+					// Calculate cost for this specific index
+					selectivity := costEstimator.EstimateSelectivity(table, filter.Predicate)
+					indexCost := costEstimator.EstimateIndexScanCost(table, index, selectivity)
+					
+					// Track the best (lowest cost) index
+					if indexCost.TotalCost < bestCost {
+						bestIndex = index
+						bestStartKey = startKey
+						bestEndKey = endKey
+						bestCost = indexCost.TotalCost
+					}
+				}
+			}
+		}
+	}
+	
+	// If we found a cost-effective index, use it
+	if bestIndex != nil {
+		return NewIndexScan(scan.TableName, bestIndex.Name, bestIndex, scan.Schema(), bestStartKey, bestEndKey)
+	}
+	
+	// No cost-effective index found
 	return nil
 }

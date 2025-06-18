@@ -28,7 +28,10 @@ func NewOptimizer() *Optimizer {
 
 // NewOptimizerWithCatalog creates a new optimizer with catalog for index selection.
 func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
-	indexSelection := &IndexSelection{catalog: cat}
+	indexSelection := &IndexSelection{
+		catalog:       cat,
+		costEstimator: NewCostEstimator(cat),
+	}
 	return &Optimizer{
 		catalog: cat,
 		rules: []OptimizationRule{
@@ -248,18 +251,97 @@ func ExplainPlan(plan Plan) string {
 
 // IndexSelection selects appropriate indexes for table scans.
 type IndexSelection struct {
-	catalog catalog.Catalog
+	catalog       catalog.Catalog
+	costEstimator *CostEstimator
 }
 
 // SetCatalog sets the catalog for index selection.
 func (is *IndexSelection) SetCatalog(cat catalog.Catalog) {
 	is.catalog = cat
+	is.costEstimator = NewCostEstimator(cat)
 }
 
 // Apply attempts to replace scan+filter combinations with index scans.
 func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
-	// TODO: For now, this is a placeholder
-	// The actual implementation would need access to the catalog
-	// to check available indexes
+	if is.catalog == nil {
+		return plan, false
+	}
+
+	// Look for Filter over Scan patterns
+	switch p := plan.(type) {
+	case *LogicalFilter:
+		// Check if the child is a table scan
+		if len(p.Children()) > 0 {
+			if scan, ok := p.Children()[0].(*LogicalScan); ok {
+				// Try to convert to index scan using cost-based optimization
+				if is.costEstimator != nil {
+					if indexScan := tryIndexScanWithCost(scan, p, is.catalog, is.costEstimator); indexScan != nil {
+						// Index scan found - return it directly (filter is incorporated)
+						return indexScan.(LogicalPlan), true
+					}
+				} else {
+					// Fallback to simple index scan if no cost estimator
+					if indexScan := tryIndexScan(scan, p, is.catalog); indexScan != nil {
+						// Index scan found - return it directly (filter is incorporated)
+						return indexScan.(LogicalPlan), true
+					}
+				}
+			}
+		}
+		
+		// Recursively apply to children
+		if len(p.Children()) > 0 {
+			newChild, changed := is.Apply(p.Children()[0].(LogicalPlan))
+			if changed {
+				return NewLogicalFilter(newChild, p.Predicate), true
+			}
+		}
+		
+	case *LogicalProject:
+		// Apply to children
+		if len(p.Children()) > 0 {
+			newChild, changed := is.Apply(p.Children()[0].(LogicalPlan))
+			if changed {
+				return NewLogicalProject(newChild, p.Projections, p.Aliases, p.schema), true
+			}
+		}
+		
+	case *LogicalSort:
+		// Apply to children
+		if len(p.Children()) > 0 {
+			newChild, changed := is.Apply(p.Children()[0].(LogicalPlan))
+			if changed {
+				return NewLogicalSort(newChild, p.OrderBy), true
+			}
+		}
+		
+	case *LogicalLimit:
+		// Apply to children
+		if len(p.Children()) > 0 {
+			newChild, changed := is.Apply(p.Children()[0].(LogicalPlan))
+			if changed {
+				return NewLogicalLimit(newChild, p.Limit, p.Offset), true
+			}
+		}
+		
+	case *LogicalJoin:
+		// Apply to both children
+		leftChild, leftChanged := is.Apply(p.Children()[0].(LogicalPlan))
+		rightChild, rightChanged := is.Apply(p.Children()[1].(LogicalPlan))
+		
+		if leftChanged || rightChanged {
+			return NewLogicalJoin(leftChild, rightChild, p.JoinType, p.Condition, p.schema), true
+		}
+		
+	case *LogicalAggregate:
+		// Apply to children
+		if len(p.Children()) > 0 {
+			newChild, changed := is.Apply(p.Children()[0].(LogicalPlan))
+			if changed {
+				return NewLogicalAggregate(newChild, p.GroupBy, p.Aggregates, p.schema), true
+			}
+		}
+	}
+	
 	return plan, false
 }
