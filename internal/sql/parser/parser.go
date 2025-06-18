@@ -1058,6 +1058,22 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		p.advance()
 		return &Identifier{Name: name}, nil
 
+	case TokenParam:
+		paramStr := p.current.Value
+		p.advance()
+		// Extract the number from $N
+		if len(paramStr) < 2 || paramStr[0] != '$' {
+			return nil, p.error("invalid parameter format")
+		}
+		index, err := strconv.Atoi(paramStr[1:])
+		if err != nil {
+			return nil, p.error("invalid parameter number")
+		}
+		if index < 1 {
+			return nil, p.error("parameter index must be >= 1")
+		}
+		return &ParameterRef{Index: index}, nil
+
 	case TokenLeftParen:
 		p.advance()
 		expr, err := p.parseExpression()

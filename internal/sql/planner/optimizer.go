@@ -46,10 +46,10 @@ func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
 // Optimize applies all optimization rules to a plan until no more changes occur.
 func (o *Optimizer) Optimize(plan LogicalPlan) LogicalPlan {
 	maxIterations := 100 // Prevent infinite loops
-	
+
 	for i := 0; i < maxIterations; i++ {
 		changed := false
-		
+
 		for _, rule := range o.rules {
 			newPlan, applied := rule.Apply(plan)
 			if applied {
@@ -57,12 +57,12 @@ func (o *Optimizer) Optimize(plan LogicalPlan) LogicalPlan {
 				changed = true
 			}
 		}
-		
+
 		if !changed {
 			break
 		}
 	}
-	
+
 	return plan
 }
 
@@ -75,7 +75,7 @@ func (r *PredicatePushdown) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 	case *LogicalFilter:
 		// Try to push the filter down through its child
 		child := p.Children()[0]
-		
+
 		switch c := child.(type) {
 		case *LogicalProject:
 			// Push filter below projection if possible
@@ -86,13 +86,13 @@ func (r *PredicatePushdown) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				newProject := NewLogicalProject(newFilter, c.Projections, c.Aliases, c.schema)
 				return newProject, true
 			}
-			
+
 		case *LogicalJoin:
 			// Split predicate and push parts to appropriate sides
 			// TODO: Implement join predicate pushdown
 			return plan, false
 		}
-		
+
 	case *LogicalProject:
 		// Recursively apply to children
 		if len(p.Children()) > 0 {
@@ -101,17 +101,17 @@ func (r *PredicatePushdown) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				return NewLogicalProject(newChild, p.Projections, p.Aliases, p.schema), true
 			}
 		}
-		
+
 	case *LogicalJoin:
 		// Recursively apply to children
 		left, leftChanged := r.Apply(p.Children()[0].(LogicalPlan))
 		right, rightChanged := r.Apply(p.Children()[1].(LogicalPlan))
-		
+
 		if leftChanged || rightChanged {
 			return NewLogicalJoin(left, right, p.JoinType, p.Condition, p.schema), true
 		}
 	}
-	
+
 	return plan, false
 }
 
@@ -139,34 +139,34 @@ type ConstantFolding struct{}
 // Apply folds constant expressions.
 func (c *ConstantFolding) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 	changed := false
-	
+
 	// Use a visitor pattern to traverse and modify expressions
 	visitor := &constantFoldingVisitor{changed: &changed}
-	
+
 	switch p := plan.(type) {
 	case *LogicalFilter:
 		newPredicate := c.foldExpression(p.Predicate, visitor)
 		if *visitor.changed {
 			return NewLogicalFilter(p.Children()[0].(LogicalPlan), newPredicate), true
 		}
-		
+
 	case *LogicalProject:
 		var newProjections []Expression
 		for _, proj := range p.Projections {
 			newProj := c.foldExpression(proj, visitor)
 			newProjections = append(newProjections, newProj)
 		}
-		
+
 		if *visitor.changed {
 			return NewLogicalProject(p.Children()[0].(LogicalPlan), newProjections, p.Aliases, p.schema), true
 		}
 	}
-	
+
 	// Recursively apply to children
 	if len(plan.Children()) > 0 {
 		var newChildren []LogicalPlan
 		childChanged := false
-		
+
 		for _, child := range plan.Children() {
 			newChild, changed := c.Apply(child.(LogicalPlan))
 			newChildren = append(newChildren, newChild)
@@ -174,12 +174,12 @@ func (c *ConstantFolding) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				childChanged = true
 			}
 		}
-		
+
 		if childChanged {
 			return c.rebuildPlanWithChildren(plan, newChildren), true
 		}
 	}
-	
+
 	return plan, false
 }
 
@@ -236,11 +236,11 @@ func (o *PlanOptimizer) OptimizePlan(plan LogicalPlan) LogicalPlan {
 // explainPlan generates a string representation of a plan for debugging.
 func explainPlan(plan Plan, indent string) string {
 	result := indent + plan.String() + "\n"
-	
+
 	for _, child := range plan.Children() {
 		result += explainPlan(child, indent+"  ")
 	}
-	
+
 	return result
 }
 
@@ -288,7 +288,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				}
 			}
 		}
-		
+
 		// Recursively apply to children
 		if len(p.Children()) > 0 {
 			newChild, changed := is.Apply(p.Children()[0].(LogicalPlan))
@@ -296,7 +296,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				return NewLogicalFilter(newChild, p.Predicate), true
 			}
 		}
-		
+
 	case *LogicalProject:
 		// Apply to children
 		if len(p.Children()) > 0 {
@@ -305,7 +305,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				return NewLogicalProject(newChild, p.Projections, p.Aliases, p.schema), true
 			}
 		}
-		
+
 	case *LogicalSort:
 		// Apply to children
 		if len(p.Children()) > 0 {
@@ -314,7 +314,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				return NewLogicalSort(newChild, p.OrderBy), true
 			}
 		}
-		
+
 	case *LogicalLimit:
 		// Apply to children
 		if len(p.Children()) > 0 {
@@ -323,16 +323,16 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				return NewLogicalLimit(newChild, p.Limit, p.Offset), true
 			}
 		}
-		
+
 	case *LogicalJoin:
 		// Apply to both children
 		leftChild, leftChanged := is.Apply(p.Children()[0].(LogicalPlan))
 		rightChild, rightChanged := is.Apply(p.Children()[1].(LogicalPlan))
-		
+
 		if leftChanged || rightChanged {
 			return NewLogicalJoin(leftChild, rightChild, p.JoinType, p.Condition, p.schema), true
 		}
-		
+
 	case *LogicalAggregate:
 		// Apply to children
 		if len(p.Children()) > 0 {
@@ -342,6 +342,6 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 			}
 		}
 	}
-	
+
 	return plan, false
 }

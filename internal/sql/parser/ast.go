@@ -250,6 +250,16 @@ func (i *Identifier) String() string {
 	return i.Name
 }
 
+// ParameterRef represents a parameter placeholder like $1, $2.
+type ParameterRef struct {
+	Index int // 1-based parameter index
+}
+
+func (p *ParameterRef) expressionNode() {}
+func (p *ParameterRef) String() string {
+	return fmt.Sprintf("$%d", p.Index)
+}
+
 // Star represents the * in SELECT *.
 type Star struct{}
 

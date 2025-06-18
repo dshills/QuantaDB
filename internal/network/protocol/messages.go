@@ -242,8 +242,84 @@ func ParseMessage(data []byte) (*Parse, error) {
 type Bind struct {
 	Portal          string
 	Statement       string
+	ParameterFormats []int16
 	ParameterValues [][]byte
 	ResultFormats   []int16
+}
+
+// ParseBind parses a Bind message from data
+func ParseBind(data []byte) (*Bind, error) {
+	buf := bytes.NewReader(data)
+	b := &Bind{}
+
+	// Read portal name
+	portal, err := readCString(buf)
+	if err != nil {
+		return nil, err
+	}
+	b.Portal = portal
+
+	// Read statement name
+	stmt, err := readCString(buf)
+	if err != nil {
+		return nil, err
+	}
+	b.Statement = stmt
+
+	// Read parameter format count
+	var formatCount int16
+	if err := binary.Read(buf, binary.BigEndian, &formatCount); err != nil {
+		return nil, err
+	}
+
+	// Read parameter formats
+	b.ParameterFormats = make([]int16, formatCount)
+	for i := 0; i < int(formatCount); i++ {
+		if err := binary.Read(buf, binary.BigEndian, &b.ParameterFormats[i]); err != nil {
+			return nil, err
+		}
+	}
+
+	// Read parameter value count
+	var paramCount int16
+	if err := binary.Read(buf, binary.BigEndian, &paramCount); err != nil {
+		return nil, err
+	}
+
+	// Read parameter values
+	b.ParameterValues = make([][]byte, paramCount)
+	for i := 0; i < int(paramCount); i++ {
+		var length int32
+		if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+			return nil, err
+		}
+		if length == -1 {
+			// NULL value
+			b.ParameterValues[i] = nil
+		} else {
+			// Read value bytes
+			b.ParameterValues[i] = make([]byte, length)
+			if _, err := io.ReadFull(buf, b.ParameterValues[i]); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Read result format count
+	var resultFormatCount int16
+	if err := binary.Read(buf, binary.BigEndian, &resultFormatCount); err != nil {
+		return nil, err
+	}
+
+	// Read result formats
+	b.ResultFormats = make([]int16, resultFormatCount)
+	for i := 0; i < int(resultFormatCount); i++ {
+		if err := binary.Read(buf, binary.BigEndian, &b.ResultFormats[i]); err != nil {
+			return nil, err
+		}
+	}
+
+	return b, nil
 }
 
 // Execute represents an Execute message

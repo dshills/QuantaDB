@@ -84,6 +84,8 @@ func (l *Lexer) NextToken() Token {
 		return l.readString()
 	case '"':
 		return l.readQuotedIdentifier()
+	case '$':
+		return l.readParameter()
 	}
 
 	// Handle multi-character tokens
@@ -293,4 +295,40 @@ func (l *Lexer) readString() Token {
 // readQuotedIdentifier reads an identifier enclosed in double quotes.
 func (l *Lexer) readQuotedIdentifier() Token {
 	return l.readQuoted('"', TokenIdentifier, "unterminated quoted identifier")
+}
+
+// readParameter reads a parameter placeholder like $1, $2, etc.
+func (l *Lexer) readParameter() Token {
+	start := l.position
+	startCol := l.column
+	
+	// Consume the '$'
+	l.position++
+	l.column++
+	
+	// Check if there's a digit after '$'
+	if l.position >= len(l.input) || !unicode.IsDigit(rune(l.input[l.position])) {
+		return Token{
+			Type:     TokenError,
+			Value:    "invalid parameter placeholder",
+			Position: start,
+			Line:     l.line,
+			Column:   startCol,
+		}
+	}
+	
+	// Read the parameter number
+	for l.position < len(l.input) && unicode.IsDigit(rune(l.input[l.position])) {
+		l.position++
+		l.column++
+	}
+	
+	value := l.input[start:l.position]
+	return Token{
+		Type:     TokenParam,
+		Value:    value,
+		Position: start,
+		Line:     l.line,
+		Column:   startCol,
+	}
 }

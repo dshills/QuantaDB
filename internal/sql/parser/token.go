@@ -17,6 +17,7 @@ const (
 	TokenTrue
 	TokenFalse
 	TokenNull
+	TokenParam // Parameter placeholder like $1, $2
 
 	// Keywords
 	TokenCreate
@@ -97,6 +98,7 @@ var tokenStrings = map[TokenType]string{
 	TokenTrue:         "TRUE",
 	TokenFalse:        "FALSE",
 	TokenNull:         "NULL",
+	TokenParam:        "PARAM",
 	TokenCreate:       "CREATE",
 	TokenTable:        "TABLE",
 	TokenInsert:       "INSERT",
@@ -179,7 +181,7 @@ type Token struct {
 
 // String returns a string representation of the token.
 func (t Token) String() string {
-	if t.Type == TokenIdentifier || t.Type == TokenNumber || t.Type == TokenString {
+	if t.Type == TokenIdentifier || t.Type == TokenNumber || t.Type == TokenString || t.Type == TokenParam {
 		return fmt.Sprintf("%s(%s)", t.Type, t.Value)
 	}
 	return t.Type.String()

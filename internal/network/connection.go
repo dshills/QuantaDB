@@ -15,6 +15,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/log"
 	"github.com/dshills/QuantaDB/internal/network/protocol"
+	"github.com/dshills/QuantaDB/internal/sql"
 	"github.com/dshills/QuantaDB/internal/sql/executor"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
@@ -63,15 +64,8 @@ type Connection struct {
 	// Current transaction
 	currentTxn *txn.MvccTransaction
 
-	// Prepared statements
-	preparedStmts map[string]*PreparedStatement
-}
-
-// PreparedStatement represents a prepared statement
-type PreparedStatement struct {
-	Name  string
-	Query string
-	Plan  planner.Plan
+	// Extended query protocol session
+	extQuerySession *ExtendedQuerySession
 }
 
 // setState sets the connection state and logs the transition
@@ -92,7 +86,7 @@ func (c *Connection) setState(newState int) {
 func (c *Connection) Handle(ctx context.Context) error {
 	c.reader = bufio.NewReader(c.conn)
 	c.writer = bufio.NewWriter(c.conn)
-	c.preparedStmts = make(map[string]*PreparedStatement)
+	c.extQuerySession = NewExtendedQuerySession()
 
 	// Set initial state
 	c.setState(StateStartup)
@@ -588,20 +582,334 @@ func (c *Connection) Close() error {
 	return c.conn.Close()
 }
 
-// Extended query protocol stubs
+// handleParse handles a Parse message
 func (c *Connection) handleParse(ctx context.Context, msg *protocol.Message) error {
-	// TODO: Implement
-	return fmt.Errorf("parse not implemented")
+	c.setState(StateBusy)
+
+	// Parse the message
+	parseMsg, err := protocol.ParseMessage(msg.Data)
+	if err != nil {
+		return fmt.Errorf("failed to parse Parse message: %w", err)
+	}
+
+	c.logger.Debug("Parse message received",
+		"name", parseMsg.Name,
+		"query", parseMsg.Query,
+		"param_count", len(parseMsg.ParameterOIDs))
+
+	// Parse the SQL query
+	p := parser.NewParser(parseMsg.Query)
+	stmt, err := p.Parse()
+	if err != nil {
+		return fmt.Errorf("parse error: %w", err)
+	}
+
+	// Infer parameter types from the query
+	paramTypes, err := sql.InferParameterTypes(stmt)
+	if err != nil {
+		return fmt.Errorf("failed to infer parameter types: %w", err)
+	}
+
+	// Override with explicitly provided types if any
+	for i, oid := range parseMsg.ParameterOIDs {
+		if oid != 0 && i < len(paramTypes) {
+			// Convert OID to DataType if needed
+			// For now, we'll keep the inferred types
+		}
+	}
+
+	// Get field descriptions for the result
+	var fieldDescs []sql.FieldDescription
+	// TODO: Determine field descriptions from the statement
+	// For now, we'll populate these during Bind or Execute
+
+	// Create prepared statement
+	prepStmt := &sql.PreparedStatement{
+		Name:         parseMsg.Name,
+		SQL:          parseMsg.Query,
+		ParseTree:    stmt,
+		ParamTypes:   paramTypes,
+		ResultFields: fieldDescs,
+		IsCacheable:  true,
+	}
+
+	// Store the prepared statement
+	if err := c.extQuerySession.StorePreparedStatement(prepStmt); err != nil {
+		return fmt.Errorf("failed to store prepared statement: %w", err)
+	}
+
+	// Send ParseComplete
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
+	parseComplete := &protocol.Message{
+		Type: protocol.MsgParseComplete,
+		Data: []byte{},
+	}
+	if err := protocol.WriteMessage(c.writer, parseComplete); err != nil {
+		return fmt.Errorf("failed to send ParseComplete: %w", err)
+	}
+
+	return c.writer.Flush()
 }
 
+// handleBind handles a Bind message
 func (c *Connection) handleBind(ctx context.Context, msg *protocol.Message) error {
-	// TODO: Implement
-	return fmt.Errorf("bind not implemented")
+	c.setState(StateBusy)
+
+	// Parse the message
+	bindMsg, err := protocol.ParseBind(msg.Data)
+	if err != nil {
+		return fmt.Errorf("failed to parse Bind message: %w", err)
+	}
+
+	c.logger.Debug("Bind message received",
+		"portal", bindMsg.Portal,
+		"statement", bindMsg.Statement,
+		"param_count", len(bindMsg.ParameterValues))
+
+	// Retrieve the prepared statement
+	prepStmt, err := c.extQuerySession.GetPreparedStatement(bindMsg.Statement)
+	if err != nil {
+		return fmt.Errorf("prepared statement not found: %w", err)
+	}
+
+	// Validate parameter count
+	if len(bindMsg.ParameterValues) != len(prepStmt.ParamTypes) {
+		return fmt.Errorf("parameter count mismatch: expected %d, got %d",
+			len(prepStmt.ParamTypes), len(bindMsg.ParameterValues))
+	}
+
+	// Parse parameter values
+	paramValues := make([]types.Value, len(bindMsg.ParameterValues))
+	for i, paramData := range bindMsg.ParameterValues {
+		// Determine format (text or binary)
+		format := int16(0) // Default to text
+		if i < len(bindMsg.ParameterFormats) {
+			format = bindMsg.ParameterFormats[i]
+		} else if len(bindMsg.ParameterFormats) == 1 {
+			// If single format specified, it applies to all parameters
+			format = bindMsg.ParameterFormats[0]
+		}
+
+		// Parse the parameter value
+		value, err := sql.ParseParameterValue(paramData, prepStmt.ParamTypes[i], format)
+		if err != nil {
+			return fmt.Errorf("failed to parse parameter %d: %w", i+1, err)
+		}
+		paramValues[i] = value
+	}
+
+	// Create portal
+	portal := &sql.Portal{
+		Name:          bindMsg.Portal,
+		Statement:     prepStmt,
+		ParamValues:   paramValues,
+		ParamFormats:  bindMsg.ParameterFormats,
+		ResultFormats: bindMsg.ResultFormats,
+		CurrentRow:    0,
+		IsSuspended:   false,
+	}
+
+	// Store the portal
+	if err := c.extQuerySession.CreatePortal(portal); err != nil {
+		return fmt.Errorf("failed to create portal: %w", err)
+	}
+
+	// Send BindComplete
+	if c.server.config.WriteTimeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	}
+	bindComplete := &protocol.Message{
+		Type: protocol.MsgBindComplete,
+		Data: []byte{},
+	}
+	if err := protocol.WriteMessage(c.writer, bindComplete); err != nil {
+		return fmt.Errorf("failed to send BindComplete: %w", err)
+	}
+
+	return c.writer.Flush()
 }
 
+// handleExecute handles an Execute message
 func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) error {
-	// TODO: Implement
-	return fmt.Errorf("execute not implemented")
+	c.setState(StateBusy)
+
+	// Parse the message
+	execMsg, err := protocol.ParseExecute(msg.Data)
+	if err != nil {
+		return fmt.Errorf("failed to parse Execute message: %w", err)
+	}
+
+	c.logger.Debug("Execute message received",
+		"portal", execMsg.Portal,
+		"max_rows", execMsg.MaxRows)
+
+	// Retrieve the portal
+	portal, err := c.extQuerySession.GetPortal(execMsg.Portal)
+	if err != nil {
+		return fmt.Errorf("portal not found: %w", err)
+	}
+
+	// Get the prepared statement
+	prepStmt := portal.Statement
+
+	// Create a plan
+	// For now, we'll re-plan the query
+	// In a more optimized implementation, we could cache the plan
+	planr := planner.NewBasicPlannerWithCatalog(c.catalog)
+	plan, err := planr.Plan(prepStmt.ParseTree)
+	if err != nil {
+		return fmt.Errorf("planning error: %w", err)
+	}
+
+	// TODO: Apply parameter substitution to the plan
+	// This would require updating the planner to support parameter substitution
+	// For now, parameter values are stored in the portal and will need to be
+	// applied during execution
+	_ = sql.NewParameterSubstitutor(portal.ParamValues) // Will be used when executor supports it
+
+	// Execute the query
+	exec := executor.NewBasicExecutor(c.catalog, c.engine)
+	if c.storage != nil {
+		exec.SetStorageBackend(c.storage)
+	}
+	execCtx := &executor.ExecContext{
+		Catalog:    c.catalog,
+		Engine:     c.engine,
+		TxnManager: c.txnManager,
+		Txn:        c.currentTxn,
+		Stats:      &executor.ExecStats{},
+	}
+
+	result, err := exec.Execute(plan, execCtx)
+	if err != nil {
+		return fmt.Errorf("execution error: %w", err)
+	}
+	defer result.Close()
+
+	// Send row description if this is the first execute or if portal was just bound
+	if portal.CurrentRow == 0 {
+		schema := result.Schema()
+		rowDesc := &protocol.RowDescription{
+			Fields: make([]protocol.FieldDescription, len(schema.Columns)),
+		}
+
+		for i, col := range schema.Columns {
+			// Determine format for this column
+			format := int16(protocol.FormatText) // Default to text
+			if i < len(portal.ResultFormats) && portal.ResultFormats[i] != 0 {
+				format = portal.ResultFormats[i]
+			} else if len(portal.ResultFormats) == 1 && portal.ResultFormats[0] != 0 {
+				// Single format applies to all columns
+				format = portal.ResultFormats[0]
+			}
+
+			rowDesc.Fields[i] = protocol.FieldDescription{
+				Name:         col.Name,
+				TableOID:     0, // TODO: Add table OID
+				ColumnNumber: int16(i + 1),
+				DataTypeOID:  getTypeOID(col.Type),
+				DataTypeSize: getTypeSize(col.Type),
+				TypeModifier: -1,
+				Format:       format,
+			}
+		}
+
+		if c.server.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+		}
+		if err := protocol.WriteMessage(c.writer, rowDesc.ToMessage()); err != nil {
+			return fmt.Errorf("failed to send RowDescription: %w", err)
+		}
+	}
+
+	// Send data rows
+	rowCount := int32(0)
+	for {
+		// Check if we've reached the max rows limit
+		if execMsg.MaxRows > 0 && rowCount >= execMsg.MaxRows {
+			portal.IsSuspended = true
+			break
+		}
+
+		row, err := result.Next()
+		if err != nil {
+			return err
+		}
+		if row == nil {
+			// No more rows
+			portal.IsSuspended = false
+			break
+		}
+
+		dataRow := &protocol.DataRow{
+			Values: make([][]byte, len(row.Values)),
+		}
+
+		for i, val := range row.Values {
+			if val.IsNull() {
+				dataRow.Values[i] = nil
+			} else {
+				// Format value based on result format
+				format := int16(protocol.FormatText)
+				if i < len(portal.ResultFormats) && portal.ResultFormats[i] != 0 {
+					format = portal.ResultFormats[i]
+				} else if len(portal.ResultFormats) == 1 && portal.ResultFormats[0] != 0 {
+					format = portal.ResultFormats[0]
+				}
+
+				if format == protocol.FormatBinary {
+					// TODO: Implement binary formatting
+					return fmt.Errorf("binary result format not supported")
+				}
+
+				dataRow.Values[i] = []byte(val.String())
+			}
+		}
+
+		if c.server.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+		}
+		if err := protocol.WriteMessage(c.writer, dataRow.ToMessage()); err != nil {
+			return fmt.Errorf("failed to send DataRow: %w", err)
+		}
+
+		portal.CurrentRow++
+		rowCount++
+	}
+
+	// Send appropriate completion message
+	if portal.IsSuspended {
+		// Portal suspended
+		if c.server.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+		}
+		suspended := &protocol.Message{
+			Type: protocol.MsgPortalSuspended,
+			Data: []byte{},
+		}
+		if err := protocol.WriteMessage(c.writer, suspended); err != nil {
+			return fmt.Errorf("failed to send PortalSuspended: %w", err)
+		}
+	} else {
+		// Command complete
+		tag := getCommandTag(prepStmt.ParseTree, int(rowCount))
+		complete := &protocol.CommandComplete{Tag: tag}
+		if c.server.config.WriteTimeout > 0 {
+			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+		}
+		if err := protocol.WriteMessage(c.writer, complete.ToMessage()); err != nil {
+			return fmt.Errorf("failed to send CommandComplete: %w", err)
+		}
+
+		// If portal is unnamed and execution is complete, destroy it
+		if execMsg.Portal == "" {
+			c.extQuerySession.ClosePortal("")
+		}
+	}
+
+	return c.writer.Flush()
 }
 
 func (c *Connection) handleSync(ctx context.Context) error {

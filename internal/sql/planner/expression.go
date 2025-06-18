@@ -26,6 +26,7 @@ type ExpressionVisitor interface {
 	VisitFunctionCall(expr *FunctionCall) error
 	VisitAggregate(expr *AggregateExpr) error
 	VisitStar(expr *Star) error
+	VisitParameterRef(expr *ParameterRef) error
 }
 
 // ColumnRef represents a reference to a column.
@@ -80,6 +81,27 @@ func (l *Literal) DataType() types.DataType {
 
 func (l *Literal) Accept(visitor ExpressionVisitor) error {
 	return visitor.VisitLiteral(l)
+}
+
+// ParameterRef represents a parameter placeholder like $1, $2.
+type ParameterRef struct {
+	Index int // 1-based parameter index
+	Type  types.DataType // Type may be unknown initially
+}
+
+func (p *ParameterRef) String() string {
+	return fmt.Sprintf("$%d", p.Index)
+}
+
+func (p *ParameterRef) DataType() types.DataType {
+	if p.Type == nil {
+		return types.Unknown
+	}
+	return p.Type
+}
+
+func (p *ParameterRef) Accept(visitor ExpressionVisitor) error {
+	return visitor.VisitParameterRef(p)
 }
 
 // BinaryOp represents a binary operation.

@@ -47,9 +47,9 @@ func (ce *CostEstimator) EstimateTableScanCost(table *catalog.Table, selectivity
 	if err != nil || stats == nil {
 		// Fallback to default estimates
 		stats = &catalog.TableStats{
-			RowCount:   1000,   // Default row count
-			PageCount:  100,    // Default page count
-			AvgRowSize: 100,    // Default row size in bytes
+			RowCount:   1000, // Default row count
+			PageCount:  100,  // Default page count
+			AvgRowSize: 100,  // Default row size in bytes
 		}
 	}
 
@@ -63,13 +63,13 @@ func (ce *CostEstimator) EstimateTableScanCost(table *catalog.Table, selectivity
 
 	// Sequential scan cost = (startup cost) + (page I/O cost) + (CPU cost)
 	startupCost := 0.0 // No startup cost for table scan
-	
+
 	// I/O cost: read all pages sequentially
 	ioCost := float64(stats.PageCount) * ce.params.SequentialPageCost
-	
+
 	// CPU cost: process all rows, return fraction based on selectivity
 	cpuCost := float64(stats.RowCount) * ce.params.CPUTupleCost
-	
+
 	totalCost := startupCost + ioCost + cpuCost
 	estimatedRows := float64(stats.RowCount) * selectivity
 
@@ -101,30 +101,30 @@ func (ce *CostEstimator) EstimateIndexScanCost(table *catalog.Table, index *cata
 	// Estimate index height (B+ tree levels)
 	// Assume ~200 entries per index page for a rough estimate
 	indexHeight := math.Max(1, math.Log(float64(tableStats.RowCount))/math.Log(200))
-	
+
 	// Estimated number of matching rows
 	matchingRows := float64(tableStats.RowCount) * selectivity
-	
+
 	// Index scan cost components:
-	
+
 	// 1. Startup cost: Navigate to first matching key in B+ tree
 	startupCost := indexHeight * ce.params.RandomPageCost
-	
+
 	// 2. Index I/O cost: Read index pages for matching entries
 	// For range scans, estimate index pages needed
 	indexPagesRead := math.Max(1, matchingRows/200) // ~200 entries per index page
 	indexIOCost := indexPagesRead * ce.params.RandomPageCost
-	
+
 	// 3. Heap I/O cost: Random access to fetch actual rows
 	// Assume some clustering - not every row requires a separate page read
 	clusteringFactor := 0.1 // 10% of matching rows require new page reads
 	heapPagesRead := math.Max(1, matchingRows*clusteringFactor)
 	heapIOCost := heapPagesRead * ce.params.RandomPageCost
-	
+
 	// 4. CPU costs
 	indexCPUCost := matchingRows * ce.params.CPUIndexTupleCost
 	heapCPUCost := matchingRows * ce.params.CPUTupleCost
-	
+
 	totalCost := startupCost + indexIOCost + heapIOCost + indexCPUCost + heapCPUCost
 
 	return Cost{
@@ -154,20 +154,20 @@ func (ce *CostEstimator) estimateBinaryOpSelectivity(table *catalog.Table, expr 
 		leftSel := ce.EstimateSelectivity(table, expr.Left)
 		rightSel := ce.EstimateSelectivity(table, expr.Right)
 		return leftSel * rightSel
-		
+
 	case OpOr:
 		// For OR: add selectivities minus their intersection
 		leftSel := ce.EstimateSelectivity(table, expr.Left)
 		rightSel := ce.EstimateSelectivity(table, expr.Right)
 		return leftSel + rightSel - (leftSel * rightSel)
-		
+
 	case OpEqual:
 		// Equality: use column statistics if available
 		if col, ok := expr.Left.(*ColumnRef); ok {
 			return ce.estimateEqualitySelectivity(table, col.ColumnName)
 		}
 		return 0.05 // Default for equality predicates
-		
+
 	case OpNotEqual:
 		// Not equal: complement of equality
 		return 1.0 - ce.estimateBinaryOpSelectivity(table, &BinaryOp{
@@ -175,14 +175,19 @@ func (ce *CostEstimator) estimateBinaryOpSelectivity(table *catalog.Table, expr 
 			Right:    expr.Right,
 			Operator: OpEqual,
 		})
-		
+
 	case OpLess, OpLessEqual, OpGreater, OpGreaterEqual:
 		// Range predicates: use histogram if available, otherwise default
 		if col, ok := expr.Left.(*ColumnRef); ok {
 			return ce.estimateRangeSelectivity(table, col.ColumnName, expr.Operator)
 		}
 		return 0.3 // Default for range predicates
-		
+
+	case OpAdd, OpSubtract, OpMultiply, OpDivide, OpModulo, OpConcat,
+		OpLike, OpNotLike, OpIn, OpNotIn, OpIs, OpIsNot:
+		// These operators are not typically used in WHERE clauses for selectivity
+		return 0.1 // Conservative default
+
 	default:
 		return 0.1 // Conservative default
 	}
@@ -195,7 +200,7 @@ func (ce *CostEstimator) estimateEqualitySelectivity(table *catalog.Table, colum
 		// If we have distinct count, use it for selectivity
 		return 1.0 / float64(colStats.DistinctCount)
 	}
-	
+
 	// Check if it's a primary key or unique column
 	for _, constraint := range table.Constraints {
 		switch c := constraint.(type) {
@@ -213,14 +218,14 @@ func (ce *CostEstimator) estimateEqualitySelectivity(table *catalog.Table, colum
 			}
 		}
 	}
-	
+
 	// Check if there's a unique index on this column
 	for _, index := range table.Indexes {
 		if index.IsUnique && len(index.Columns) == 1 && index.Columns[0].Column.Name == columnName {
 			return 1.0 / 1000.0 // Very selective for unique index
 		}
 	}
-	
+
 	// Default equality selectivity
 	return 0.05
 }
@@ -232,13 +237,17 @@ func (ce *CostEstimator) estimateRangeSelectivity(table *catalog.Table, columnNa
 		// TODO: Use histogram for more accurate estimation
 		// For now, return reasonable defaults based on operator
 	}
-	
+
 	// Default range selectivity estimates
 	switch operator {
 	case OpLess, OpLessEqual:
 		return 0.3 // 30% of rows are typically less than a random value
 	case OpGreater, OpGreaterEqual:
 		return 0.3 // 30% of rows are typically greater than a random value
+	case OpAdd, OpSubtract, OpMultiply, OpDivide, OpModulo, OpEqual, OpNotEqual,
+		OpAnd, OpOr, OpConcat, OpLike, OpNotLike, OpIn, OpNotIn, OpIs, OpIsNot:
+		// Not range operators
+		return 0.3
 	default:
 		return 0.3
 	}
@@ -259,11 +268,11 @@ func (ce *CostEstimator) getColumnStats(table *catalog.Table, columnName string)
 func (ce *CostEstimator) ShouldUseIndex(table *catalog.Table, index *catalog.Index, filter Expression) bool {
 	// Estimate selectivity of the filter
 	selectivity := ce.EstimateSelectivity(table, filter)
-	
+
 	// Calculate costs for both access methods
 	tableScanCost := ce.EstimateTableScanCost(table, selectivity)
 	indexScanCost := ce.EstimateIndexScanCost(table, index, selectivity)
-	
+
 	// Compare total costs
 	return indexScanCost.TotalCost < tableScanCost.TotalCost
 }
