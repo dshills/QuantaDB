@@ -56,8 +56,9 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 
 2. **Query Planner** (`internal/sql/planner/`)
    - Logical plan generation
-   - Cost-based query optimization with statistics framework
+   - Cost-based query optimization with real statistics
    - Index selection optimization (chooses best index based on cost)
+   - ANALYZE command support for statistics collection
    - Missing: ParameterRef handling for prepared statements
 
 3. **Query Executor** (`internal/sql/executor/`)
@@ -182,6 +183,9 @@ INSERT INTO users (id, name, email) VALUES (1, 'Alice', 'alice@example.com');
 
 -- Query data
 SELECT * FROM users;
+
+-- Analyze table to collect statistics
+ANALYZE users;
 ```
 
 ## Technical Debt

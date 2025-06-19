@@ -77,6 +77,8 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 		return p.planDropTable(s)
 	case *parser.DropIndexStmt:
 		return p.planDropIndex(s)
+	case *parser.AnalyzeStmt:
+		return p.planAnalyze(s)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}
@@ -313,6 +315,36 @@ func (p *BasicPlanner) planDropIndex(stmt *parser.DropIndexStmt) (LogicalPlan, e
 	schemaName := defaultSchema
 
 	return NewLogicalDropIndex(schemaName, stmt.TableName, stmt.IndexName), nil
+}
+
+// planAnalyze converts an ANALYZE statement to a logical plan.
+func (p *BasicPlanner) planAnalyze(stmt *parser.AnalyzeStmt) (LogicalPlan, error) {
+	// Default to public schema
+	schemaName := defaultSchema
+
+	// Verify table exists
+	table, err := p.catalog.GetTable(schemaName, stmt.TableName)
+	if err != nil {
+		return nil, fmt.Errorf("table %s.%s not found", schemaName, stmt.TableName)
+	}
+
+	// Verify columns exist if specified
+	if len(stmt.Columns) > 0 {
+		for _, colName := range stmt.Columns {
+			found := false
+			for _, col := range table.Columns {
+				if col.Name == colName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("column %s not found in table %s", colName, stmt.TableName)
+			}
+		}
+	}
+
+	return NewLogicalAnalyze(schemaName, stmt.TableName, stmt.Columns), nil
 }
 
 // convertExpression converts a parser expression to a planner expression.

@@ -156,6 +156,8 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildDropTableOperator(p, ctx)
 	case *planner.LogicalDropIndex:
 		return e.buildDropIndexOperator(p, ctx)
+	case *planner.LogicalAnalyze:
+		return e.buildAnalyzeOperator(p, ctx)
 	case *planner.IndexScan:
 		return e.buildIndexScanOperator(p, ctx)
 	case *planner.LogicalValues:
@@ -542,6 +544,15 @@ func (e *BasicExecutor) buildDropIndexOperator(plan *planner.LogicalDropIndex, c
 		ctx.Catalog,
 		indexMgr,
 	), nil
+}
+
+// buildAnalyzeOperator builds an ANALYZE operator.
+func (e *BasicExecutor) buildAnalyzeOperator(plan *planner.LogicalAnalyze, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+
+	return NewAnalyzeOperator(plan, ctx.Catalog, e.storage), nil
 }
 
 // convertSchema converts a planner schema to executor schema.

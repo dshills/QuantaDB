@@ -364,3 +364,17 @@ func (i *IsNullExpr) String() string {
 	}
 	return fmt.Sprintf("%s IS NULL", i.Expr.String())
 }
+
+// AnalyzeStmt represents an ANALYZE statement.
+type AnalyzeStmt struct {
+	TableName string
+	Columns   []string // Empty means analyze all columns
+}
+
+func (s *AnalyzeStmt) statementNode() {}
+func (s *AnalyzeStmt) String() string {
+	if len(s.Columns) > 0 {
+		return fmt.Sprintf("ANALYZE %s (%s)", s.TableName, strings.Join(s.Columns, ", "))
+	}
+	return fmt.Sprintf("ANALYZE %s", s.TableName)
+}

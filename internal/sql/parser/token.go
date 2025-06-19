@@ -51,6 +51,7 @@ const (
 	TokenIndex
 	TokenOn
 	TokenUsing
+	TokenAnalyze
 
 	// Data types.
 	TokenInteger
@@ -130,6 +131,7 @@ var tokenStrings = map[TokenType]string{
 	TokenIndex:        "INDEX",
 	TokenOn:           "ON",
 	TokenUsing:        "USING",
+	TokenAnalyze:      "ANALYZE",
 	TokenInteger:      "INTEGER",
 	TokenBigint:       "BIGINT",
 	TokenSmallint:     "SMALLINT",
@@ -221,6 +223,7 @@ var keywords = map[string]TokenType{
 	"INDEX":     TokenIndex,
 	"ON":        TokenOn,
 	"USING":     TokenUsing,
+	"ANALYZE":   TokenAnalyze,
 	"INTEGER":   TokenInteger,
 	"INT":       TokenInteger,
 	"BIGINT":    TokenBigint,

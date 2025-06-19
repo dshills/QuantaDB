@@ -82,6 +82,8 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseDelete()
 	case TokenDrop:
 		return p.parseDrop()
+	case TokenAnalyze:
+		return p.parseAnalyze()
 	default:
 		return nil, p.error(fmt.Sprintf("unexpected statement start: %s", p.current))
 	}
@@ -702,6 +704,48 @@ func (p *Parser) parseDropIndex() (*DropIndexStmt, error) {
 		IndexName: indexName,
 		TableName: tableName,
 	}, nil
+}
+
+// parseAnalyze parses an ANALYZE statement.
+func (p *Parser) parseAnalyze() (*AnalyzeStmt, error) {
+	if !p.consume(TokenAnalyze, "expected ANALYZE") {
+		return nil, p.lastError()
+	}
+
+	// Optional TABLE keyword
+	p.match(TokenTable)
+
+	// Get table name
+	tableName := p.current.Value
+	if !p.consume(TokenIdentifier, "expected table name") {
+		return nil, p.lastError()
+	}
+
+	stmt := &AnalyzeStmt{
+		TableName: tableName,
+		Columns:   []string{},
+	}
+
+	// Optional column list
+	if p.match(TokenLeftParen) {
+		for {
+			columnName := p.current.Value
+			if !p.consume(TokenIdentifier, "expected column name") {
+				return nil, p.lastError()
+			}
+			stmt.Columns = append(stmt.Columns, columnName)
+
+			if !p.match(TokenComma) {
+				break
+			}
+		}
+
+		if !p.consume(TokenRightParen, "expected ')'") {
+			return nil, p.lastError()
+		}
+	}
+
+	return stmt, nil
 }
 
 // parseCreateIndex parses a CREATE INDEX statement.

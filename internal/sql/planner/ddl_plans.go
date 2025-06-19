@@ -381,3 +381,55 @@ func (p *LogicalDropIndex) Children() []Plan {
 
 // logicalNode marks this as a logical plan node
 func (p *LogicalDropIndex) logicalNode() {}
+
+// LogicalAnalyze represents an ANALYZE operation
+type LogicalAnalyze struct {
+	basePlan
+	TableName  string
+	SchemaName string
+	Columns    []string // Empty means all columns
+}
+
+// NewLogicalAnalyze creates a new ANALYZE plan node
+func NewLogicalAnalyze(schemaName, tableName string, columns []string) *LogicalAnalyze {
+	return &LogicalAnalyze{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		Columns:    columns,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalAnalyze) Type() string {
+	return "Analyze"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalAnalyze) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalAnalyze) String() string {
+	if len(p.Columns) > 0 {
+		return fmt.Sprintf("Analyze(%s.%s columns=%v)", p.SchemaName, p.TableName, p.Columns)
+	}
+	return fmt.Sprintf("Analyze(%s.%s)", p.SchemaName, p.TableName)
+}
+
+// Children returns child plans (none for ANALYZE)
+func (p *LogicalAnalyze) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalAnalyze) logicalNode() {}

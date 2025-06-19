@@ -489,3 +489,43 @@ func (t *Table) GetPrimaryKey() *Index {
 	}
 	return nil
 }
+
+// UpdateTableStatistics updates statistics for a table by ID.
+func (c *MemoryCatalog) UpdateTableStatistics(tableID int64, stats *TableStats) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Find table by ID
+	for _, table := range c.tables {
+		if table.ID == tableID {
+			table.Stats = stats
+			table.UpdatedAt = time.Now()
+			return nil
+		}
+	}
+
+	return fmt.Errorf("table with ID %d not found", tableID)
+}
+
+// UpdateColumnStatistics updates statistics for a column.
+func (c *MemoryCatalog) UpdateColumnStatistics(tableID int64, columnID int64, stats *ColumnStats) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Find table by ID
+	for _, table := range c.tables {
+		if table.ID == tableID {
+			// Find column by ID
+			for _, col := range table.Columns {
+				if col.ID == columnID {
+					col.Stats = stats
+					table.UpdatedAt = time.Now()
+					return nil
+				}
+			}
+			return fmt.Errorf("column with ID %d not found in table %d", columnID, tableID)
+		}
+	}
+
+	return fmt.Errorf("table with ID %d not found", tableID)
+}

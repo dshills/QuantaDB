@@ -30,6 +30,12 @@ type Catalog interface {
 	ListSchemas() ([]string, error)
 }
 
+// StatsWriter interface for updating statistics in the catalog.
+type StatsWriter interface {
+	UpdateTableStatistics(tableID int64, stats *TableStats) error
+	UpdateColumnStatistics(tableID int64, columnID int64, stats *ColumnStats) error
+}
+
 // TableSchema defines the structure for creating a new table.
 type TableSchema struct {
 	SchemaName  string
