@@ -2,7 +2,7 @@ package planner
 
 import (
 	"fmt"
-	
+
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
@@ -64,9 +64,9 @@ type LogicalInsert struct {
 	basePlan
 	TableName  string
 	SchemaName string
-	Columns    []string // Column names (if specified)
+	Columns    []string              // Column names (if specified)
 	Values     [][]parser.Expression // List of value tuples
-	TableRef   *catalog.Table // Reference to table metadata
+	TableRef   *catalog.Table        // Reference to table metadata
 }
 
 // NewLogicalInsert creates a new INSERT plan node
@@ -117,9 +117,9 @@ type LogicalUpdate struct {
 	basePlan
 	TableName   string
 	SchemaName  string
-	Assignments []parser.Assignment   // Column assignments
-	Where       parser.Expression     // WHERE clause (optional)
-	TableRef    *catalog.Table        // Reference to table metadata
+	Assignments []parser.Assignment // Column assignments
+	Where       parser.Expression   // WHERE clause (optional)
+	TableRef    *catalog.Table      // Reference to table metadata
 }
 
 // NewLogicalUpdate creates a new UPDATE plan node

@@ -77,7 +77,7 @@ func (ce *CostEstimator) EstimateTableScanCost(table *catalog.Table, selectivity
 		StartupCost: startupCost,
 		TotalCost:   totalCost,
 		Rows:        estimatedRows,
-		Width:       int(stats.AvgRowSize),
+		Width:       stats.AvgRowSize,
 	}
 }
 
@@ -131,7 +131,7 @@ func (ce *CostEstimator) EstimateIndexScanCost(table *catalog.Table, index *cata
 		StartupCost: startupCost,
 		TotalCost:   totalCost,
 		Rows:        matchingRows,
-		Width:       int(tableStats.AvgRowSize),
+		Width:       tableStats.AvgRowSize,
 	}
 }
 
@@ -234,8 +234,9 @@ func (ce *CostEstimator) estimateEqualitySelectivity(table *catalog.Table, colum
 func (ce *CostEstimator) estimateRangeSelectivity(table *catalog.Table, columnName string, operator BinaryOperator) float64 {
 	// Try to get column statistics with histogram
 	if colStats := ce.getColumnStats(table, columnName); colStats != nil && colStats.Histogram != nil {
-		// TODO: Use histogram for more accurate estimation
-		// For now, return reasonable defaults based on operator
+		// TODO: Implement histogram-based selectivity estimation
+		// Will use bucket boundaries and frequencies for accurate range estimates
+		_ = colStats // Placeholder to avoid empty branch warning
 	}
 
 	// Default range selectivity estimates

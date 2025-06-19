@@ -132,4 +132,3 @@ func (s *ExtendedQuerySession) GetTransactionID() uint64 {
 
 	return s.transactionID
 }
-

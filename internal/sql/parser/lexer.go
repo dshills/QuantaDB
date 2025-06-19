@@ -49,7 +49,7 @@ func (l *Lexer) NextToken() Token {
 		return l.consumeChar(TokenPlus)
 	case '-':
 		// Could be minus or start of comment
-		if l.peek(1) == '-' {
+		if l.peekNext() == '-' {
 			l.skipComment()
 			return l.NextToken()
 		}
@@ -63,20 +63,20 @@ func (l *Lexer) NextToken() Token {
 	case '=':
 		return l.consumeChar(TokenEqual)
 	case '<':
-		if l.peek(1) == '=' {
+		if l.peekNext() == '=' {
 			return l.consumeChars(TokenLessEqual, 2)
 		}
-		if l.peek(1) == '>' {
+		if l.peekNext() == '>' {
 			return l.consumeChars(TokenNotEqual, 2)
 		}
 		return l.consumeChar(TokenLess)
 	case '>':
-		if l.peek(1) == '=' {
+		if l.peekNext() == '=' {
 			return l.consumeChars(TokenGreaterEqual, 2)
 		}
 		return l.consumeChar(TokenGreater)
 	case '!':
-		if l.peek(1) == '=' {
+		if l.peekNext() == '=' {
 			return l.consumeChars(TokenNotEqual, 2)
 		}
 		return l.makeToken(TokenError, "unexpected character '!'")
@@ -127,12 +127,13 @@ func (l *Lexer) skipComment() {
 }
 
 // peek looks ahead n characters without consuming.
-func (l *Lexer) peek(n int) byte {
-	pos := l.position + n
-	if pos >= len(l.input) {
+
+// peekNext is a convenience method that peeks at the next character.
+func (l *Lexer) peekNext() byte {
+	if l.position+1 >= len(l.input) {
 		return 0
 	}
-	return l.input[pos]
+	return l.input[l.position+1]
 }
 
 // consumeChar consumes a single character and returns a token.
@@ -144,6 +145,10 @@ func (l *Lexer) consumeChar(tokenType TokenType) Token {
 }
 
 // consumeChars consumes n characters and returns a token.
+// Currently only used with n=2 for two-character operators like <=, >=, !=, <>
+// but kept generic for potential future use with longer operators.
+//
+//nolint:unparam // Kept generic for future multi-character operators
 func (l *Lexer) consumeChars(tokenType TokenType, n int) Token {
 	value := l.input[l.position : l.position+n]
 	tok := l.makeToken(tokenType, value)
@@ -247,7 +252,7 @@ func (l *Lexer) readQuoted(quoteChar byte, tokenType TokenType, errorMsg string)
 		switch ch {
 		case quoteChar:
 			// Check for escaped quote
-			if l.peek(1) == quoteChar {
+			if l.peekNext() == quoteChar {
 				builder.WriteByte(quoteChar)
 				l.position += 2
 				l.column += 2
@@ -301,11 +306,10 @@ func (l *Lexer) readQuotedIdentifier() Token {
 func (l *Lexer) readParameter() Token {
 	start := l.position
 	startCol := l.column
-	
+
 	// Consume the '$'
 	l.position++
 	l.column++
-	
 	// Check if there's a digit after '$'
 	if l.position >= len(l.input) || !unicode.IsDigit(rune(l.input[l.position])) {
 		return Token{
@@ -316,13 +320,12 @@ func (l *Lexer) readParameter() Token {
 			Column:   startCol,
 		}
 	}
-	
+
 	// Read the parameter number
 	for l.position < len(l.input) && unicode.IsDigit(rune(l.input[l.position])) {
 		l.position++
 		l.column++
 	}
-	
 	value := l.input[start:l.position]
 	return Token{
 		Type:     TokenParam,

@@ -175,7 +175,7 @@ func (e *BasicExecutor) buildScanOperator(plan *planner.LogicalScan, ctx *ExecCo
 	if e.storage != nil {
 		return NewStorageScanOperator(table, e.storage), nil
 	}
-	
+
 	// Fall back to key-value scan
 	return NewScanOperator(table, ctx), nil
 }
@@ -185,21 +185,21 @@ func (e *BasicExecutor) buildIndexScanOperator(plan *planner.IndexScan, ctx *Exe
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured for index scan")
 	}
-	
+
 	if e.indexMgr == nil {
 		return nil, fmt.Errorf("index manager not configured for index scan")
 	}
-	
+
 	// Type assert to get the actual index.Manager
 	indexMgr, ok := e.indexMgr.(*index.Manager)
 	if !ok {
 		return nil, fmt.Errorf("invalid index manager type")
 	}
-	
+
 	// Get table from catalog - try multiple schemas like in the planner
 	var table *catalog.Table
 	var err error
-	
+
 	// Try "public" schema first, then "test", then empty
 	table, err = ctx.Catalog.GetTable("public", plan.TableName)
 	if err != nil {
@@ -211,7 +211,7 @@ func (e *BasicExecutor) buildIndexScanOperator(plan *planner.IndexScan, ctx *Exe
 			}
 		}
 	}
-	
+
 	return NewIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartKey, plan.EndKey), nil
 }
 
@@ -435,7 +435,7 @@ func (e *BasicExecutor) buildCreateTableOperator(plan *planner.LogicalCreateTabl
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	return NewCreateTableOperator(
 		plan.SchemaName,
 		plan.TableName,
@@ -448,28 +448,31 @@ func (e *BasicExecutor) buildCreateTableOperator(plan *planner.LogicalCreateTabl
 
 // buildInsertOperator builds an INSERT operator.
 func (e *BasicExecutor) buildInsertOperator(plan *planner.LogicalInsert, ctx *ExecContext) (Operator, error) {
+	_ = ctx // Currently unused, but will be needed for transaction context
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	return NewInsertOperator(plan.TableRef, e.storage, plan.Values), nil
 }
 
 // buildUpdateOperator builds an UPDATE operator.
 func (e *BasicExecutor) buildUpdateOperator(plan *planner.LogicalUpdate, ctx *ExecContext) (Operator, error) {
+	_ = ctx // Currently unused, but will be needed for transaction context
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	return NewUpdateOperator(plan.TableRef, e.storage, plan.Assignments, plan.Where), nil
 }
 
 // buildDeleteOperator builds a DELETE operator.
 func (e *BasicExecutor) buildDeleteOperator(plan *planner.LogicalDelete, ctx *ExecContext) (Operator, error) {
+	_ = ctx // Currently unused, but will be needed for transaction context
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	return NewDeleteOperator(plan.TableRef, e.storage, plan.Where), nil
 }
 
@@ -478,17 +481,17 @@ func (e *BasicExecutor) buildCreateIndexOperator(plan *planner.LogicalCreateInde
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	if e.indexMgr == nil {
 		return nil, fmt.Errorf("index manager not configured")
 	}
-	
+
 	// Type assert to get the actual index.Manager
 	indexMgr, ok := e.indexMgr.(*index.Manager)
 	if !ok {
 		return nil, fmt.Errorf("invalid index manager type")
 	}
-	
+
 	return NewCreateIndexOperator(
 		plan.SchemaName,
 		plan.TableName,
@@ -504,10 +507,12 @@ func (e *BasicExecutor) buildCreateIndexOperator(plan *planner.LogicalCreateInde
 
 // buildDropTableOperator builds a DROP TABLE operator.
 func (e *BasicExecutor) buildDropTableOperator(plan *planner.LogicalDropTable, ctx *ExecContext) (Operator, error) {
+	_ = plan // Will be used when DROP TABLE is implemented
+	_ = ctx  // Will be used when DROP TABLE is implemented
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	// For now, return an error as DROP TABLE is not implemented
 	return nil, fmt.Errorf("DROP TABLE not yet implemented")
 }
@@ -517,17 +522,17 @@ func (e *BasicExecutor) buildDropIndexOperator(plan *planner.LogicalDropIndex, c
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	if e.indexMgr == nil {
 		return nil, fmt.Errorf("index manager not configured")
 	}
-	
+
 	// Type assert to get the actual index.Manager
 	indexMgr, ok := e.indexMgr.(*index.Manager)
 	if !ok {
 		return nil, fmt.Errorf("invalid index manager type")
 	}
-	
+
 	return NewDropIndexOperator(
 		plan.SchemaName,
 		plan.TableName,

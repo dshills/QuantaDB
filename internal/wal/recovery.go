@@ -14,26 +14,26 @@ import (
 type RecoveryManager struct {
 	walDir     string
 	bufferPool *storage.BufferPool
-	
+
 	// Recovery state
-	redoLSN    LSN // Minimum LSN that needs to be replayed
+	redoLSN       LSN // Minimum LSN that needs to be replayed
 	checkpointLSN LSN // LSN of last checkpoint (if any)
-	
+
 	// Transaction tracking during recovery
 	activeTxns map[uint64]bool // Transactions that were active at crash
-	
+
 	// Callbacks for applying different record types
 	callbacks RecoveryCallbacks
 }
 
 // RecoveryCallbacks defines functions to apply different WAL record types
 type RecoveryCallbacks struct {
-	OnInsert func(txnID uint64, tableID int64, pageID uint32, slotID uint16, rowData []byte) error
-	OnDelete func(txnID uint64, tableID int64, pageID uint32, slotID uint16) error
-	OnUpdate func(txnID uint64, tableID int64, pageID uint32, slotID uint16, oldData, newData []byte) error
-	OnBeginTxn func(txnID uint64) error
-	OnCommitTxn func(txnID uint64) error
-	OnAbortTxn func(txnID uint64) error
+	OnInsert     func(txnID uint64, tableID int64, pageID uint32, slotID uint16, rowData []byte) error
+	OnDelete     func(txnID uint64, tableID int64, pageID uint32, slotID uint16) error
+	OnUpdate     func(txnID uint64, tableID int64, pageID uint32, slotID uint16, oldData, newData []byte) error
+	OnBeginTxn   func(txnID uint64) error
+	OnCommitTxn  func(txnID uint64) error
+	OnAbortTxn   func(txnID uint64) error
 	OnCheckpoint func(lsn LSN) error
 }
 
@@ -58,19 +58,19 @@ func (rm *RecoveryManager) Recover() error {
 	if err := rm.analysisPhase(); err != nil {
 		return fmt.Errorf("analysis phase failed: %w", err)
 	}
-	
+
 	// Phase 2: Redo - Replay all records from redoLSN
 	if err := rm.redoPhase(); err != nil {
 		return fmt.Errorf("redo phase failed: %w", err)
 	}
-	
+
 	// Phase 3: Undo - Rollback uncommitted transactions
 	// For now, we're using a simple approach where uncommitted changes
 	// are just marked as invalid (no explicit undo)
 	if err := rm.undoPhase(); err != nil {
 		return fmt.Errorf("undo phase failed: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -80,15 +80,15 @@ func (rm *RecoveryManager) analysisPhase() error {
 	if err != nil {
 		return fmt.Errorf("failed to find WAL segments: %w", err)
 	}
-	
+
 	if len(segments) == 0 {
 		// No WAL files, nothing to recover
 		return nil
 	}
-	
+
 	// Start from the beginning of the oldest segment
 	rm.redoLSN = 1
-	
+
 	// Scan all segments to find:
 	// 1. Active transactions at time of crash
 	// 2. Last checkpoint (if any)
@@ -97,7 +97,7 @@ func (rm *RecoveryManager) analysisPhase() error {
 			return fmt.Errorf("failed to scan segment %s: %w", segment, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -107,22 +107,26 @@ func (rm *RecoveryManager) redoPhase() error {
 	if err != nil {
 		return fmt.Errorf("failed to find WAL segments: %w", err)
 	}
-	
+
 	for _, segment := range segments {
 		if err := rm.replaySegment(segment); err != nil {
 			return fmt.Errorf("failed to replay segment %s: %w", segment, err)
 		}
 	}
-	
+
 	return nil
 }
 
 // undoPhase handles uncommitted transactions
+// TODO: Implement actual undo logic once MVCC is fully integrated.
+// Currently logs uncommitted transactions and returns nil.
+//
+//nolint:unparam // Will return errors when MVCC undo is implemented
 func (rm *RecoveryManager) undoPhase() error {
 	// In a full MVCC implementation, we would:
 	// 1. Identify all uncommitted transactions
 	// 2. Roll back their changes in reverse order
-	// 
+	//
 	// For now, we just log which transactions were uncommitted
 	if len(rm.activeTxns) > 0 {
 		fmt.Printf("Found %d uncommitted transactions during recovery\n", len(rm.activeTxns))
@@ -130,7 +134,7 @@ func (rm *RecoveryManager) undoPhase() error {
 			fmt.Printf("  Transaction %d was not committed\n", txnID)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -141,7 +145,7 @@ func (rm *RecoveryManager) scanSegment(path string) error {
 		return fmt.Errorf("failed to open segment: %w", err)
 	}
 	defer file.Close()
-	
+
 	for {
 		record, err := DeserializeRecord(file)
 		if err == io.EOF {
@@ -151,7 +155,7 @@ func (rm *RecoveryManager) scanSegment(path string) error {
 			// Incomplete record at end is expected
 			break
 		}
-		
+
 		// Track transaction state
 		switch record.Type {
 		case RecordTypeBeginTxn:
@@ -161,9 +165,11 @@ func (rm *RecoveryManager) scanSegment(path string) error {
 		case RecordTypeCheckpoint:
 			rm.checkpointLSN = record.LSN
 			// Could optimize redoLSN based on checkpoint
+		default:
+			// Other record types don't affect transaction state during analysis
 		}
 	}
-	
+
 	return nil
 }
 
@@ -174,7 +180,7 @@ func (rm *RecoveryManager) replaySegment(path string) error {
 		return fmt.Errorf("failed to open segment: %w", err)
 	}
 	defer file.Close()
-	
+
 	for {
 		record, err := DeserializeRecord(file)
 		if err == io.EOF {
@@ -184,23 +190,23 @@ func (rm *RecoveryManager) replaySegment(path string) error {
 			// Incomplete record at end is expected
 			break
 		}
-		
+
 		// Skip records before redoLSN
 		if record.LSN < rm.redoLSN {
 			continue
 		}
-		
+
 		// Check if page needs this update
 		if !rm.shouldReplayRecord(record) {
 			continue
 		}
-		
+
 		// Apply the record
 		if err := rm.applyRecord(record); err != nil {
 			return fmt.Errorf("failed to apply record LSN %d: %w", record.LSN, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -212,7 +218,7 @@ func (rm *RecoveryManager) shouldReplayRecord(record *LogRecord) bool {
 		// Parse the record to get page information
 		var pageID uint32
 		var needsReplay bool
-		
+
 		switch record.Type {
 		case RecordTypeInsert:
 			var insertRec InsertRecord
@@ -229,8 +235,10 @@ func (rm *RecoveryManager) shouldReplayRecord(record *LogRecord) bool {
 			if err := updateRec.Unmarshal(record.Data); err == nil {
 				pageID = updateRec.PageID
 			}
+		default:
+			// This should not happen as we're already inside Insert/Delete/Update case
 		}
-		
+
 		// Fetch page and check LSN
 		if pageID != 0 {
 			page, err := rm.bufferPool.FetchPage(storage.PageID(pageID))
@@ -243,9 +251,9 @@ func (rm *RecoveryManager) shouldReplayRecord(record *LogRecord) bool {
 				needsReplay = true
 			}
 		}
-		
+
 		return needsReplay
-	
+
 	default:
 		// Non-data records are always replayed
 		return true
@@ -263,7 +271,7 @@ func (rm *RecoveryManager) applyRecord(record *LogRecord) error {
 			}
 			return rm.callbacks.OnBeginTxn(txnRec.TxnID)
 		}
-		
+
 	case RecordTypeCommitTxn:
 		if rm.callbacks.OnCommitTxn != nil {
 			var txnRec TransactionRecord
@@ -272,7 +280,7 @@ func (rm *RecoveryManager) applyRecord(record *LogRecord) error {
 			}
 			return rm.callbacks.OnCommitTxn(txnRec.TxnID)
 		}
-		
+
 	case RecordTypeAbortTxn:
 		if rm.callbacks.OnAbortTxn != nil {
 			var txnRec TransactionRecord
@@ -281,17 +289,17 @@ func (rm *RecoveryManager) applyRecord(record *LogRecord) error {
 			}
 			return rm.callbacks.OnAbortTxn(txnRec.TxnID)
 		}
-		
+
 	case RecordTypeInsert:
 		if rm.callbacks.OnInsert != nil {
 			var insertRec InsertRecord
 			if err := insertRec.Unmarshal(record.Data); err != nil {
 				return fmt.Errorf("failed to unmarshal insert record: %w", err)
 			}
-			return rm.callbacks.OnInsert(record.TxnID, insertRec.TableID, 
+			return rm.callbacks.OnInsert(record.TxnID, insertRec.TableID,
 				insertRec.PageID, insertRec.SlotID, insertRec.RowData)
 		}
-		
+
 	case RecordTypeDelete:
 		if rm.callbacks.OnDelete != nil {
 			var deleteRec DeleteRecord
@@ -301,7 +309,7 @@ func (rm *RecoveryManager) applyRecord(record *LogRecord) error {
 			return rm.callbacks.OnDelete(record.TxnID, deleteRec.TableID,
 				deleteRec.PageID, deleteRec.SlotID)
 		}
-		
+
 	case RecordTypeUpdate:
 		if rm.callbacks.OnUpdate != nil {
 			var updateRec UpdateRecord
@@ -311,13 +319,16 @@ func (rm *RecoveryManager) applyRecord(record *LogRecord) error {
 			return rm.callbacks.OnUpdate(record.TxnID, updateRec.TableID,
 				updateRec.PageID, updateRec.SlotID, updateRec.OldRowData, updateRec.NewRowData)
 		}
-		
+
 	case RecordTypeCheckpoint:
 		if rm.callbacks.OnCheckpoint != nil {
 			return rm.callbacks.OnCheckpoint(record.LSN)
 		}
+	default:
+		// Unknown record types are ignored during recovery
+		return nil
 	}
-	
+
 	return nil
 }
 
@@ -328,19 +339,19 @@ func (rm *RecoveryManager) findWALSegments() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list WAL files: %w", err)
 	}
-	
+
 	// Sort files by name (which includes segment number)
 	sort.Strings(files)
-	
+
 	return files, nil
 }
 
 // GetRecoveryStats returns statistics about the recovery process
 func (rm *RecoveryManager) GetRecoveryStats() RecoveryStats {
 	return RecoveryStats{
-		RedoLSN:          rm.redoLSN,
-		CheckpointLSN:    rm.checkpointLSN,
-		ActiveTxnCount:   len(rm.activeTxns),
+		RedoLSN:        rm.redoLSN,
+		CheckpointLSN:  rm.checkpointLSN,
+		ActiveTxnCount: len(rm.activeTxns),
 	}
 }
 

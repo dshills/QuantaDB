@@ -14,14 +14,14 @@ func TestDeleteOperator(t *testing.T) {
 	// Create temporary directory for test
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
-	
+
 	// Create disk manager and buffer pool
 	dm, err := storage.NewDiskManager(dbPath)
 	if err != nil {
 		t.Fatalf("failed to create disk manager: %v", err)
 	}
 	defer dm.Close()
-	
+
 	bufferPool := storage.NewBufferPool(dm, 10)
 	cat := catalog.NewMemoryCatalog()
 	storageBackend := NewDiskStorageBackend(bufferPool, cat)
@@ -62,7 +62,7 @@ func TestDeleteOperator(t *testing.T) {
 
 		deleteOp := NewDeleteOperator(table, storageBackend, nil)
 		ctx := &ExecContext{Stats: &ExecStats{}}
-		
+
 		err = deleteOp.Open(ctx)
 		if err != nil {
 			t.Fatalf("failed to open delete operator: %v", err)
@@ -114,10 +114,10 @@ func TestDeleteOperator(t *testing.T) {
 			t.Fatalf("failed to create disk manager: %v", err)
 		}
 		defer dm2.Close()
-		
+
 		bufferPool2 := storage.NewBufferPool(dm2, 10)
 		storageBackend2 := NewDiskStorageBackend(bufferPool2, cat)
-		
+
 		// Create table in new backend
 		table2 := &catalog.Table{
 			ID:         2,
@@ -125,7 +125,7 @@ func TestDeleteOperator(t *testing.T) {
 			TableName:  "users2",
 			Columns:    table.Columns,
 		}
-		
+
 		err = storageBackend2.CreateTable(table2)
 		if err != nil {
 			t.Fatalf("failed to create table: %v", err)
@@ -154,7 +154,7 @@ func TestDeleteOperator(t *testing.T) {
 
 		deleteOp := NewDeleteOperator(table2, storageBackend2, whereClause)
 		ctx := &ExecContext{Stats: &ExecStats{}}
-		
+
 		err = deleteOp.Open(ctx)
 		if err != nil {
 			t.Fatalf("failed to open delete operator: %v", err)
@@ -190,7 +190,7 @@ func TestDeleteOperator(t *testing.T) {
 				break
 			}
 			remainingRows++
-			
+
 			// Check that remaining rows have age <= 30
 			age := row.Values[2].Data.(int32)
 			if age > 30 {

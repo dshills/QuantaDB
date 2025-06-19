@@ -36,7 +36,7 @@ func (s *CreateTableStmt) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("CREATE TABLE %s (", s.TableName))
 
-	var cols []string
+	var cols []string //nolint:prealloc
 	for _, col := range s.Columns {
 		cols = append(cols, col.String())
 	}
@@ -126,7 +126,7 @@ func (s *InsertStmt) String() string {
 
 	parts = append(parts, "VALUES")
 
-	var valueSets []string
+	var valueSets []string //nolint:prealloc
 	for _, valueSet := range s.Values {
 		var values []string
 		for _, v := range valueSet {
@@ -154,7 +154,7 @@ func (s *SelectStmt) String() string {
 	var parts []string
 
 	// SELECT clause
-	var cols []string
+	var cols []string //nolint:prealloc
 	for _, col := range s.Columns {
 		cols = append(cols, col.String())
 	}
@@ -322,7 +322,7 @@ type InExpr struct {
 
 func (i *InExpr) expressionNode() {}
 func (i *InExpr) String() string {
-	var values []string
+	var values []string //nolint:prealloc
 	for _, v := range i.Values {
 		values = append(values, v.String())
 	}

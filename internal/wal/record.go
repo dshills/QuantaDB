@@ -12,7 +12,7 @@ const (
 	// RecordHeaderSize is the fixed size of a log record header
 	// LSN(8) + Type(2) + TxnID(8) + PrevLSN(8) + Timestamp(8) + Length(4) = 38 bytes
 	RecordHeaderSize = 38
-	
+
 	// ChecksumSize is the size of the checksum field
 	ChecksumSize = 4
 )
@@ -22,10 +22,9 @@ func SerializeRecord(w io.Writer, record *LogRecord) error {
 	// Calculate total size
 	dataLen := len(record.Data)
 	totalSize := RecordHeaderSize + dataLen + ChecksumSize
-	
+
 	// Create buffer for entire record
 	buf := make([]byte, totalSize)
-	
 	// Write header
 	pos := 0
 	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(record.LSN))
@@ -36,21 +35,21 @@ func SerializeRecord(w io.Writer, record *LogRecord) error {
 	pos += 8
 	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(record.PrevLSN))
 	pos += 8
-	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(record.Timestamp.UnixNano()))
+	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(record.Timestamp.UnixNano())) //nolint:gosec // Safe bit pattern preservation
 	pos += 8
 	binary.BigEndian.PutUint32(buf[pos:pos+4], uint32(dataLen))
 	pos += 4
-	
+
 	// Write data
 	if dataLen > 0 {
 		copy(buf[pos:pos+dataLen], record.Data)
 		pos += dataLen
 	}
-	
+
 	// Calculate and write checksum (excluding checksum field itself)
 	checksum := crc32.ChecksumIEEE(buf[:pos])
 	binary.BigEndian.PutUint32(buf[pos:pos+4], checksum)
-	
+
 	// Write to output
 	_, err := w.Write(buf)
 	return err
@@ -63,7 +62,7 @@ func DeserializeRecord(r io.Reader) (*LogRecord, error) {
 	if _, err := io.ReadFull(r, headerBuf); err != nil {
 		return nil, fmt.Errorf("failed to read record header: %w", err)
 	}
-	
+
 	// Parse header
 	pos := 0
 	lsn := LSN(binary.BigEndian.Uint64(headerBuf[pos : pos+8]))
@@ -74,10 +73,10 @@ func DeserializeRecord(r io.Reader) (*LogRecord, error) {
 	pos += 8
 	prevLSN := LSN(binary.BigEndian.Uint64(headerBuf[pos : pos+8]))
 	pos += 8
-	timestamp := time.Unix(0, int64(binary.BigEndian.Uint64(headerBuf[pos:pos+8])))
+	timestamp := time.Unix(0, int64(binary.BigEndian.Uint64(headerBuf[pos:pos+8]))) //nolint:gosec // Safe bit pattern restoration
 	pos += 8
 	dataLen := binary.BigEndian.Uint32(headerBuf[pos : pos+4])
-	
+
 	// Read data
 	var data []byte
 	if dataLen > 0 {
@@ -86,14 +85,14 @@ func DeserializeRecord(r io.Reader) (*LogRecord, error) {
 			return nil, fmt.Errorf("failed to read record data: %w", err)
 		}
 	}
-	
+
 	// Read checksum
 	checksumBuf := make([]byte, ChecksumSize)
 	if _, err := io.ReadFull(r, checksumBuf); err != nil {
 		return nil, fmt.Errorf("failed to read checksum: %w", err)
 	}
 	expectedChecksum := binary.BigEndian.Uint32(checksumBuf)
-	
+
 	// Verify checksum
 	fullBuf := make([]byte, RecordHeaderSize+len(data))
 	copy(fullBuf[:RecordHeaderSize], headerBuf)
@@ -101,11 +100,11 @@ func DeserializeRecord(r io.Reader) (*LogRecord, error) {
 		copy(fullBuf[RecordHeaderSize:], data)
 	}
 	actualChecksum := crc32.ChecksumIEEE(fullBuf)
-	
+
 	if actualChecksum != expectedChecksum {
 		return nil, fmt.Errorf("checksum mismatch: expected %x, got %x", expectedChecksum, actualChecksum)
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      recordType,
@@ -122,7 +121,7 @@ func NewBeginTxnRecord(lsn LSN, txnID uint64) *LogRecord {
 		TxnID:     txnID,
 		Timestamp: time.Now(),
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      RecordTypeBeginTxn,
@@ -139,7 +138,7 @@ func NewCommitTxnRecord(lsn LSN, txnID uint64, prevLSN LSN) *LogRecord {
 		TxnID:     txnID,
 		Timestamp: time.Now(),
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      RecordTypeCommitTxn,
@@ -156,7 +155,7 @@ func NewAbortTxnRecord(lsn LSN, txnID uint64, prevLSN LSN) *LogRecord {
 		TxnID:     txnID,
 		Timestamp: time.Now(),
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      RecordTypeAbortTxn,
@@ -175,7 +174,7 @@ func NewInsertRecord(lsn LSN, txnID uint64, prevLSN LSN, tableID int64, pageID u
 		SlotID:  slotID,
 		RowData: rowData,
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      RecordTypeInsert,
@@ -193,7 +192,7 @@ func NewDeleteRecord(lsn LSN, txnID uint64, prevLSN LSN, tableID int64, pageID u
 		PageID:  pageID,
 		SlotID:  slotID,
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      RecordTypeDelete,
@@ -213,7 +212,7 @@ func NewUpdateRecord(lsn LSN, txnID uint64, prevLSN LSN, tableID int64, pageID u
 		OldRowData: oldData,
 		NewRowData: newData,
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      RecordTypeUpdate,
@@ -231,7 +230,7 @@ func NewCheckpointRecord(lsn LSN, lastLSN LSN, activeTxns []uint64) *LogRecord {
 		LastLSN:    lastLSN,
 		ActiveTxns: activeTxns,
 	}
-	
+
 	return &LogRecord{
 		LSN:       lsn,
 		Type:      RecordTypeCheckpoint,

@@ -9,6 +9,11 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
+// Constants
+const (
+	defaultSchema = "public"
+)
+
 // Planner transforms parsed SQL statements into executable query plans.
 type Planner interface {
 	Plan(stmt parser.Statement) (Plan, error)
@@ -44,10 +49,10 @@ func (p *BasicPlanner) Plan(stmt parser.Statement) (Plan, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to build logical plan: %w", err)
 	}
-	
+
 	// Apply optimization rules
 	optimized := p.optimize(logical)
-	
+
 	// For now, return the optimized logical plan
 	// Physical planning will be added later
 	return optimized, nil
@@ -80,7 +85,7 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 // planSelect converts a SELECT statement to a logical plan.
 func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) {
 	// Get table from catalog
-	table, err := p.catalog.GetTable("public", stmt.From)
+	table, err := p.catalog.GetTable(defaultSchema, stmt.From)
 	if err != nil {
 		// If table doesn't exist in catalog, use a placeholder schema
 		// This allows tests to work without setting up catalog
@@ -92,7 +97,7 @@ func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) 
 		var plan LogicalPlan = NewLogicalScan(stmt.From, stmt.From, schema)
 		return p.buildSelectPlan(plan, stmt)
 	}
-	
+
 	// Build schema from table metadata
 	schema := &Schema{
 		Columns: make([]Column, len(table.Columns)),
@@ -104,7 +109,7 @@ func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) 
 			Nullable: col.IsNullable,
 		}
 	}
-	
+
 	var plan LogicalPlan = NewLogicalScan(stmt.From, stmt.From, schema)
 	return p.buildSelectPlan(plan, stmt)
 }
@@ -119,14 +124,14 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 		}
 		plan = NewLogicalFilter(plan, predicate)
 	}
-	
+
 	// Add projections
 	projections, aliases, projSchema, err := p.convertSelectColumns(stmt.Columns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert select columns: %w", err)
 	}
 	plan = NewLogicalProject(plan, projections, aliases, projSchema)
-	
+
 	// Add ORDER BY if present
 	if len(stmt.OrderBy) > 0 {
 		orderBy, err := p.convertOrderBy(stmt.OrderBy)
@@ -135,38 +140,38 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 		}
 		plan = NewLogicalSort(plan, orderBy)
 	}
-	
+
 	// Add LIMIT/OFFSET if present
 	if stmt.Limit != nil || stmt.Offset != nil {
 		limit := int64(-1)
 		offset := int64(0)
-		
+
 		if stmt.Limit != nil {
 			limit = int64(*stmt.Limit)
 		}
 		if stmt.Offset != nil {
 			offset = int64(*stmt.Offset)
 		}
-		
+
 		plan = NewLogicalLimit(plan, limit, offset)
 	}
-	
+
 	return plan, nil
 }
 
 // planInsert converts an INSERT statement to a logical plan.
 func (p *BasicPlanner) planInsert(stmt *parser.InsertStmt) (LogicalPlan, error) {
 	// Get table from catalog
-	table, err := p.catalog.GetTable("public", stmt.TableName)
+	table, err := p.catalog.GetTable(defaultSchema, stmt.TableName)
 	if err != nil {
 		return nil, fmt.Errorf("table '%s' not found: %w", stmt.TableName, err)
 	}
-	
+
 	// Validate column count if columns are specified
 	if len(stmt.Columns) > 0 && len(stmt.Columns) != len(stmt.Values[0]) {
 		return nil, fmt.Errorf("column count mismatch")
 	}
-	
+
 	// If no columns specified, assume all columns in order
 	columns := stmt.Columns
 	if len(columns) == 0 {
@@ -175,21 +180,21 @@ func (p *BasicPlanner) planInsert(stmt *parser.InsertStmt) (LogicalPlan, error) 
 			columns[i] = col.Name
 		}
 	}
-	
-	return NewLogicalInsert("public", stmt.TableName, columns, stmt.Values, table), nil
+
+	return NewLogicalInsert(defaultSchema, stmt.TableName, columns, stmt.Values, table), nil
 }
 
 // planUpdate converts an UPDATE statement to a logical plan.
 func (p *BasicPlanner) planUpdate(stmt *parser.UpdateStmt) (LogicalPlan, error) {
 	// Default to public schema if not specified
-	schemaName := "public"
-	
+	schemaName := defaultSchema
+
 	// Get table from catalog
 	table, err := p.catalog.GetTable(schemaName, stmt.TableName)
 	if err != nil {
 		return nil, fmt.Errorf("table '%s' not found: %w", stmt.TableName, err)
 	}
-	
+
 	// Validate that all columns in assignments exist
 	for _, assignment := range stmt.Assignments {
 		found := false
@@ -203,35 +208,35 @@ func (p *BasicPlanner) planUpdate(stmt *parser.UpdateStmt) (LogicalPlan, error) 
 			return nil, fmt.Errorf("column '%s' not found in table '%s'", assignment.Column, stmt.TableName)
 		}
 	}
-	
+
 	// Validate WHERE clause column references if present
 	if stmt.Where != nil {
 		if err := p.validateExpressionColumns(stmt.Where, table); err != nil {
 			return nil, fmt.Errorf("invalid WHERE clause: %w", err)
 		}
 	}
-	
+
 	return NewLogicalUpdate(schemaName, stmt.TableName, stmt.Assignments, stmt.Where, table), nil
 }
 
 // planDelete converts a DELETE statement to a logical plan.
 func (p *BasicPlanner) planDelete(stmt *parser.DeleteStmt) (LogicalPlan, error) {
 	// Default to public schema if not specified
-	schemaName := "public"
-	
+	schemaName := defaultSchema
+
 	// Get table from catalog
 	table, err := p.catalog.GetTable(schemaName, stmt.TableName)
 	if err != nil {
 		return nil, fmt.Errorf("table '%s' not found: %w", stmt.TableName, err)
 	}
-	
+
 	// Validate WHERE clause column references if present
 	if stmt.Where != nil {
 		if err := p.validateExpressionColumns(stmt.Where, table); err != nil {
 			return nil, fmt.Errorf("invalid WHERE clause: %w", err)
 		}
 	}
-	
+
 	return NewLogicalDelete(schemaName, stmt.TableName, stmt.Where, table), nil
 }
 
@@ -248,7 +253,7 @@ func (p *BasicPlanner) planCreateTable(stmt *parser.CreateTableStmt) (LogicalPla
 				break
 			}
 		}
-		
+
 		columns[i] = catalog.Column{
 			Name:       col.Name,
 			DataType:   col.DataType,
@@ -256,7 +261,7 @@ func (p *BasicPlanner) planCreateTable(stmt *parser.CreateTableStmt) (LogicalPla
 			// TODO: Handle default values
 		}
 	}
-	
+
 	// Convert table constraints
 	constraints := make([]catalog.Constraint, 0)
 	for _, constraint := range stmt.Constraints {
@@ -265,35 +270,35 @@ func (p *BasicPlanner) planCreateTable(stmt *parser.CreateTableStmt) (LogicalPla
 			constraints = append(constraints, catalog.PrimaryKeyConstraint{
 				Columns: con.Columns,
 			})
-		// TODO: Handle other constraint types
+			// TODO: Handle other constraint types
 		}
 	}
-	
-	return NewLogicalCreateTable("public", stmt.TableName, columns, constraints), nil
+
+	return NewLogicalCreateTable(defaultSchema, stmt.TableName, columns, constraints), nil
 }
 
 // planCreateIndex converts a CREATE INDEX statement to a logical plan.
 func (p *BasicPlanner) planCreateIndex(stmt *parser.CreateIndexStmt) (LogicalPlan, error) {
 	// Default to public schema
-	schemaName := "public"
-	
-	return NewLogicalCreateIndex(schemaName, stmt.TableName, stmt.IndexName, 
+	schemaName := defaultSchema
+
+	return NewLogicalCreateIndex(schemaName, stmt.TableName, stmt.IndexName,
 		stmt.Columns, stmt.Unique, stmt.IndexType), nil
 }
 
 // planDropTable converts a DROP TABLE statement to a logical plan.
 func (p *BasicPlanner) planDropTable(stmt *parser.DropTableStmt) (LogicalPlan, error) {
 	// Default to public schema
-	schemaName := "public"
-	
+	schemaName := defaultSchema
+
 	return NewLogicalDropTable(schemaName, stmt.TableName), nil
 }
 
 // planDropIndex converts a DROP INDEX statement to a logical plan.
 func (p *BasicPlanner) planDropIndex(stmt *parser.DropIndexStmt) (LogicalPlan, error) {
 	// Default to public schema
-	schemaName := "public"
-	
+	schemaName := defaultSchema
+
 	return NewLogicalDropIndex(schemaName, stmt.TableName, stmt.IndexName), nil
 }
 
@@ -324,7 +329,7 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			}
 		}
 		return &Literal{Value: e.Value, Type: dataType}, nil
-		
+
 	case *parser.Identifier:
 		// Try to resolve column type from catalog
 		// For now, we'll use Unknown type if we can't resolve it
@@ -332,26 +337,26 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			ColumnName: e.Name,
 			ColumnType: types.Unknown,
 		}, nil
-		
+
 	case *parser.Star:
 		return &Star{}, nil
-		
+
 	case *parser.BinaryExpr:
 		left, err := p.convertExpression(e.Left)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		right, err := p.convertExpression(e.Right)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		op, err := p.convertBinaryOp(e.Operator)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// TODO: Determine result type based on operands and operator
 		return &BinaryOp{
 			Left:     left,
@@ -359,68 +364,68 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			Operator: op,
 			Type:     types.Boolean,
 		}, nil
-		
+
 	case *parser.UnaryExpr:
 		expr, err := p.convertExpression(e.Expr)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		op, err := p.convertUnaryOp(e.Operator)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// TODO: Determine result type
 		return &UnaryOp{
 			Expr:     expr,
 			Operator: op,
 			Type:     types.Boolean,
 		}, nil
-		
+
 	case *parser.ComparisonExpr:
 		left, err := p.convertExpression(e.Left)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		right, err := p.convertExpression(e.Right)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		op, err := p.convertComparisonOp(e.Operator)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		return &BinaryOp{
 			Left:     left,
 			Right:    right,
 			Operator: op,
 			Type:     types.Boolean,
 		}, nil
-		
+
 	case *parser.IsNullExpr:
 		expr, err := p.convertExpression(e.Expr)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		op := OpIsNull
 		if e.Not {
 			op = OpIsNotNull
 		}
-		
+
 		return &UnaryOp{
 			Expr:     expr,
 			Operator: op,
 			Type:     types.Boolean,
 		}, nil
-		
+
 	case *parser.ParenExpr:
 		return p.convertExpression(e.Expr)
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
@@ -482,10 +487,10 @@ func (p *BasicPlanner) convertUnaryOp(op parser.TokenType) (UnaryOperator, error
 
 // convertSelectColumns converts SELECT columns to projections.
 func (p *BasicPlanner) convertSelectColumns(columns []parser.SelectColumn) ([]Expression, []string, *Schema, error) {
-	var projections []Expression
-	var aliases []string
-	var schemaCols []Column
-	
+	var projections []Expression //nolint:prealloc
+	var aliases []string         //nolint:prealloc
+	var schemaCols []Column      //nolint:prealloc
+
 	for _, col := range columns {
 		// Check if this is a star expression
 		if _, isStar := col.Expr.(*parser.Star); isStar {
@@ -494,33 +499,33 @@ func (p *BasicPlanner) convertSelectColumns(columns []parser.SelectColumn) ([]Ex
 			// For now, we'll create a special Star expression that the executor will handle
 			projections = append(projections, &Star{})
 			aliases = append(aliases, "")
-			
+
 			// Star should preserve the input schema
 			// This is a simplified approach - in reality we'd need to expand columns
 			continue
 		}
-		
+
 		expr, err := p.convertExpression(col.Expr)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		
+
 		projections = append(projections, expr)
 		aliases = append(aliases, col.Alias)
-		
+
 		// Build output schema
 		colName := col.Alias
 		if colName == "" {
 			colName = expr.String()
 		}
-		
+
 		schemaCols = append(schemaCols, Column{
 			Name:     colName,
 			DataType: expr.DataType(),
 			Nullable: true, // TODO: Determine nullability
 		})
 	}
-	
+
 	// If we have a star expression and no other columns, return nil schema
 	// The actual schema will be determined from the input
 	if len(projections) == 1 {
@@ -528,32 +533,32 @@ func (p *BasicPlanner) convertSelectColumns(columns []parser.SelectColumn) ([]Ex
 			return projections, aliases, nil, nil
 		}
 	}
-	
+
 	schema := &Schema{Columns: schemaCols}
 	return projections, aliases, schema, nil
 }
 
 // convertOrderBy converts ORDER BY clauses.
 func (p *BasicPlanner) convertOrderBy(orderBy []parser.OrderByClause) ([]OrderByExpr, error) {
-	var result []OrderByExpr
-	
+	var result []OrderByExpr //nolint:prealloc
+
 	for _, o := range orderBy {
 		expr, err := p.convertExpression(o.Expr)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		order := Ascending
 		if o.Desc {
 			order = Descending
 		}
-		
+
 		result = append(result, OrderByExpr{
 			Expr:  expr,
 			Order: order,
 		})
 	}
-	
+
 	return result, nil
 }
 
@@ -581,24 +586,24 @@ func (p *BasicPlanner) validateExpressionColumns(expr parser.Expression, table *
 			return fmt.Errorf("column '%s' not found in table '%s'", e.Name, table.TableName)
 		}
 		return nil
-		
+
 	case *parser.BinaryExpr:
 		// Validate both sides of binary expression
 		if err := p.validateExpressionColumns(e.Left, table); err != nil {
 			return err
 		}
 		return p.validateExpressionColumns(e.Right, table)
-		
+
 	case *parser.UnaryExpr:
 		return p.validateExpressionColumns(e.Expr, table)
-		
+
 	case *parser.ParenExpr:
 		return p.validateExpressionColumns(e.Expr, table)
-		
+
 	case *parser.Literal:
 		// Literals don't need validation
 		return nil
-		
+
 	default:
 		// For other expression types, no validation needed
 		return nil

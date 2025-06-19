@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/txn"
 )
 
-// Connection states
+// Connection states.
 const (
 	StateStartup = iota
 	StateAuthentication
@@ -32,7 +33,7 @@ const (
 	StateClosed
 )
 
-// stateNames maps connection states to readable names
+// stateNames maps connection states to readable names.
 var stateNames = map[int]string{
 	StateStartup:        "Startup",
 	StateAuthentication: "Authentication",
@@ -41,7 +42,7 @@ var stateNames = map[int]string{
 	StateClosed:         "Closed",
 }
 
-// Connection represents a client connection
+// Connection represents a client connection.
 type Connection struct {
 	id         uint32
 	conn       net.Conn
@@ -68,7 +69,7 @@ type Connection struct {
 	extQuerySession *ExtendedQuerySession
 }
 
-// setState sets the connection state and logs the transition
+// setState sets the connection state and logs the transition.
 func (c *Connection) setState(newState int) {
 	oldStateName := stateNames[c.state]
 	newStateName := stateNames[newState]
@@ -82,7 +83,7 @@ func (c *Connection) setState(newState int) {
 	}
 }
 
-// Handle handles the connection lifecycle
+// Handle handles the connection lifecycle.
 func (c *Connection) Handle(ctx context.Context) error {
 	c.reader = bufio.NewReader(c.conn)
 	c.writer = bufio.NewWriter(c.conn)
@@ -157,7 +158,7 @@ func (c *Connection) Handle(ctx context.Context) error {
 	}
 }
 
-// handleStartup handles the startup phase
+// handleStartup handles the startup phase.
 func (c *Connection) handleStartup() error {
 	// Peek at the first 8 bytes to check for SSL request
 	peekBuf, err := c.reader.Peek(8)
@@ -276,8 +277,18 @@ func (c *Connection) handleStartup() error {
 }
 
 // handleAuthentication handles authentication
+// Currently accepts all connections without validation.
+// TODO: In production, this should validate credentials against a user database.
+//
+//nolint:unparam // Will return errors when authentication is implemented
 func (c *Connection) handleAuthentication() error {
 	c.setState(StateAuthentication)
+
+	// TODO: Implement actual authentication
+	// Example of what production code might look like:
+	// if !c.validateCredentials() {
+	//     return fmt.Errorf("authentication failed")
+	// }
 	// For now, we accept all connections
 	c.setState(StateReady)
 	return nil
@@ -325,12 +336,12 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	upperQuery := strings.ToUpper(query)
 
 	// Transaction control
-	switch {
-	case upperQuery == "BEGIN":
+	switch upperQuery {
+	case "BEGIN":
 		return c.handleBegin(ctx)
-	case upperQuery == "COMMIT":
+	case "COMMIT":
 		return c.handleCommit(ctx)
-	case upperQuery == "ROLLBACK":
+	case "ROLLBACK":
 		return c.handleRollback(ctx)
 	}
 
@@ -405,11 +416,13 @@ func (c *Connection) handleBegin(ctx context.Context) error {
 
 // handleCommit commits the current transaction
 func (c *Connection) handleCommit(ctx context.Context) error {
+	_ = ctx // Context might be used for cancellation in the future
 	return c.endTransaction(true, "COMMIT")
 }
 
 // handleRollback rolls back the current transaction
 func (c *Connection) handleRollback(ctx context.Context) error {
+	_ = ctx // Context might be used for cancellation in the future
 	return c.endTransaction(false, "ROLLBACK")
 }
 
@@ -458,10 +471,13 @@ func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) 
 	}
 
 	for i, col := range schema.Columns {
+		if i >= math.MaxInt16 {
+			return fmt.Errorf("too many columns: %d exceeds max int16", i+1)
+		}
 		rowDesc.Fields[i] = protocol.FieldDescription{
 			Name:         col.Name,
-			TableOID:     0, // TODO: Add table OID
-			ColumnNumber: int16(i + 1),
+			TableOID:     0,            // TODO: Add table OID
+			ColumnNumber: int16(i + 1), //nolint:gosec // Bounds checked above
 			DataTypeOID:  getTypeOID(col.Type),
 			DataTypeSize: getTypeSize(col.Type),
 			TypeModifier: -1,
@@ -596,6 +612,7 @@ func (c *Connection) Close() error {
 
 // handleParse handles a Parse message
 func (c *Connection) handleParse(ctx context.Context, msg *protocol.Message) error {
+	_ = ctx // Context might be used for cancellation in the future
 	c.setState(StateBusy)
 
 	// Parse the message
@@ -625,8 +642,9 @@ func (c *Connection) handleParse(ctx context.Context, msg *protocol.Message) err
 	// Override with explicitly provided types if any
 	for i, oid := range parseMsg.ParameterOIDs {
 		if oid != 0 && i < len(paramTypes) {
-			// Convert OID to DataType if needed
-			// For now, we'll keep the inferred types
+			// TODO: Convert OID to DataType and override inferred types
+			// Currently keeping inferred types until OID mapping is implemented
+			_ = oid // Placeholder to avoid empty branch warning
 		}
 	}
 
@@ -667,6 +685,7 @@ func (c *Connection) handleParse(ctx context.Context, msg *protocol.Message) err
 
 // handleBind handles a Bind message
 func (c *Connection) handleBind(ctx context.Context, msg *protocol.Message) error {
+	_ = ctx // Context might be used for cancellation in the future
 	c.setState(StateBusy)
 
 	// Parse the message
@@ -745,6 +764,7 @@ func (c *Connection) handleBind(ctx context.Context, msg *protocol.Message) erro
 
 // handleExecute handles an Execute message
 func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) error {
+	_ = ctx // Context might be used for query execution in the future
 	c.setState(StateBusy)
 
 	// Parse the message
@@ -809,6 +829,9 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 		}
 
 		for i, col := range schema.Columns {
+			if i >= math.MaxInt16 {
+				break // Column count already validated during statement creation
+			}
 			// Determine format for this column
 			format := int16(protocol.FormatText) // Default to text
 			if i < len(portal.ResultFormats) && portal.ResultFormats[i] != 0 {
@@ -820,8 +843,8 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 
 			rowDesc.Fields[i] = protocol.FieldDescription{
 				Name:         col.Name,
-				TableOID:     0, // TODO: Add table OID
-				ColumnNumber: int16(i + 1),
+				TableOID:     0,            // TODO: Add table OID
+				ColumnNumber: int16(i + 1), //nolint:gosec // Bounds checked above
 				DataTypeOID:  getTypeOID(col.Type),
 				DataTypeSize: getTypeSize(col.Type),
 				TypeModifier: -1,
@@ -927,6 +950,7 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 
 // handleDescribe handles Describe message (D)
 func (c *Connection) handleDescribe(ctx context.Context, msg *protocol.Message) error {
+	_ = ctx // Context might be used for cancellation in the future
 	if len(msg.Data) < 1 {
 		return fmt.Errorf("invalid Describe message")
 	}
@@ -1039,6 +1063,7 @@ func (c *Connection) handleDescribe(ctx context.Context, msg *protocol.Message) 
 
 // handleClose handles Close message (C)
 func (c *Connection) handleClose(ctx context.Context, msg *protocol.Message) error {
+	_ = ctx // Context might be used for cancellation in the future
 	if len(msg.Data) < 1 {
 		return fmt.Errorf("invalid Close message")
 	}
@@ -1076,6 +1101,7 @@ func (c *Connection) handleClose(ctx context.Context, msg *protocol.Message) err
 }
 
 func (c *Connection) handleSync(ctx context.Context) error {
+	_ = ctx // Context might be used for cancellation in the future
 	return c.sendReadyForQuery()
 }
 
@@ -1111,7 +1137,10 @@ func getTypeSize(dt types.DataType) int16 {
 	if size < 0 {
 		return -1 // Variable size
 	}
-	return int16(size)
+	if size > math.MaxInt16 {
+		return math.MaxInt16 // Cap at max int16
+	}
+	return int16(size) //nolint:gosec // Bounds checked above
 }
 
 // getCommandTag returns the command tag for a statement

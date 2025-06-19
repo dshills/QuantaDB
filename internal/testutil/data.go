@@ -10,7 +10,7 @@ func GenerateKey(prefix string, n int) []byte {
 	return []byte(fmt.Sprintf("%s_%d", prefix, n))
 }
 
-// GenerateValue generates random value of given size
+// GenerateValue generates random value of given size.
 func GenerateValue(size int) []byte {
 	value := make([]byte, size)
 	if _, err := rand.Read(value); err != nil {
@@ -19,7 +19,7 @@ func GenerateValue(size int) []byte {
 	return value
 }
 
-// GenerateKeyValuePairs generates n key-value pairs
+// GenerateKeyValuePairs generates n key-value pairs.
 func GenerateKeyValuePairs(n int, valueSize int) (keys [][]byte, values [][]byte) {
 	keys = make([][]byte, n)
 	values = make([][]byte, n)

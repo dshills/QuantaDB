@@ -16,7 +16,7 @@ func init() {
 	}
 }
 
-// decimalType implements the DECIMAL(p,s) data type
+// decimalType implements the DECIMAL(p,s) data type.
 type decimalType struct {
 	precision int // Total number of digits
 	scale     int // Number of digits after decimal point
@@ -36,10 +36,9 @@ func (t *decimalType) Compare(a, b Value) int {
 	if a.Null || b.Null {
 		return CompareValues(a, b)
 	}
-	
+
 	aVal := a.Data.(*big.Rat)
 	bVal := b.Data.(*big.Rat)
-	
 	return aVal.Cmp(bVal)
 }
 
@@ -47,27 +46,26 @@ func (t *decimalType) Serialize(v Value) ([]byte, error) {
 	if v.Null {
 		return nil, nil
 	}
-	
+
 	val, ok := v.Data.(*big.Rat)
 	if !ok {
 		return nil, fmt.Errorf("expected *big.Rat, got %T", v.Data)
 	}
-	
 	// For now, serialize as string
 	// TODO: Implement more efficient binary serialization
 	str := val.FloatString(t.scale)
-	
+
 	// Validate precision
 	parts := strings.Split(str, ".")
 	totalDigits := len(strings.ReplaceAll(parts[0], "-", ""))
 	if len(parts) > 1 {
 		totalDigits += len(parts[1])
 	}
-	
+
 	if totalDigits > t.precision {
 		return nil, fmt.Errorf("value exceeds precision %d", t.precision)
 	}
-	
+
 	return []byte(str), nil
 }
 
@@ -75,14 +73,14 @@ func (t *decimalType) Deserialize(data []byte) (Value, error) {
 	if data == nil {
 		return NewNullValue(), nil
 	}
-	
+
 	str := string(data)
 	rat := new(big.Rat)
-	
+
 	if _, ok := rat.SetString(str); !ok {
 		return Value{}, fmt.Errorf("invalid decimal value: %s", str)
 	}
-	
+
 	return NewValue(rat), nil
 }
 
@@ -90,12 +88,12 @@ func (t *decimalType) IsValid(v Value) bool {
 	if v.Null {
 		return true
 	}
-	
+
 	rat, ok := v.Data.(*big.Rat)
 	if !ok {
 		return false
 	}
-	
+
 	// Check precision
 	str := rat.FloatString(t.scale)
 	parts := strings.Split(str, ".")
@@ -103,7 +101,7 @@ func (t *decimalType) IsValid(v Value) bool {
 	if len(parts) > 1 {
 		totalDigits += len(parts[1])
 	}
-	
+
 	return totalDigits <= t.precision
 }
 

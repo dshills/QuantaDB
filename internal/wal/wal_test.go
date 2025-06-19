@@ -184,7 +184,7 @@ func TestBuffer(t *testing.T) {
 func TestWALManager(t *testing.T) {
 	// Create temporary directory
 	tmpDir := t.TempDir()
-	
+
 	config := &Config{
 		Directory:    tmpDir,
 		BufferSize:   1024,
@@ -265,7 +265,7 @@ func TestWALManager(t *testing.T) {
 
 func TestWALRecovery(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	config := &Config{
 		Directory:    tmpDir,
 		BufferSize:   1024,
@@ -284,7 +284,7 @@ func TestWALRecovery(t *testing.T) {
 		// Log some transactions
 		for i := 0; i < 3; i++ {
 			txnID := uint64(100 + i)
-			
+
 			manager.LogBeginTxn(txnID)
 			manager.LogInsert(txnID, 1, uint32(i), uint16(i), []byte("data"))
 			lastLSN, _ = manager.LogCommitTxn(txnID)
@@ -316,7 +316,7 @@ func TestWALRecovery(t *testing.T) {
 
 func TestSegmentRotation(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	config := &Config{
 		Directory:    tmpDir,
 		BufferSize:   512,
@@ -353,18 +353,18 @@ func TestSegmentRotation(t *testing.T) {
 func TestChecksumValidation(t *testing.T) {
 	// Create a valid record
 	record := NewBeginTxnRecord(1, 100)
-	
+
 	// Serialize it
 	buf := &bytes.Buffer{}
 	err := SerializeRecord(buf, record)
 	if err != nil {
 		t.Fatalf("failed to serialize record: %v", err)
 	}
-	
+
 	// Corrupt the data
 	data := buf.Bytes()
 	data[10] ^= 0xFF // Flip some bits
-	
+
 	// Try to deserialize
 	_, err = DeserializeRecord(bytes.NewReader(data))
 	if err == nil {
@@ -374,7 +374,7 @@ func TestChecksumValidation(t *testing.T) {
 
 func TestConcurrentWrites(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	config := &Config{
 		Directory:    tmpDir,
 		BufferSize:   4096,
@@ -393,13 +393,13 @@ func TestConcurrentWrites(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			txnID := uint64(100 + id)
-			
+
 			manager.LogBeginTxn(txnID)
 			for j := 0; j < 10; j++ {
 				manager.LogInsert(txnID, int64(id), uint32(j), uint16(j), []byte("data"))
 			}
 			manager.LogCommitTxn(txnID)
-			
+
 			done <- true
 		}(i)
 	}

@@ -66,7 +66,7 @@ func NewPage(id PageID, pageType PageType) *Page {
 // Serialize writes the page to a byte slice
 func (p *Page) Serialize() []byte {
 	buf := make([]byte, PageSize)
-	
+
 	// Write header
 	binary.LittleEndian.PutUint32(buf[0:4], uint32(p.Header.PageID))
 	buf[4] = byte(p.Header.Type)
@@ -76,10 +76,10 @@ func (p *Page) Serialize() []byte {
 	binary.LittleEndian.PutUint16(buf[18:20], p.Header.FreeSpace)
 	binary.LittleEndian.PutUint16(buf[20:22], p.Header.ItemCount)
 	binary.LittleEndian.PutUint16(buf[22:24], p.Header.FreeSpacePtr)
-	
+
 	// Copy data
 	copy(buf[PageHeaderSize:], p.Data[:])
-	
+
 	return buf
 }
 
@@ -88,7 +88,7 @@ func (p *Page) Deserialize(buf []byte) error {
 	if len(buf) != PageSize {
 		return fmt.Errorf("invalid page size: expected %d, got %d", PageSize, len(buf))
 	}
-	
+
 	// Read header
 	p.Header.PageID = PageID(binary.LittleEndian.Uint32(buf[0:4]))
 	p.Header.Type = PageType(buf[4])
@@ -98,10 +98,10 @@ func (p *Page) Deserialize(buf []byte) error {
 	p.Header.FreeSpace = binary.LittleEndian.Uint16(buf[18:20])
 	p.Header.ItemCount = binary.LittleEndian.Uint16(buf[20:22])
 	p.Header.FreeSpacePtr = binary.LittleEndian.Uint16(buf[22:24])
-	
+
 	// Copy data
 	copy(p.Data[:], buf[PageHeaderSize:])
-	
+
 	return nil
 }
 

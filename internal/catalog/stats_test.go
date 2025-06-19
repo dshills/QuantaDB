@@ -8,11 +8,11 @@ import (
 
 func TestSelectivityEstimation(t *testing.T) {
 	tests := []struct {
-		name       string
-		stats      *ColumnStats
-		op         ComparisonOp
-		value      types.Value
-		expected   Selectivity
+		name     string
+		stats    *ColumnStats
+		op       ComparisonOp
+		value    types.Value
+		expected Selectivity
 	}{
 		{
 			name:     "Equality with distinct count",
@@ -148,7 +148,7 @@ func TestDefaultSelectivity(t *testing.T) {
 	}
 }
 
-// String methods for test output
+// String methods for test output.
 func (op ComparisonOp) String() string {
 	switch op {
 	case OpEqual:
@@ -176,8 +176,8 @@ func TestHistogramBucket(t *testing.T) {
 	bucket := HistogramBucket{
 		Frequency:     1000,
 		DistinctCount: 50,
+		UpperBound:    types.NewValue(int64(100)),
 	}
-	bucket.UpperBound = types.NewValue(int64(100))
 
 	if bucket.Frequency != 1000 {
 		t.Errorf("Expected frequency 1000, got %d", bucket.Frequency)
@@ -185,6 +185,10 @@ func TestHistogramBucket(t *testing.T) {
 
 	if bucket.DistinctCount != 50 {
 		t.Errorf("Expected distinct count 50, got %d", bucket.DistinctCount)
+	}
+
+	if bucket.UpperBound.Data != int64(100) {
+		t.Errorf("Expected upper bound 100, got %v", bucket.UpperBound.Data)
 	}
 }
 

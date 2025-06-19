@@ -108,7 +108,7 @@ func (s *ScanOperator) Next() (*Row, error) {
 	// Keep scanning until we find a valid row key
 	for s.iterator.Next() {
 		key := s.iterator.Key()
-		
+
 		if key == nil {
 			continue
 		}
@@ -120,7 +120,7 @@ func (s *ScanOperator) Next() (*Row, error) {
 
 		var value []byte
 		var err error
-		
+
 		// If we have an MVCC transaction, read through it to get proper versioning
 		if s.ctx.Txn != nil {
 			value, err = s.ctx.Txn.Get(key)

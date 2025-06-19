@@ -219,7 +219,7 @@ func (m *Manager) getTableIndexMap(schemaName, tableName string) map[string]bool
 }
 
 // IndexMetadata stores information about an index.
-type IndexMetadata struct {
+type IndexMetadata struct { //nolint:revive // Established API
 	Name       string
 	SchemaName string
 	TableName  string

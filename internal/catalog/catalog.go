@@ -14,16 +14,16 @@ type Catalog interface {
 	GetTable(schemaName, tableName string) (*Table, error)
 	DropTable(schemaName, tableName string) error
 	ListTables(schemaName string) ([]*Table, error)
-	
+
 	// Index operations
 	CreateIndex(index *IndexSchema) (*Index, error)
 	GetIndex(schemaName, tableName, indexName string) (*Index, error)
 	DropIndex(schemaName, tableName, indexName string) error
-	
+
 	// Statistics operations
 	UpdateTableStats(schemaName, tableName string) error
 	GetTableStats(schemaName, tableName string) (*TableStats, error)
-	
+
 	// Schema operations
 	CreateSchema(name string) error
 	DropSchema(name string) error
@@ -73,14 +73,14 @@ type Column struct {
 
 // Index represents an index on a table.
 type Index struct {
-	ID         int64
-	Name       string
-	TableID    int64
-	Type       IndexType
-	IsUnique   bool
-	IsPrimary  bool
-	Columns    []IndexColumn
-	CreatedAt  time.Time
+	ID        int64
+	Name      string
+	TableID   int64
+	Type      IndexType
+	IsUnique  bool
+	IsPrimary bool
+	Columns   []IndexColumn
+	CreatedAt time.Time
 }
 
 // IndexColumn represents a column in an index.
@@ -170,7 +170,7 @@ func (c UniqueConstraint) String() string {
 type NotNullConstraint struct{}
 
 func (c NotNullConstraint) columnConstraintType() string { return "NOT NULL" }
-func (c NotNullConstraint) String() string                { return "NOT NULL" }
+func (c NotNullConstraint) String() string               { return "NOT NULL" }
 
 // DefaultConstraint represents a DEFAULT constraint.
 type DefaultConstraint struct {

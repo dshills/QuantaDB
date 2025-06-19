@@ -12,7 +12,7 @@ import (
 )
 
 // IndexType represents the type of index.
-type IndexType int
+type IndexType int //nolint:revive // Established API
 
 const (
 	// BTreeIndex is a B+Tree based index.
@@ -46,13 +46,13 @@ type Index interface {
 }
 
 // IndexEntry represents a key-value pair in an index.
-type IndexEntry struct {
+type IndexEntry struct { //nolint:revive // Established API
 	Key   []byte
 	RowID []byte
 }
 
 // IndexStats contains statistics about an index.
-type IndexStats struct {
+type IndexStats struct { //nolint:revive // Established API
 	Type         IndexType
 	TotalEntries int64
 	StorageBytes int64
@@ -204,22 +204,25 @@ func (ke *KeyEncoder) EncodeValue(val types.Value) ([]byte, error) {
 	case int32:
 		// INTEGER - Encode as big-endian for proper ordering
 		var buf [4]byte
-		// Safe conversion - int32 to uint32 preserves bit pattern
-		binary.BigEndian.PutUint32(buf[:], uint32(v))
+		// The conversion from int32 to uint32 preserves the bit pattern
+		// This is safe for encoding purposes as we're just storing the bits
+		binary.BigEndian.PutUint32(buf[:], uint32(v)) //nolint:gosec // Safe bit pattern preservation
 		return buf[:], nil
 
 	case int64:
 		// BIGINT/TIMESTAMP - Encode as big-endian for proper ordering
 		var buf [8]byte
-		// Safe conversion - int64 to uint64 preserves bit pattern
-		binary.BigEndian.PutUint64(buf[:], uint64(v))
+		// The conversion from int64 to uint64 preserves the bit pattern
+		// This is safe for encoding purposes as we're just storing the bits
+		binary.BigEndian.PutUint64(buf[:], uint64(v)) //nolint:gosec // Safe bit pattern preservation
 		return buf[:], nil
 
 	case int16:
 		// SMALLINT - Encode as big-endian for proper ordering
 		var buf [2]byte
-		// Safe conversion - int16 to uint16 preserves bit pattern
-		binary.BigEndian.PutUint16(buf[:], uint16(v))
+		// The conversion from int16 to uint16 preserves the bit pattern
+		// This is safe for encoding purposes as we're just storing the bits
+		binary.BigEndian.PutUint16(buf[:], uint16(v)) //nolint:gosec // Safe bit pattern preservation
 		return buf[:], nil
 
 	case float32:

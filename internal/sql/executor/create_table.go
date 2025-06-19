@@ -69,7 +69,7 @@ func (c *CreateTableOperator) Open(ctx *ExecContext) error {
 		Columns:     make([]catalog.ColumnDef, len(c.columns)),
 		Constraints: c.constraints,
 	}
-	
+
 	// Convert columns to ColumnDef
 	for i, col := range c.columns {
 		tableSchema.Columns[i] = catalog.ColumnDef{
@@ -116,7 +116,7 @@ func (c *CreateTableOperator) Next() (*Row, error) {
 		return result, nil
 	}
 
-	return nil, nil // EOF
+	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
 // Close cleans up resources

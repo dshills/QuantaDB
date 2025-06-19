@@ -9,10 +9,10 @@ import (
 // StorageScanOperator reads rows from disk-based storage
 type StorageScanOperator struct {
 	baseOperator
-	table        *catalog.Table
-	storage      StorageBackend
-	iterator     RowIterator
-	rowCount     int64
+	table    *catalog.Table
+	storage  StorageBackend
+	iterator RowIterator
+	rowCount int64
 }
 
 // NewStorageScanOperator creates a new storage-based scan operator
@@ -63,9 +63,9 @@ func (s *StorageScanOperator) Next() (*Row, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan error: %w", err)
 	}
-	
+
 	if row == nil {
-		return nil, nil // EOF
+		return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 	}
 
 	// Update statistics

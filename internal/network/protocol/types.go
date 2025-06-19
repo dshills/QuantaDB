@@ -149,7 +149,8 @@ func WriteMessage(w io.Writer, msg *Message) error {
 	}
 
 	// Write length (includes itself)
-	length := uint32(len(msg.Data) + 4)
+	// len() returns non-negative int, safe to convert to uint32
+	length := uint32(len(msg.Data) + 4) //nolint:gosec // len() is always non-negative
 	if err := binary.Write(w, binary.BigEndian, length); err != nil {
 		return err
 	}

@@ -43,7 +43,7 @@ type LogicalProject struct {
 func (p *LogicalProject) logicalNode() {}
 
 func (p *LogicalProject) String() string {
-	var projStrs []string
+	var projStrs []string //nolint:prealloc
 	for i, proj := range p.Projections {
 		str := proj.String()
 		if i < len(p.Aliases) && p.Aliases[i] != "" {
@@ -63,7 +63,7 @@ type LogicalSort struct {
 func (s *LogicalSort) logicalNode() {}
 
 func (s *LogicalSort) String() string {
-	var orderStrs []string
+	var orderStrs []string //nolint:prealloc
 	for _, o := range s.OrderBy {
 		orderStrs = append(orderStrs, o.String())
 	}
@@ -112,15 +112,15 @@ func (j *LogicalJoin) String() string {
 // LogicalAggregate represents an aggregation operation.
 type LogicalAggregate struct {
 	basePlan
-	GroupBy     []Expression
-	Aggregates  []AggregateExpr
+	GroupBy    []Expression
+	Aggregates []AggregateExpr
 }
 
 func (a *LogicalAggregate) logicalNode() {}
 
 func (a *LogicalAggregate) String() string {
 	var parts []string
-	
+
 	if len(a.GroupBy) > 0 {
 		var groupStrs []string
 		for _, g := range a.GroupBy {
@@ -128,7 +128,7 @@ func (a *LogicalAggregate) String() string {
 		}
 		parts = append(parts, "GROUP BY "+strings.Join(groupStrs, ", "))
 	}
-	
+
 	if len(a.Aggregates) > 0 {
 		var aggStrs []string
 		for _, agg := range a.Aggregates {
@@ -136,7 +136,7 @@ func (a *LogicalAggregate) String() string {
 		}
 		parts = append(parts, strings.Join(aggStrs, ", "))
 	}
-	
+
 	return fmt.Sprintf("Aggregate(%s)", strings.Join(parts, " "))
 }
 

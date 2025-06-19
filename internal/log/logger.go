@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Logger is the interface for QuantaDB logging
+// Logger is the interface for QuantaDB logging.
 type Logger interface {
 	Debug(msg string, args ...any)
 	Info(msg string, args ...any)
@@ -20,13 +20,13 @@ type Logger interface {
 	WithContext(ctx context.Context) Logger
 }
 
-// logger wraps slog.Logger
+// logger wraps slog.Logger.
 type logger struct {
 	slog *slog.Logger
 }
 
 var (
-	// Default logger instance
+	// Default logger instance.
 	defaultLogger Logger
 )
 
@@ -40,7 +40,7 @@ func init() {
 	defaultLogger = &logger{slog: slog.New(handler)}
 }
 
-// SetDefault sets the default logger
+// SetDefault sets the default logger.
 func SetDefault(l Logger) {
 	defaultLogger = l
 }

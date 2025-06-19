@@ -12,11 +12,11 @@ import (
 // UpdateOperator executes UPDATE statements
 type UpdateOperator struct {
 	baseOperator
-	table        *catalog.Table
-	storage      StorageBackend
-	assignments  []parser.Assignment
-	whereClause  parser.Expression
-	rowsUpdated  int64
+	table       *catalog.Table
+	storage     StorageBackend
+	assignments []parser.Assignment
+	whereClause parser.Expression
+	rowsUpdated int64
 }
 
 // NewUpdateOperator creates a new update operator
@@ -61,7 +61,7 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 		row   *Row
 		rowID RowID
 	}
-	
+
 	for {
 		row, rowID, err := iterator.Next()
 		if err != nil {
@@ -70,13 +70,13 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 		if row == nil {
 			break // End of table
 		}
-		
+
 		rowsToUpdate = append(rowsToUpdate, struct {
 			row   *Row
 			rowID RowID
 		}{row: row, rowID: rowID})
 	}
-	
+
 	// Prepare columns slice once if we have a WHERE clause
 	var columns []catalog.Column
 	if u.whereClause != nil {
@@ -85,7 +85,7 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 			columns[i] = *col
 		}
 	}
-	
+
 	// Now process the collected rows
 	for _, entry := range rowsToUpdate {
 		row := entry.row
@@ -142,10 +142,10 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 
 			// Check type compatibility
 			if !isTypeCompatible(col.DataType, value) {
-				return fmt.Errorf("type mismatch: cannot assign %T to column '%s' of type %s", 
+				return fmt.Errorf("type mismatch: cannot assign %T to column '%s' of type %s",
 					value.Data, col.Name, col.DataType.Name())
 			}
-			
+
 			updatedRow.Values[columnIndex] = value
 		}
 
@@ -179,7 +179,7 @@ func (u *UpdateOperator) Next() (*Row, error) {
 		return result, nil
 	}
 
-	return nil, nil // EOF
+	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
 // Close cleans up resources
@@ -188,15 +188,14 @@ func (u *UpdateOperator) Close() error {
 	return nil
 }
 
-
 // isTypeCompatible checks if a value is compatible with a column type
 func isTypeCompatible(dataType types.DataType, value types.Value) bool {
 	if value.IsNull() {
 		return true // NULL is compatible with any nullable column
 	}
-	
+
 	typeName := dataType.Name()
-	
+
 	switch typeName {
 	case "INTEGER":
 		switch value.Data.(type) {
@@ -230,6 +229,6 @@ func isTypeCompatible(dataType types.DataType, value types.Value) bool {
 			return true
 		}
 	}
-	
+
 	return false
 }

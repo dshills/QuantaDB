@@ -46,12 +46,15 @@ func canUseIndexForFilter(index *catalog.Index, filter Expression) bool {
 	switch expr := filter.(type) {
 	case *BinaryOp:
 		// First check for logical operators
-		if expr.Operator == OpAnd {
+		switch expr.Operator {
+		case OpAnd:
 			// For AND, both sides must be usable
 			return canUseIndexForFilter(index, expr.Left) && canUseIndexForFilter(index, expr.Right)
-		} else if expr.Operator == OpOr {
+		case OpOr:
 			// For OR, we can't use the index efficiently (would need multiple scans)
 			return false
+		default:
+			// Continue to check comparison operators below
 		}
 
 		// Check if this is a comparison on an indexed column
@@ -175,8 +178,6 @@ func extractIndexBounds(index *catalog.Index, filter Expression) (startKey, endK
 	default:
 		return nil, nil, false
 	}
-
-	return nil, nil, false
 }
 
 // tryIndexScan attempts to convert a scan+filter into an index scan.
@@ -238,7 +239,7 @@ func tryIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat catalog.
 
 	var bestIndex *catalog.Index
 	var bestStartKey, bestEndKey Expression
-	var bestCost float64 = math.Inf(1) // Start with infinite cost
+	var bestCost = math.Inf(1) // Start with infinite cost
 
 	// Check each index to see if it can be used and calculate its cost
 	for _, index := range table.Indexes {

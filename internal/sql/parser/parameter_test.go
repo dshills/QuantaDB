@@ -46,7 +46,6 @@ func TestLexerParameters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			lexer := NewLexer(tt.input)
-			
 			for i, expectedType := range tt.expected {
 				token := lexer.NextToken()
 				if token.Type != expectedType {
@@ -85,14 +84,13 @@ func TestParseParameters(t *testing.T) {
 			validate: func(t *testing.T, stmt Statement) {
 				selectStmt := stmt.(*SelectStmt)
 				and := selectStmt.Where.(*BinaryExpr)
-				
 				// Check left side (id = $1)
 				left := and.Left.(*ComparisonExpr)
 				param1 := left.Right.(*ParameterRef)
 				if param1.Index != 1 {
 					t.Errorf("Expected parameter index 1, got %d", param1.Index)
 				}
-				
+
 				// Check right side (name = $2)
 				right := and.Right.(*ComparisonExpr)
 				param2 := right.Right.(*ParameterRef)
@@ -107,7 +105,7 @@ func TestParseParameters(t *testing.T) {
 			validate: func(t *testing.T, stmt Statement) {
 				insertStmt := stmt.(*InsertStmt)
 				values := insertStmt.Values[0]
-				
+
 				// Check all three parameters
 				for i, val := range values {
 					param := val.(*ParameterRef)
@@ -122,7 +120,7 @@ func TestParseParameters(t *testing.T) {
 			sql:  "UPDATE users SET name = $1, email = $2 WHERE id = $3",
 			validate: func(t *testing.T, stmt Statement) {
 				updateStmt := stmt.(*UpdateStmt)
-				
+
 				// Check SET clause parameters
 				if updateStmt.Assignments[0].Value.(*ParameterRef).Index != 1 {
 					t.Error("Expected parameter $1 in first assignment")
@@ -130,7 +128,7 @@ func TestParseParameters(t *testing.T) {
 				if updateStmt.Assignments[1].Value.(*ParameterRef).Index != 2 {
 					t.Error("Expected parameter $2 in second assignment")
 				}
-				
+
 				// Check WHERE clause parameter
 				where := updateStmt.Where.(*ComparisonExpr)
 				if where.Right.(*ParameterRef).Index != 3 {
@@ -161,19 +159,19 @@ func TestParseParameters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := NewParser(tt.sql)
 			stmt, err := parser.Parse()
-			
+
 			if tt.wantError {
 				if err == nil {
 					t.Error("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 				return
 			}
-			
+
 			if tt.validate != nil {
 				tt.validate(t, stmt)
 			}

@@ -3,6 +3,7 @@ package wal
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -53,12 +54,12 @@ func (rt RecordType) String() string {
 
 // LogRecord represents a single WAL record
 type LogRecord struct {
-	LSN      LSN
-	Type     RecordType
-	TxnID    uint64
-	PrevLSN  LSN       // Previous LSN for this transaction
+	LSN       LSN
+	Type      RecordType
+	TxnID     uint64
+	PrevLSN   LSN // Previous LSN for this transaction
 	Timestamp time.Time
-	Data     []byte
+	Data      []byte
 }
 
 // Size returns the size of the log record in bytes
@@ -79,12 +80,12 @@ type InsertRecord struct {
 func (r *InsertRecord) Marshal() []byte {
 	size := 8 + 4 + 2 + len(r.RowData)
 	buf := make([]byte, size)
-	
-	binary.BigEndian.PutUint64(buf[0:8], uint64(r.TableID))
+
+	binary.BigEndian.PutUint64(buf[0:8], uint64(r.TableID)) //nolint:gosec // Safe bit pattern preservation
 	binary.BigEndian.PutUint32(buf[8:12], r.PageID)
 	binary.BigEndian.PutUint16(buf[12:14], r.SlotID)
 	copy(buf[14:], r.RowData)
-	
+
 	return buf
 }
 
@@ -93,12 +94,12 @@ func (r *InsertRecord) Unmarshal(data []byte) error {
 	if len(data) < 14 {
 		return fmt.Errorf("insert record too short: %d bytes", len(data))
 	}
-	
-	r.TableID = int64(binary.BigEndian.Uint64(data[0:8]))
+
+	r.TableID = int64(binary.BigEndian.Uint64(data[0:8])) //nolint:gosec // Safe bit pattern restoration
 	r.PageID = binary.BigEndian.Uint32(data[8:12])
 	r.SlotID = binary.BigEndian.Uint16(data[12:14])
 	r.RowData = data[14:]
-	
+
 	return nil
 }
 
@@ -112,11 +113,11 @@ type DeleteRecord struct {
 // Marshal serializes the delete record
 func (r *DeleteRecord) Marshal() []byte {
 	buf := make([]byte, 14)
-	
-	binary.BigEndian.PutUint64(buf[0:8], uint64(r.TableID))
+
+	binary.BigEndian.PutUint64(buf[0:8], uint64(r.TableID)) //nolint:gosec // Safe bit pattern preservation
 	binary.BigEndian.PutUint32(buf[8:12], r.PageID)
 	binary.BigEndian.PutUint16(buf[12:14], r.SlotID)
-	
+
 	return buf
 }
 
@@ -125,11 +126,11 @@ func (r *DeleteRecord) Unmarshal(data []byte) error {
 	if len(data) < 14 {
 		return fmt.Errorf("delete record too short: %d bytes", len(data))
 	}
-	
-	r.TableID = int64(binary.BigEndian.Uint64(data[0:8]))
+
+	r.TableID = int64(binary.BigEndian.Uint64(data[0:8])) //nolint:gosec // Safe bit pattern restoration
 	r.PageID = binary.BigEndian.Uint32(data[8:12])
 	r.SlotID = binary.BigEndian.Uint16(data[12:14])
-	
+
 	return nil
 }
 
@@ -148,26 +149,32 @@ func (r *UpdateRecord) Marshal() []byte {
 	newLen := len(r.NewRowData)
 	size := 8 + 4 + 2 + 4 + oldLen + 4 + newLen
 	buf := make([]byte, size)
-	
+
 	pos := 0
-	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(r.TableID))
+	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(r.TableID)) //nolint:gosec // Safe bit pattern preservation
 	pos += 8
 	binary.BigEndian.PutUint32(buf[pos:pos+4], r.PageID)
 	pos += 4
 	binary.BigEndian.PutUint16(buf[pos:pos+2], r.SlotID)
 	pos += 2
-	
+
 	// Old row data with length prefix
-	binary.BigEndian.PutUint32(buf[pos:pos+4], uint32(oldLen))
+	if oldLen > math.MaxUint32 {
+		panic(fmt.Sprintf("old row data too large: %d exceeds max uint32", oldLen))
+	}
+	binary.BigEndian.PutUint32(buf[pos:pos+4], uint32(oldLen)) //nolint:gosec // Bounds checked above
 	pos += 4
 	copy(buf[pos:pos+oldLen], r.OldRowData)
 	pos += oldLen
-	
+
 	// New row data with length prefix
-	binary.BigEndian.PutUint32(buf[pos:pos+4], uint32(newLen))
+	if newLen > math.MaxUint32 {
+		panic(fmt.Sprintf("new row data too large: %d exceeds max uint32", newLen))
+	}
+	binary.BigEndian.PutUint32(buf[pos:pos+4], uint32(newLen)) //nolint:gosec // Bounds checked above
 	pos += 4
 	copy(buf[pos:pos+newLen], r.NewRowData)
-	
+
 	return buf
 }
 
@@ -176,15 +183,15 @@ func (r *UpdateRecord) Unmarshal(data []byte) error {
 	if len(data) < 18 { // Minimum size without row data
 		return fmt.Errorf("update record too short: %d bytes", len(data))
 	}
-	
+
 	pos := 0
-	r.TableID = int64(binary.BigEndian.Uint64(data[pos : pos+8]))
+	r.TableID = int64(binary.BigEndian.Uint64(data[pos : pos+8])) //nolint:gosec // Safe bit pattern restoration
 	pos += 8
 	r.PageID = binary.BigEndian.Uint32(data[pos : pos+4])
 	pos += 4
 	r.SlotID = binary.BigEndian.Uint16(data[pos : pos+2])
 	pos += 2
-	
+
 	// Old row data
 	oldLen := binary.BigEndian.Uint32(data[pos : pos+4])
 	pos += 4
@@ -194,7 +201,7 @@ func (r *UpdateRecord) Unmarshal(data []byte) error {
 	r.OldRowData = make([]byte, oldLen)
 	copy(r.OldRowData, data[pos:pos+int(oldLen)])
 	pos += int(oldLen)
-	
+
 	// New row data
 	if pos+4 > len(data) {
 		return fmt.Errorf("new row length missing")
@@ -206,7 +213,7 @@ func (r *UpdateRecord) Unmarshal(data []byte) error {
 	}
 	r.NewRowData = make([]byte, newLen)
 	copy(r.NewRowData, data[pos:pos+int(newLen)])
-	
+
 	return nil
 }
 
@@ -219,10 +226,10 @@ type TransactionRecord struct {
 // Marshal serializes the transaction record
 func (r *TransactionRecord) Marshal() []byte {
 	buf := make([]byte, 16)
-	
+
 	binary.BigEndian.PutUint64(buf[0:8], r.TxnID)
-	binary.BigEndian.PutUint64(buf[8:16], uint64(r.Timestamp.UnixNano()))
-	
+	binary.BigEndian.PutUint64(buf[8:16], uint64(r.Timestamp.UnixNano())) //nolint:gosec // Safe bit pattern preservation
+
 	return buf
 }
 
@@ -231,26 +238,26 @@ func (r *TransactionRecord) Unmarshal(data []byte) error {
 	if len(data) < 16 {
 		return fmt.Errorf("transaction record too short: %d bytes", len(data))
 	}
-	
+
 	r.TxnID = binary.BigEndian.Uint64(data[0:8])
-	r.Timestamp = time.Unix(0, int64(binary.BigEndian.Uint64(data[8:16])))
-	
+	r.Timestamp = time.Unix(0, int64(binary.BigEndian.Uint64(data[8:16]))) //nolint:gosec // Safe bit pattern restoration
+
 	return nil
 }
 
 // CheckpointRecord represents data for a checkpoint
 type CheckpointRecord struct {
-	Timestamp      time.Time
-	LastLSN        LSN
-	ActiveTxns     []uint64
-	DirtyPages     []DirtyPageInfo // Pages that need to be flushed
+	Timestamp  time.Time
+	LastLSN    LSN
+	ActiveTxns []uint64
+	DirtyPages []DirtyPageInfo // Pages that need to be flushed
 }
 
 // DirtyPageInfo tracks a dirty page during checkpoint
 type DirtyPageInfo struct {
-	PageID    uint32
-	TableID   int64
-	RecLSN    LSN // First LSN that made this page dirty
+	PageID  uint32
+	TableID int64
+	RecLSN  LSN // First LSN that made this page dirty
 }
 
 // Marshal serializes the checkpoint record
@@ -258,27 +265,33 @@ func (r *CheckpointRecord) Marshal() []byte {
 	// Calculate size: timestamp(8) + lastLSN(8) + numTxns(4) + txns + numPages(4) + pages
 	size := 8 + 8 + 4 + (8 * len(r.ActiveTxns)) + 4 + (20 * len(r.DirtyPages))
 	buf := make([]byte, 0, size)
-	
+
 	// Timestamp
-	buf = binary.BigEndian.AppendUint64(buf, uint64(r.Timestamp.UnixNano()))
-	
+	buf = binary.BigEndian.AppendUint64(buf, uint64(r.Timestamp.UnixNano())) //nolint:gosec // Safe bit pattern preservation
+
 	// Last LSN
 	buf = binary.BigEndian.AppendUint64(buf, uint64(r.LastLSN))
-	
+
 	// Active transactions
-	buf = binary.BigEndian.AppendUint32(buf, uint32(len(r.ActiveTxns)))
+	if len(r.ActiveTxns) > math.MaxUint32 {
+		panic(fmt.Sprintf("too many active transactions: %d exceeds max uint32", len(r.ActiveTxns)))
+	}
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(r.ActiveTxns))) //nolint:gosec // Bounds checked above
 	for _, txnID := range r.ActiveTxns {
 		buf = binary.BigEndian.AppendUint64(buf, txnID)
 	}
-	
+
 	// Dirty pages
-	buf = binary.BigEndian.AppendUint32(buf, uint32(len(r.DirtyPages)))
+	if len(r.DirtyPages) > math.MaxUint32 {
+		panic(fmt.Sprintf("too many dirty pages: %d exceeds max uint32", len(r.DirtyPages)))
+	}
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(r.DirtyPages))) //nolint:gosec // Bounds checked above
 	for _, dp := range r.DirtyPages {
 		buf = binary.BigEndian.AppendUint32(buf, dp.PageID)
-		buf = binary.BigEndian.AppendUint64(buf, uint64(dp.TableID))
+		buf = binary.BigEndian.AppendUint64(buf, uint64(dp.TableID)) //nolint:gosec // Safe bit pattern preservation
 		buf = binary.BigEndian.AppendUint64(buf, uint64(dp.RecLSN))
 	}
-	
+
 	return buf
 }
 
@@ -287,46 +300,46 @@ func (r *CheckpointRecord) Unmarshal(data []byte) error {
 	if len(data) < 20 {
 		return fmt.Errorf("checkpoint record too short: %d bytes", len(data))
 	}
-	
+
 	pos := 0
-	r.Timestamp = time.Unix(0, int64(binary.BigEndian.Uint64(data[pos:pos+8])))
+	r.Timestamp = time.Unix(0, int64(binary.BigEndian.Uint64(data[pos:pos+8]))) //nolint:gosec // Safe bit pattern restoration
 	pos += 8
 	r.LastLSN = LSN(binary.BigEndian.Uint64(data[pos : pos+8]))
 	pos += 8
-	
+
 	// Active transactions
 	numTxns := binary.BigEndian.Uint32(data[pos : pos+4])
 	pos += 4
-	
+
 	if pos+int(numTxns)*8 > len(data) {
 		return fmt.Errorf("active transaction list exceeds record size")
 	}
-	
+
 	r.ActiveTxns = make([]uint64, numTxns)
 	for i := uint32(0); i < numTxns; i++ {
 		r.ActiveTxns[i] = binary.BigEndian.Uint64(data[pos : pos+8])
 		pos += 8
 	}
-	
+
 	// Dirty pages (if present in the record)
 	if pos+4 <= len(data) {
 		numPages := binary.BigEndian.Uint32(data[pos : pos+4])
 		pos += 4
-		
+
 		if pos+int(numPages)*20 > len(data) {
 			return fmt.Errorf("dirty page list exceeds record size")
 		}
-		
+
 		r.DirtyPages = make([]DirtyPageInfo, numPages)
 		for i := uint32(0); i < numPages; i++ {
 			r.DirtyPages[i].PageID = binary.BigEndian.Uint32(data[pos : pos+4])
 			pos += 4
-			r.DirtyPages[i].TableID = int64(binary.BigEndian.Uint64(data[pos : pos+8]))
+			r.DirtyPages[i].TableID = int64(binary.BigEndian.Uint64(data[pos : pos+8])) //nolint:gosec // Safe bit pattern restoration
 			pos += 8
 			r.DirtyPages[i].RecLSN = LSN(binary.BigEndian.Uint64(data[pos : pos+8]))
 			pos += 8
 		}
 	}
-	
+
 	return nil
 }

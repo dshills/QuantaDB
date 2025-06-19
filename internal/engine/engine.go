@@ -16,7 +16,7 @@ var (
 	ErrTransactionConflict = errors.New("transaction conflict")
 )
 
-// Engine defines the interface for storage backends
+// Engine defines the interface for storage backends.
 type Engine interface {
 	// Get retrieves a value by key
 	Get(ctx context.Context, key []byte) ([]byte, error)
@@ -37,7 +37,7 @@ type Engine interface {
 	Close() error
 }
 
-// Transaction represents a database transaction
+// Transaction represents a database transaction.
 type Transaction interface {
 	// Get retrieves a value by key within the transaction
 	Get(key []byte) ([]byte, error)
@@ -55,7 +55,7 @@ type Transaction interface {
 	Rollback() error
 }
 
-// Iterator provides iteration over key-value pairs
+// Iterator provides iteration over key-value pairs.
 type Iterator interface {
 	// Next moves to the next key-value pair
 	Next() bool
@@ -73,7 +73,7 @@ type Iterator interface {
 	Close() error
 }
 
-// Options represents engine configuration options
+// Options represents engine configuration options.
 type Options struct {
 	// CacheSize is the size of the in-memory cache in bytes
 	CacheSize int64

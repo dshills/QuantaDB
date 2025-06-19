@@ -320,4 +320,3 @@ func ParseParameterValue(data []byte, dataType types.DataType, format int16) (ty
 		return types.NewValue(text), nil
 	}
 }
-

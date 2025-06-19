@@ -117,7 +117,7 @@ func (d *DeleteOperator) Next() (*Row, error) {
 		return result, nil
 	}
 
-	return nil, nil // EOF
+	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
 // Close cleans up resources

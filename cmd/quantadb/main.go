@@ -68,7 +68,6 @@ func main() {
 
 	// Initialize catalog
 	cat := catalog.NewMemoryCatalog()
-	
 	// Initialize storage components
 	dbPath := filepath.Join(*dataDir, "quantadb.db")
 	diskManager, err := storage.NewDiskManager(dbPath)
@@ -77,10 +76,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer diskManager.Close()
-	
+
 	// Create buffer pool (128MB default)
 	bufferPool := storage.NewBufferPool(diskManager, 128*1024*1024/storage.PageSize)
-	
 	// Create storage backend
 	storageBackend := executor.NewDiskStorageBackend(bufferPool, cat)
 
@@ -98,7 +96,7 @@ func main() {
 	// Create and start server
 	server := network.NewServer(config, cat, eng, logger)
 	server.SetStorageBackend(storageBackend)
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -120,4 +118,3 @@ func main() {
 
 	logger.Info("Server stopped")
 }
-

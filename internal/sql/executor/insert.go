@@ -11,9 +11,9 @@ import (
 // InsertOperator executes INSERT statements
 type InsertOperator struct {
 	baseOperator
-	table       *catalog.Table
-	storage     StorageBackend
-	values      [][]parser.Expression // List of value tuples to insert
+	table        *catalog.Table
+	storage      StorageBackend
+	values       [][]parser.Expression // List of value tuples to insert
 	rowsInserted int64
 }
 
@@ -54,7 +54,7 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 	for _, valueList := range i.values {
 		// Validate column count
 		if len(valueList) != len(i.table.Columns) {
-			return fmt.Errorf("column count mismatch: expected %d, got %d", 
+			return fmt.Errorf("column count mismatch: expected %d, got %d",
 				len(i.table.Columns), len(valueList))
 		}
 
@@ -113,7 +113,7 @@ func (i *InsertOperator) Next() (*Row, error) {
 		return result, nil
 	}
 
-	return nil, nil // EOF
+	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
 // Close cleans up resources

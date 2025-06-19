@@ -10,7 +10,7 @@ const (
 	TokenEOF TokenType = iota
 	TokenError
 
-	// Literals
+	// Literals.
 	TokenIdentifier
 	TokenNumber
 	TokenString
@@ -19,7 +19,7 @@ const (
 	TokenNull
 	TokenParam // Parameter placeholder like $1, $2
 
-	// Keywords
+	// Keywords.
 	TokenCreate
 	TokenTable
 	TokenInsert
@@ -52,7 +52,7 @@ const (
 	TokenOn
 	TokenUsing
 
-	// Data types
+	// Data types.
 	TokenInteger
 	TokenBigint
 	TokenSmallint

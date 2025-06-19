@@ -136,9 +136,9 @@ func TestMemoryCatalogTable(t *testing.T) {
 
 		// Verify columns
 		expectedColumns := []struct {
-			name       string
-			nullable   bool
-			position   int
+			name     string
+			nullable bool
+			position int
 		}{
 			{"id", false, 1},
 			{"name", false, 2},

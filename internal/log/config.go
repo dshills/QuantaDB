@@ -35,7 +35,7 @@ func ParseLevel(level string) slog.Level {
 	}
 }
 
-// Configure sets up the logger based on config
+// Configure sets up the logger based on config.
 func Configure(cfg Config) {
 	level := ParseLevel(cfg.Level)
 

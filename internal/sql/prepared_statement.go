@@ -223,4 +223,3 @@ func (m *PortalManager) Clear() {
 	m.portals = make(map[string]*Portal)
 	m.unnamedPortal = nil
 }
-

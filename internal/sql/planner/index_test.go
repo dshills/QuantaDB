@@ -11,12 +11,12 @@ import (
 func TestIndexSelection(t *testing.T) {
 	// Create catalog with a table and index
 	cat := catalog.NewMemoryCatalog()
-	
+
 	// Create schema
 	if err := cat.CreateSchema("test"); err != nil {
 		t.Fatal(err)
 	}
-	
+
 	// Create table
 	tableSchema := &catalog.TableSchema{
 		SchemaName: "test",
@@ -30,17 +30,17 @@ func TestIndexSelection(t *testing.T) {
 			catalog.PrimaryKeyConstraint{Columns: []string{"id"}},
 		},
 	}
-	
+
 	table, err := cat.CreateTable(tableSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	// Verify primary key index was created
 	if len(table.Indexes) != 1 {
 		t.Errorf("Expected 1 index, got %d", len(table.Indexes))
 	}
-	
+
 	// Create secondary index on name
 	indexSchema := &catalog.IndexSchema{
 		SchemaName: "test",
@@ -52,15 +52,15 @@ func TestIndexSelection(t *testing.T) {
 			{ColumnName: "name", SortOrder: catalog.Ascending},
 		},
 	}
-	
+
 	_, err = cat.CreateIndex(indexSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	// Create planner with catalog
 	planner := NewBasicPlannerWithCatalog(cat)
-	
+
 	tests := []struct {
 		name     string
 		query    string
@@ -72,7 +72,7 @@ func TestIndexSelection(t *testing.T) {
 			wantScan: "Scan(users)", // TODO: Should be IndexScan when implemented
 		},
 		{
-			name:     "Range query on indexed column", 
+			name:     "Range query on indexed column",
 			query:    "SELECT * FROM users WHERE id > 10",
 			wantScan: "Scan(users)", // TODO: Should be IndexScan when implemented
 		},
@@ -92,7 +92,7 @@ func TestIndexSelection(t *testing.T) {
 			wantScan: "Scan(users)", // OR requires multiple index scans
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse query
@@ -101,17 +101,17 @@ func TestIndexSelection(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to parse query: %v", err)
 			}
-			
+
 			// Plan query
 			plan, err := planner.Plan(stmt)
 			if err != nil {
 				t.Fatalf("Failed to plan query: %v", err)
 			}
-			
+
 			// Check plan structure
 			planStr := ExplainPlan(plan)
 			t.Logf("Plan for %s:\n%s", tt.query, planStr)
-			
+
 			// TODO: Once index selection is fully implemented,
 			// verify that appropriate indexes are being used
 		})
@@ -124,14 +124,14 @@ func TestIndexBoundsExtraction(t *testing.T) {
 		Name:     "id",
 		DataType: types.Integer,
 	}
-	
+
 	index := &catalog.Index{
 		Name: "test_index",
 		Columns: []catalog.IndexColumn{
 			{Column: col, SortOrder: catalog.Ascending},
 		},
 	}
-	
+
 	tests := []struct {
 		name      string
 		filter    Expression
@@ -182,15 +182,15 @@ func TestIndexBoundsExtraction(t *testing.T) {
 			canUse: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			startKey, endKey, canUse := extractIndexBounds(index, tt.filter)
-			
+
 			if canUse != tt.canUse {
 				t.Errorf("canUse = %v, want %v", canUse, tt.canUse)
 			}
-			
+
 			if canUse {
 				if (startKey != nil) != tt.wantStart {
 					t.Errorf("startKey presence = %v, want %v", startKey != nil, tt.wantStart)

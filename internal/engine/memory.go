@@ -7,13 +7,13 @@ import (
 	"sync"
 )
 
-// memoryEngine is an in-memory implementation of the Engine interface
+// memoryEngine is an in-memory implementation of the Engine interface.
 type memoryEngine struct {
 	mu   sync.RWMutex
 	data map[string][]byte
 }
 
-// NewMemoryEngine creates a new in-memory storage engine
+// NewMemoryEngine creates a new in-memory storage engine.
 func NewMemoryEngine() Engine {
 	return &memoryEngine{
 		data: make(map[string][]byte),

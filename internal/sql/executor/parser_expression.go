@@ -29,7 +29,7 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 	switch e := expr.(type) {
 	case *parser.Literal:
 		return e.Value, nil
-		
+
 	case *parser.Identifier:
 		// Find column index
 		for i, col := range ctx.columns {
@@ -38,18 +38,18 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 			}
 		}
 		return types.Value{}, fmt.Errorf("column '%s' not found", e.Name)
-		
+
 	case *parser.BinaryExpr:
 		left, err := evaluateExpression(e.Left, ctx)
 		if err != nil {
 			return types.Value{}, err
 		}
-		
+
 		right, err := evaluateExpression(e.Right, ctx)
 		if err != nil {
 			return types.Value{}, err
 		}
-		
+
 		// Handle comparison operators
 		switch e.Operator {
 		case parser.TokenEqual:
@@ -83,14 +83,14 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 		default:
 			return types.Value{}, fmt.Errorf("unsupported binary operator: %v", e.Operator)
 		}
-		
+
 	case *parser.ParameterRef:
 		// Handle parameter references ($1, $2, etc.)
 		if e.Index < 1 || e.Index > len(ctx.params) {
 			return types.Value{}, fmt.Errorf("parameter $%d out of range (have %d parameters)", e.Index, len(ctx.params))
 		}
 		return ctx.params[e.Index-1], nil
-		
+
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type: %T", expr)
 	}

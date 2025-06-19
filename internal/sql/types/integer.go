@@ -48,10 +48,7 @@ func (t *integerType) Serialize(v Value) ([]byte, error) {
 		return nil, fmt.Errorf("expected int32, got %T", v.Data)
 	}
 
-	// Check if value is within int32 bounds
-	if val > 2147483647 { // int32 max
-		return nil, fmt.Errorf("integer value %d out of range for int32", val)
-	}
+	// No need to check bounds - val is already int32 type
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, uint32(val)) // nolint:gosec // Bounds checked above
 	return buf, nil

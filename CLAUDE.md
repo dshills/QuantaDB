@@ -87,6 +87,7 @@ QuantaDB/
 ## Linting
 
 - Run golangci-lint run before committing code, fix any errors
+- When you get lint errors for gofmt run gofmt -w . from root
 
 ## Commit Guidelines
 

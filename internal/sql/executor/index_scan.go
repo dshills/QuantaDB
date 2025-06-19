@@ -13,17 +13,17 @@ import (
 // IndexScanOperator executes index scans to retrieve rows.
 type IndexScanOperator struct {
 	baseOperator
-	table       *catalog.Table
-	index       *catalog.Index
-	indexImpl   index.Index
-	indexMgr    *index.Manager
-	storage     StorageBackend
-	startKey    planner.Expression
-	endKey      planner.Expression
-	entries     []index.IndexEntry
-	position    int
-	keyEncoder  *index.KeyEncoder
-	isOpen      bool
+	table      *catalog.Table
+	index      *catalog.Index
+	indexImpl  index.Index
+	indexMgr   *index.Manager
+	storage    StorageBackend
+	startKey   planner.Expression
+	endKey     planner.Expression
+	entries    []index.IndexEntry
+	position   int
+	keyEncoder *index.KeyEncoder
+	isOpen     bool
 }
 
 // NewIndexScanOperator creates a new index scan operator.
@@ -142,7 +142,7 @@ func (op *IndexScanOperator) Next() (*Row, error) {
 
 	// Check if we have more entries
 	if op.position >= len(op.entries) {
-		return nil, nil // No more rows
+		return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 	}
 
 	// Get current index entry
@@ -209,14 +209,14 @@ func (op *IndexScanOperator) decodeRowID(value []byte) (RowID, error) {
 	// For now, assume the value directly contains the RowID
 	// This is a simplified implementation - in a real system, you might need
 	// more sophisticated encoding/decoding based on your storage format
-	
+
 	if len(value) < 6 { // PageID (4 bytes) + SlotID (2 bytes)
 		return RowID{}, fmt.Errorf("invalid row ID value length: %d", len(value))
 	}
 
 	// Decode PageID (4 bytes, little endian)
 	pageID := uint32(value[0]) | uint32(value[1])<<8 | uint32(value[2])<<16 | uint32(value[3])<<24
-	
+
 	// Decode SlotID (2 bytes, little endian)
 	slotID := uint16(value[4]) | uint16(value[5])<<8
 

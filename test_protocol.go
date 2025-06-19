@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
 	"os"
 )
@@ -18,9 +19,8 @@ func main() {
 
 	// Send SSL request
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, int32(8))          // length
-	binary.Write(buf, binary.BigEndian, int32(80877103))   // SSL request code
-	
+	binary.Write(buf, binary.BigEndian, int32(8))        // length
+	binary.Write(buf, binary.BigEndian, int32(80877103)) // SSL request code
 	_, err = conn.Write(buf.Bytes())
 	if err != nil {
 		fmt.Printf("Failed to send SSL request: %v\n", err)
@@ -43,16 +43,16 @@ func main() {
 
 	// Send startup message
 	startupBuf := new(bytes.Buffer)
-	
+
 	// Build parameters
 	params := map[string]string{
 		"user":     "user",
 		"database": "database",
 	}
-	
+
 	paramBuf := new(bytes.Buffer)
 	binary.Write(paramBuf, binary.BigEndian, int32(196608)) // protocol version
-	
+
 	for k, v := range params {
 		paramBuf.WriteString(k)
 		paramBuf.WriteByte(0)
@@ -60,11 +60,14 @@ func main() {
 		paramBuf.WriteByte(0)
 	}
 	paramBuf.WriteByte(0) // final terminator
-	
+
 	// Write length then params
-	binary.Write(startupBuf, binary.BigEndian, int32(paramBuf.Len()+4))
+	if paramBuf.Len()+4 > math.MaxInt32 {
+		panic(fmt.Sprintf("startup message too large: %d exceeds max int32", paramBuf.Len()+4))
+	}
+	binary.Write(startupBuf, binary.BigEndian, int32(paramBuf.Len()+4)) //nolint:gosec // Bounds checked above
 	startupBuf.Write(paramBuf.Bytes())
-	
+
 	_, err = conn.Write(startupBuf.Bytes())
 	if err != nil {
 		fmt.Printf("Failed to send startup: %v\n", err)

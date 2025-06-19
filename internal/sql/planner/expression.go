@@ -61,7 +61,7 @@ func (l *Literal) String() string {
 	if l.Value.IsNull() {
 		return "NULL"
 	}
-	
+
 	switch v := l.Value.Data.(type) {
 	case string:
 		return fmt.Sprintf("'%s'", strings.ReplaceAll(v, "'", "''"))
@@ -85,7 +85,7 @@ func (l *Literal) Accept(visitor ExpressionVisitor) error {
 
 // ParameterRef represents a parameter placeholder like $1, $2.
 type ParameterRef struct {
-	Index int // 1-based parameter index
+	Index int            // 1-based parameter index
 	Type  types.DataType // Type may be unknown initially
 }
 
@@ -122,7 +122,7 @@ const (
 	OpMultiply
 	OpDivide
 	OpModulo
-	
+
 	// Comparison operators
 	OpEqual
 	OpNotEqual
@@ -130,16 +130,16 @@ const (
 	OpLessEqual
 	OpGreater
 	OpGreaterEqual
-	
+
 	// Logical operators
 	OpAnd
 	OpOr
-	
+
 	// String operators
 	OpConcat
 	OpLike
 	OpNotLike
-	
+
 	// Other operators
 	OpIn
 	OpNotIn
@@ -261,7 +261,7 @@ type FunctionCall struct {
 }
 
 func (f *FunctionCall) String() string {
-	var argStrs []string
+	var argStrs []string //nolint:prealloc
 	for _, arg := range f.Args {
 		argStrs = append(argStrs, arg.String())
 	}
@@ -313,16 +313,16 @@ func (f AggregateFunc) String() string {
 }
 
 func (a *AggregateExpr) String() string {
-	var argStrs []string
+	var argStrs []string //nolint:prealloc
 	for _, arg := range a.Args {
 		argStrs = append(argStrs, arg.String())
 	}
-	
+
 	distinct := ""
 	if a.Distinct {
 		distinct = "DISTINCT "
 	}
-	
+
 	return fmt.Sprintf("%s(%s%s)", a.Function.String(), distinct, strings.Join(argStrs, ", "))
 }
 

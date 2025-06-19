@@ -26,10 +26,9 @@ func (t *timestampType) Compare(a, b Value) int {
 	if a.Null || b.Null {
 		return CompareValues(a, b)
 	}
-	
+
 	aTime := a.Data.(time.Time)
 	bTime := b.Data.(time.Time)
-	
 	if aTime.Before(bTime) {
 		return -1
 	} else if aTime.After(bTime) {
@@ -42,12 +41,11 @@ func (t *timestampType) Serialize(v Value) ([]byte, error) {
 	if v.Null {
 		return nil, nil
 	}
-	
+
 	val, ok := v.Data.(time.Time)
 	if !ok {
 		return nil, fmt.Errorf("expected time.Time, got %T", v.Data)
 	}
-	
 	// Store as Unix nanoseconds
 	nano := val.UnixNano()
 	buf := make([]byte, 8)
@@ -59,11 +57,11 @@ func (t *timestampType) Deserialize(data []byte) (Value, error) {
 	if data == nil {
 		return NewNullValue(), nil
 	}
-	
+
 	if len(data) != 8 {
 		return Value{}, fmt.Errorf("expected 8 bytes for TIMESTAMP, got %d", len(data))
 	}
-	
+
 	nano := int64(binary.BigEndian.Uint64(data)) // nolint:gosec // uint64 to int64 conversion is safe for timestamp data
 	val := time.Unix(0, nano)
 	return NewValue(val), nil
@@ -73,7 +71,7 @@ func (t *timestampType) IsValid(v Value) bool {
 	if v.Null {
 		return true
 	}
-	
+
 	_, ok := v.Data.(time.Time)
 	return ok
 }
@@ -97,14 +95,14 @@ func (t *dateType) Compare(a, b Value) int {
 	if a.Null || b.Null {
 		return CompareValues(a, b)
 	}
-	
+
 	aTime := a.Data.(time.Time)
 	bTime := b.Data.(time.Time)
-	
+
 	// Compare only the date part
 	aDate := aTime.Truncate(24 * time.Hour)
 	bDate := bTime.Truncate(24 * time.Hour)
-	
+
 	if aDate.Before(bDate) {
 		return -1
 	} else if aDate.After(bDate) {
@@ -117,16 +115,16 @@ func (t *dateType) Serialize(v Value) ([]byte, error) {
 	if v.Null {
 		return nil, nil
 	}
-	
+
 	val, ok := v.Data.(time.Time)
 	if !ok {
 		return nil, fmt.Errorf("expected time.Time, got %T", v.Data)
 	}
-	
+
 	// Store as days since Unix epoch (in UTC)
 	epoch := time.Unix(0, 0).UTC()
 	days := int32(val.UTC().Sub(epoch).Hours() / 24)
-	
+
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, uint32(days)) // nolint:gosec // int32 to uint32 conversion is safe
 	return buf, nil
@@ -136,16 +134,16 @@ func (t *dateType) Deserialize(data []byte) (Value, error) {
 	if data == nil {
 		return NewNullValue(), nil
 	}
-	
+
 	if len(data) != 4 {
 		return Value{}, fmt.Errorf("expected 4 bytes for DATE, got %d", len(data))
 	}
-	
+
 	days := int32(binary.BigEndian.Uint32(data)) // nolint:gosec // uint32 to int32 conversion is safe for date data
 	// Use UTC epoch to avoid timezone issues
 	epoch := time.Unix(0, 0).UTC()
 	val := epoch.AddDate(0, 0, int(days))
-	
+
 	return NewValue(val), nil
 }
 
@@ -153,7 +151,7 @@ func (t *dateType) IsValid(v Value) bool {
 	if v.Null {
 		return true
 	}
-	
+
 	_, ok := v.Data.(time.Time)
 	return ok
 }
@@ -184,13 +182,13 @@ func ParseTimestamp(s string) (Value, error) {
 		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05.999999",
 	}
-	
+
 	for _, format := range formats {
 		if t, err := time.Parse(format, s); err == nil {
 			return NewTimestampValue(t), nil
 		}
 	}
-	
+
 	return Value{}, fmt.Errorf("unable to parse timestamp: %s", s)
 }
 
@@ -202,12 +200,12 @@ func ParseDate(s string) (Value, error) {
 		"01/02/2006",
 		"01-02-2006",
 	}
-	
+
 	for _, format := range formats {
 		if t, err := time.Parse(format, s); err == nil {
 			return NewDateValue(t), nil
 		}
 	}
-	
+
 	return Value{}, fmt.Errorf("unable to parse date: %s", s)
 }

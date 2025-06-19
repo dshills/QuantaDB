@@ -5,14 +5,15 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 )
 
-// Query represents a simple query message
+// Query represents a simple query message.
 type Query struct {
 	Query string
 }
 
-// Parse parses a Query message from data
+// Parse parses a Query message from data.
 func (q *Query) Parse(data []byte) error {
 	// Query string is null-terminated
 	nullIdx := bytes.IndexByte(data, 0)
@@ -23,12 +24,12 @@ func (q *Query) Parse(data []byte) error {
 	return nil
 }
 
-// RowDescription represents row metadata
+// RowDescription represents row metadata.
 type RowDescription struct {
 	Fields []FieldDescription
 }
 
-// FieldDescription describes a single field
+// FieldDescription describes a single field.
 type FieldDescription struct {
 	Name         string
 	TableOID     uint32
@@ -39,12 +40,15 @@ type FieldDescription struct {
 	Format       int16
 }
 
-// ToMessage converts RowDescription to a Message
+// ToMessage converts RowDescription to a Message.
 func (r *RowDescription) ToMessage() *Message {
 	buf := new(bytes.Buffer)
 
 	// Field count
-	binary.Write(buf, binary.BigEndian, int16(len(r.Fields)))
+	if len(r.Fields) > math.MaxInt16 {
+		panic(fmt.Sprintf("too many fields: %d exceeds max int16", len(r.Fields)))
+	}
+	binary.Write(buf, binary.BigEndian, int16(len(r.Fields))) //nolint:gosec // Bounds checked above
 
 	// Field descriptions
 	for _, field := range r.Fields {
@@ -77,17 +81,20 @@ func (r *RowDescription) ToMessage() *Message {
 	}
 }
 
-// DataRow represents a single row of data
+// DataRow represents a single row of data.
 type DataRow struct {
 	Values [][]byte
 }
 
-// ToMessage converts DataRow to a Message
+// ToMessage converts DataRow to a Message.
 func (d *DataRow) ToMessage() *Message {
 	buf := new(bytes.Buffer)
 
 	// Column count
-	binary.Write(buf, binary.BigEndian, int16(len(d.Values)))
+	if len(d.Values) > math.MaxInt16 {
+		panic(fmt.Sprintf("too many values: %d exceeds max int16", len(d.Values)))
+	}
+	binary.Write(buf, binary.BigEndian, int16(len(d.Values))) //nolint:gosec // Bounds checked above
 
 	// Column values
 	for _, value := range d.Values {
@@ -96,7 +103,10 @@ func (d *DataRow) ToMessage() *Message {
 			binary.Write(buf, binary.BigEndian, int32(-1))
 		} else {
 			// Value length and data
-			binary.Write(buf, binary.BigEndian, int32(len(value)))
+			if len(value) > math.MaxInt32 {
+				panic(fmt.Sprintf("value too large: %d exceeds max int32", len(value)))
+			}
+			binary.Write(buf, binary.BigEndian, int32(len(value))) //nolint:gosec // Bounds checked above
 			buf.Write(value)
 		}
 	}
@@ -107,12 +117,12 @@ func (d *DataRow) ToMessage() *Message {
 	}
 }
 
-// CommandComplete represents command completion
+// CommandComplete represents command completion.
 type CommandComplete struct {
 	Tag string
 }
 
-// ToMessage converts CommandComplete to a Message
+// ToMessage converts CommandComplete to a Message.
 func (c *CommandComplete) ToMessage() *Message {
 	buf := new(bytes.Buffer)
 	buf.WriteString(c.Tag)
@@ -240,11 +250,11 @@ func ParseMessage(data []byte) (*Parse, error) {
 
 // Bind represents a Bind message
 type Bind struct {
-	Portal          string
-	Statement       string
+	Portal           string
+	Statement        string
 	ParameterFormats []int16
-	ParameterValues [][]byte
-	ResultFormats   []int16
+	ParameterValues  [][]byte
+	ResultFormats    []int16
 }
 
 // ParseBind parses a Bind message from data
@@ -374,15 +384,17 @@ type ParameterDescription struct {
 // ToMessage converts ParameterDescription to a Message
 func (p *ParameterDescription) ToMessage() *Message {
 	buf := new(bytes.Buffer)
-	
+
 	// Parameter count
-	binary.Write(buf, binary.BigEndian, int16(len(p.TypeOIDs)))
-	
+	if len(p.TypeOIDs) > math.MaxInt16 {
+		panic(fmt.Sprintf("too many parameters: %d exceeds max int16", len(p.TypeOIDs)))
+	}
+	binary.Write(buf, binary.BigEndian, int16(len(p.TypeOIDs))) //nolint:gosec // Bounds checked above
+
 	// Parameter type OIDs
 	for _, oid := range p.TypeOIDs {
 		binary.Write(buf, binary.BigEndian, oid)
 	}
-	
 	return &Message{
 		Type: 't', // lowercase 't' for parameter description
 		Data: buf.Bytes(),
@@ -425,7 +437,7 @@ func (p *ParseComplete) ToMessage() *Message {
 // BindComplete indicates successful bind
 type BindComplete struct{}
 
-// ToMessage converts BindComplete to a Message  
+// ToMessage converts BindComplete to a Message
 func (b *BindComplete) ToMessage() *Message {
 	return &Message{
 		Type: MsgBindComplete,

@@ -68,14 +68,14 @@ func EstimateSelectivity(stats *ColumnStats, op ComparisonOp, value types.Value)
 		// Default selectivity when no statistics available
 		return defaultSelectivity(op)
 	}
-	
+
 	switch op {
 	case OpEqual:
 		if stats.DistinctCount > 0 {
 			return Selectivity(1.0 / float64(stats.DistinctCount))
 		}
 		return 0.1 // Default for equality
-		
+
 	case OpLess, OpLessEqual:
 		if stats.MinValue.IsNull() || stats.MaxValue.IsNull() {
 			return 0.3 // Default for range
@@ -83,32 +83,32 @@ func EstimateSelectivity(stats *ColumnStats, op ComparisonOp, value types.Value)
 		// Estimate based on value position in range
 		// This is simplified; real implementation would use histogram
 		return 0.3
-		
+
 	case OpGreater, OpGreaterEqual:
 		if stats.MinValue.IsNull() || stats.MaxValue.IsNull() {
 			return 0.3 // Default for range
 		}
 		// Estimate based on value position in range
 		return 0.3
-		
+
 	case OpIsNull:
 		if stats.NullCount > 0 {
 			return Selectivity(float64(stats.NullCount) / float64(stats.RowCount()))
 		}
 		return 0.01 // Low default for IS NULL
-		
+
 	case OpIsNotNull:
 		if stats.NullCount > 0 {
 			return Selectivity(1.0 - float64(stats.NullCount)/float64(stats.RowCount()))
 		}
 		return 0.99 // High default for IS NOT NULL
-		
+
 	case OpNotEqual:
 		if stats.DistinctCount > 0 {
 			return Selectivity(1.0 - (1.0 / float64(stats.DistinctCount)))
 		}
 		return 0.9 // Default for not equal
-		
+
 	default:
 		return 0.5 // Conservative default
 	}
@@ -158,7 +158,7 @@ func CombineSelectivity(op LogicalOp, selectivities ...Selectivity) Selectivity 
 	if len(selectivities) == 0 {
 		return 1.0
 	}
-	
+
 	result := selectivities[0]
 	for i := 1; i < len(selectivities); i++ {
 		switch op {
@@ -170,7 +170,7 @@ func CombineSelectivity(op LogicalOp, selectivities ...Selectivity) Selectivity 
 			result = result + selectivities[i] - (result * selectivities[i])
 		}
 	}
-	
+
 	return result
 }
 

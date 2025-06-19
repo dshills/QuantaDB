@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// BufferPool manages pages in memory with LRU eviction
+// BufferPool manages pages in memory with LRU eviction.
 type BufferPool struct {
 	diskManager *DiskManager
 	pages       map[PageID]*BufferPoolPage
@@ -15,7 +15,7 @@ type BufferPool struct {
 	mu          sync.RWMutex
 }
 
-// BufferPoolPage wraps a page with metadata for buffer management
+// BufferPoolPage wraps a page with metadata for buffer management.
 type BufferPoolPage struct {
 	page     *Page
 	pinCount int           // Number of threads currently using this page
@@ -23,7 +23,7 @@ type BufferPoolPage struct {
 	lruNode  *list.Element // Node in LRU list
 }
 
-// NewBufferPool creates a new buffer pool
+// NewBufferPool creates a new buffer pool.
 func NewBufferPool(diskManager *DiskManager, maxPages int) *BufferPool {
 	return &BufferPool{
 		diskManager: diskManager,
@@ -37,20 +37,19 @@ func NewBufferPool(diskManager *DiskManager, maxPages int) *BufferPool {
 func (bp *BufferPool) FetchPage(pageID PageID) (*Page, error) {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
-	
+
 	// Check if page is already in buffer
 	if bpPage, exists := bp.pages[pageID]; exists {
 		// Page is in buffer, pin it
 		bpPage.pinCount++
-		
+
 		// Move to front of LRU list if not pinned by others
 		if bpPage.pinCount == 1 && bpPage.lruNode != nil {
 			bp.lruList.MoveToFront(bpPage.lruNode)
 		}
-		
 		return bpPage.page, nil
 	}
-	
+
 	// Page not in buffer, need to fetch from disk
 	// First check if we need to evict
 	if len(bp.pages) >= bp.maxPages {
@@ -58,24 +57,24 @@ func (bp *BufferPool) FetchPage(pageID PageID) (*Page, error) {
 			return nil, fmt.Errorf("buffer pool is full and no pages can be evicted")
 		}
 	}
-	
+
 	// Read page from disk
 	page, err := bp.diskManager.ReadPage(pageID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read page from disk: %w", err)
 	}
-	
+
 	// Add to buffer pool
 	bpPage := &BufferPoolPage{
 		page:     page,
 		pinCount: 1,
 		dirty:    false,
 	}
-	
+
 	// Add to LRU list (at front since it's just accessed)
 	bpPage.lruNode = bp.lruList.PushFront(pageID)
 	bp.pages[pageID] = bpPage
-	
+
 	return page, nil
 }
 
@@ -83,34 +82,34 @@ func (bp *BufferPool) FetchPage(pageID PageID) (*Page, error) {
 func (bp *BufferPool) NewPage() (*Page, error) {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
-	
+
 	// Allocate new page ID
 	pageID, err := bp.diskManager.AllocatePage()
 	if err != nil {
 		return nil, fmt.Errorf("failed to allocate new page: %w", err)
 	}
-	
+
 	// Check if we need to evict
 	if len(bp.pages) >= bp.maxPages {
 		if !bp.evictPage() {
 			return nil, fmt.Errorf("buffer pool is full and no pages can be evicted")
 		}
 	}
-	
+
 	// Create new page
 	page := NewPage(pageID, PageTypeData)
-	
+
 	// Add to buffer pool
 	bpPage := &BufferPoolPage{
 		page:     page,
 		pinCount: 1,
 		dirty:    true, // New pages are dirty by default
 	}
-	
+
 	// Add to LRU list
 	bpPage.lruNode = bp.lruList.PushFront(pageID)
 	bp.pages[pageID] = bpPage
-	
+
 	return page, nil
 }
 
@@ -118,28 +117,28 @@ func (bp *BufferPool) NewPage() (*Page, error) {
 func (bp *BufferPool) UnpinPage(pageID PageID, isDirty bool) error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
-	
+
 	bpPage, exists := bp.pages[pageID]
 	if !exists {
 		return fmt.Errorf("page %d not in buffer pool", pageID)
 	}
-	
+
 	if bpPage.pinCount <= 0 {
 		return fmt.Errorf("page %d already has pin count 0", pageID)
 	}
-	
+
 	bpPage.pinCount--
-	
+
 	// Mark as dirty if requested
 	if isDirty {
 		bpPage.dirty = true
 	}
-	
+
 	// If no longer pinned, ensure it's in LRU list
 	if bpPage.pinCount == 0 && bpPage.lruNode == nil {
 		bpPage.lruNode = bp.lruList.PushFront(pageID)
 	}
-	
+
 	return nil
 }
 
@@ -147,21 +146,21 @@ func (bp *BufferPool) UnpinPage(pageID PageID, isDirty bool) error {
 func (bp *BufferPool) FlushPage(pageID PageID) error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
-	
+
 	bpPage, exists := bp.pages[pageID]
 	if !exists {
 		return nil // Page not in buffer, nothing to flush
 	}
-	
+
 	if !bpPage.dirty {
 		return nil // Page not dirty, nothing to flush
 	}
-	
+
 	// Write to disk
 	if err := bp.diskManager.WritePage(bpPage.page); err != nil {
 		return fmt.Errorf("failed to write page to disk: %w", err)
 	}
-	
+
 	bpPage.dirty = false
 	return nil
 }
@@ -170,7 +169,7 @@ func (bp *BufferPool) FlushPage(pageID PageID) error {
 func (bp *BufferPool) FlushAllPages() error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
-	
+
 	for pageID, bpPage := range bp.pages {
 		if bpPage.dirty {
 			if err := bp.diskManager.WritePage(bpPage.page); err != nil {
@@ -179,7 +178,7 @@ func (bp *BufferPool) FlushAllPages() error {
 			bpPage.dirty = false
 		}
 	}
-	
+
 	return bp.diskManager.Sync()
 }
 
@@ -190,7 +189,7 @@ func (bp *BufferPool) evictPage() bool {
 	for elem := bp.lruList.Back(); elem != nil; elem = elem.Prev() {
 		pageID := elem.Value.(PageID)
 		bpPage := bp.pages[pageID]
-		
+
 		// Can only evict unpinned pages
 		if bpPage.pinCount == 0 {
 			// Write to disk if dirty
@@ -200,15 +199,15 @@ func (bp *BufferPool) evictPage() bool {
 					continue
 				}
 			}
-			
+
 			// Remove from LRU list and map
 			bp.lruList.Remove(elem)
 			delete(bp.pages, pageID)
-			
+
 			return true
 		}
 	}
-	
+
 	return false // No pages could be evicted
 }
 
@@ -216,7 +215,7 @@ func (bp *BufferPool) evictPage() bool {
 func (bp *BufferPool) GetPoolSize() int {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	
+
 	return len(bp.pages)
 }
 
@@ -224,13 +223,13 @@ func (bp *BufferPool) GetPoolSize() int {
 func (bp *BufferPool) GetPinnedCount() int {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	
+
 	count := 0
 	for _, bpPage := range bp.pages {
 		if bpPage.pinCount > 0 {
 			count++
 		}
 	}
-	
+
 	return count
 }

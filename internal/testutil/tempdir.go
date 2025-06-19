@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TempDir creates a temporary directory for testing and returns a cleanup function
+// TempDir creates a temporary directory for testing and returns a cleanup function.
 func TempDir(t *testing.T) (string, func()) {
 	t.Helper()
 

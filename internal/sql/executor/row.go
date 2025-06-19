@@ -11,6 +11,20 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
+// Constants for SQL data types to avoid repetition
+const (
+	typeBOOLEAN   = "BOOLEAN"
+	typeINTEGER   = "INTEGER"
+	typeBIGINT    = "BIGINT"
+	typeSMALLINT  = "SMALLINT"
+	typeDECIMAL   = "DECIMAL"
+	typeTEXT      = "TEXT"
+	typeVARCHAR   = "VARCHAR"
+	typeCHAR      = "CHAR"
+	typeTIMESTAMP = "TIMESTAMP"
+	typeDATE      = "DATE"
+)
+
 // RowFormat defines the serialization format for rows.
 type RowFormat struct {
 	Schema *Schema
@@ -104,7 +118,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 
 	// Write value based on type name
 	switch typeName {
-	case "BOOLEAN":
+	case typeBOOLEAN:
 		v, ok := val.Data.(bool)
 		if !ok {
 			return fmt.Errorf("expected bool, got %T", val.Data)
@@ -113,7 +127,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
-	case "INTEGER":
+	case typeINTEGER:
 		v, ok := val.Data.(int32)
 		if !ok {
 			return fmt.Errorf("expected int32, got %T", val.Data)
@@ -122,7 +136,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
-	case "BIGINT":
+	case typeBIGINT:
 		v, ok := val.Data.(int64)
 		if !ok {
 			return fmt.Errorf("expected int64, got %T", val.Data)
@@ -131,7 +145,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
-	case "SMALLINT":
+	case typeSMALLINT:
 		v, ok := val.Data.(int16)
 		if !ok {
 			return fmt.Errorf("expected int16, got %T", val.Data)
@@ -140,7 +154,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
-	case "DECIMAL":
+	case typeDECIMAL:
 		// For now, treat as float64
 		v, ok := val.Data.(float64)
 		if !ok {
@@ -150,7 +164,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
-	case "TEXT", "VARCHAR", "CHAR":
+	case typeTEXT, typeVARCHAR, typeCHAR:
 		v, ok := val.Data.(string)
 		if !ok {
 			return fmt.Errorf("expected string, got %T", val.Data)
@@ -168,7 +182,7 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
-	case "TIMESTAMP", "DATE":
+	case typeTIMESTAMP, typeDATE:
 		// Try int64 first (Unix timestamp)
 		if v, ok := val.Data.(int64); ok {
 			if err := binary.Write(w, binary.LittleEndian, v); err != nil {
@@ -210,42 +224,42 @@ func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (typ
 
 	// Read value based on type name
 	switch typeName {
-	case "BOOLEAN":
+	case typeBOOLEAN:
 		var v bool
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}
 		return types.NewValue(v), nil
 
-	case "INTEGER":
+	case typeINTEGER:
 		var v int32
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}
 		return types.NewValue(v), nil
 
-	case "BIGINT":
+	case typeBIGINT:
 		var v int64
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}
 		return types.NewValue(v), nil
 
-	case "SMALLINT":
+	case typeSMALLINT:
 		var v int16
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}
 		return types.NewValue(v), nil
 
-	case "DECIMAL":
+	case typeDECIMAL:
 		var v float64
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}
 		return types.NewValue(v), nil
 
-	case "TEXT", "VARCHAR", "CHAR":
+	case typeTEXT, typeVARCHAR, typeCHAR:
 		// Read string length
 		var length uint32
 		if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
@@ -258,7 +272,7 @@ func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (typ
 		}
 		return types.NewValue(string(data)), nil
 
-	case "TIMESTAMP", "DATE":
+	case typeTIMESTAMP, typeDATE:
 		var v int64
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err

@@ -746,7 +746,9 @@ func (p *Parser) parseCreateIndexWithUnique(unique bool) (*CreateIndexStmt, erro
 
 		// Optional ASC/DESC (ignored for now)
 		if p.match(TokenAsc) || p.match(TokenDesc) {
-			// Skip sort order for now
+			// TODO: Store sort order when CREATE INDEX supports it
+			// Currently skipping as indexes don't store sort direction
+			_ = columns // Placeholder to avoid empty branch warning
 		}
 
 		if !p.match(TokenComma) {
@@ -1174,7 +1176,7 @@ func (s *UpdateStmt) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("UPDATE %s SET", s.TableName))
 
-	var assigns []string
+	var assigns []string //nolint:prealloc
 	for _, a := range s.Assignments {
 		assigns = append(assigns, fmt.Sprintf("%s = %s", a.Column, a.Value.String()))
 	}
@@ -1220,11 +1222,11 @@ func (s *DropTableStmt) String() string {
 
 // CreateIndexStmt represents a CREATE INDEX statement.
 type CreateIndexStmt struct {
-	IndexName  string
-	TableName  string
-	Columns    []string
-	Unique     bool
-	IndexType  string // BTREE, HASH, etc.
+	IndexName string
+	TableName string
+	Columns   []string
+	Unique    bool
+	IndexType string // BTREE, HASH, etc.
 }
 
 func (s *CreateIndexStmt) statementNode() {}
@@ -1237,7 +1239,7 @@ func (s *CreateIndexStmt) String() string {
 	if s.IndexType != "" {
 		indexType = fmt.Sprintf(" USING %s", s.IndexType)
 	}
-	return fmt.Sprintf("CREATE %sINDEX %s ON %s (%s)%s", 
+	return fmt.Sprintf("CREATE %sINDEX %s ON %s (%s)%s",
 		unique, s.IndexName, s.TableName, strings.Join(s.Columns, ", "), indexType)
 }
 

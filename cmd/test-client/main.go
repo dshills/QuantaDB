@@ -28,7 +28,7 @@ func main() {
 	}
 
 	fmt.Printf("Received %d bytes\n", n)
-	
+
 	// For now, just test the connection
 	fmt.Println("Connection test successful!")
 }

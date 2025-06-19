@@ -8,7 +8,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
-// CreateIndexOperator executes CREATE INDEX statements
+// CreateIndexOperator executes CREATE INDEX statements.
 type CreateIndexOperator struct {
 	indexName  string
 	tableName  string
@@ -23,7 +23,7 @@ type CreateIndexOperator struct {
 	schema     *Schema
 }
 
-// NewCreateIndexOperator creates a new CREATE INDEX operator
+// NewCreateIndexOperator creates a new CREATE INDEX operator.
 func NewCreateIndexOperator(
 	schemaName, tableName, indexName string,
 	columns []string,
@@ -59,7 +59,7 @@ func NewCreateIndexOperator(
 	}
 }
 
-// Open initializes the CREATE INDEX operation
+// Open initializes the CREATE INDEX operation.
 func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 	// Check if table exists
 	table, err := c.catalog.GetTable(c.schemaName, c.tableName)
@@ -77,7 +77,7 @@ func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("column '%s' does not exist in table '%s.%s'", 
+			return fmt.Errorf("column '%s' does not exist in table '%s.%s'",
 				colName, c.schemaName, c.tableName)
 		}
 	}
@@ -85,7 +85,7 @@ func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 	// Check if index already exists
 	for _, idx := range table.Indexes {
 		if idx.Name == c.indexName {
-			return fmt.Errorf("index '%s' already exists on table '%s.%s'", 
+			return fmt.Errorf("index '%s' already exists on table '%s.%s'",
 				c.indexName, c.schemaName, c.tableName)
 		}
 	}
@@ -160,10 +160,10 @@ func (c *CreateIndexOperator) Next() (*Row, error) {
 	// Return result once
 	if c.executed {
 		c.executed = false // Ensure we only return once
-		
-		result := fmt.Sprintf("Index '%s' created on table '%s.%s'", 
+
+		result := fmt.Sprintf("Index '%s' created on table '%s.%s'",
 			c.indexName, c.schemaName, c.tableName)
-		
+
 		return &Row{
 			Values: []types.Value{
 				types.NewTextValue(result),
@@ -171,7 +171,7 @@ func (c *CreateIndexOperator) Next() (*Row, error) {
 		}, nil
 	}
 
-	return nil, nil
+	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
 // Close cleans up after CREATE INDEX
@@ -256,7 +256,7 @@ func (d *DropIndexOperator) Open(ctx *ExecContext) error {
 	// Get index from catalog
 	idx, err := d.catalog.GetIndex(d.schemaName, d.tableName, d.indexName)
 	if err != nil {
-		return fmt.Errorf("index '%s' not found on table '%s.%s': %w", 
+		return fmt.Errorf("index '%s' not found on table '%s.%s': %w",
 			d.indexName, d.schemaName, d.tableName, err)
 	}
 
@@ -312,10 +312,10 @@ func (d *DropIndexOperator) Next() (*Row, error) {
 	// Return result once
 	if d.executed {
 		d.executed = false // Ensure we only return once
-		
-		result := fmt.Sprintf("Index '%s' dropped from table '%s.%s'", 
+
+		result := fmt.Sprintf("Index '%s' dropped from table '%s.%s'",
 			d.indexName, d.schemaName, d.tableName)
-		
+
 		return &Row{
 			Values: []types.Value{
 				types.NewTextValue(result),
@@ -323,7 +323,7 @@ func (d *DropIndexOperator) Next() (*Row, error) {
 		}, nil
 	}
 
-	return nil, nil
+	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
 // Close cleans up after DROP INDEX

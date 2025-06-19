@@ -16,10 +16,10 @@ import (
 func TestIndexScanOperator(t *testing.T) {
 	// Clean up test files
 	defer os.Remove("test_index_scan.db")
-	
+
 	// Create catalog
 	cat := catalog.NewMemoryCatalog()
-	
+
 	// Create test table
 	tableSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -33,12 +33,12 @@ func TestIndexScanOperator(t *testing.T) {
 			catalog.PrimaryKeyConstraint{Columns: []string{"id"}},
 		},
 	}
-	
+
 	table, err := cat.CreateTable(tableSchema)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
-	
+
 	// Create index on price column
 	indexSchema := &catalog.IndexSchema{
 		SchemaName: "public",
@@ -50,42 +50,42 @@ func TestIndexScanOperator(t *testing.T) {
 			{ColumnName: "price", SortOrder: catalog.Ascending},
 		},
 	}
-	
+
 	priceIndex, err := cat.CreateIndex(indexSchema)
 	if err != nil {
 		t.Fatalf("Failed to create index: %v", err)
 	}
-	
+
 	// Create storage backend
 	diskManager, err := storage.NewDiskManager("test_index_scan.db")
 	if err != nil {
 		t.Fatalf("Failed to create disk manager: %v", err)
 	}
 	defer diskManager.Close()
-	
+
 	bufferPool := storage.NewBufferPool(diskManager, 128)
 	diskStorage := NewDiskStorageBackend(bufferPool, cat)
-	
+
 	err = diskStorage.CreateTable(table)
 	if err != nil {
 		t.Fatalf("Failed to create table storage: %v", err)
 	}
-	
+
 	// Create index manager
 	indexMgr := index.NewManager(cat)
-	
+
 	// Create the actual index in the index manager
 	err = indexMgr.CreateIndex("public", "products", "idx_products_price", []string{"price"}, false)
 	if err != nil {
 		t.Fatalf("Failed to create index in manager: %v", err)
 	}
-	
+
 	// Create executor
 	eng := engine.NewMemoryEngine()
 	executor := NewBasicExecutor(cat, eng)
 	executor.SetStorageBackend(diskStorage)
 	executor.SetIndexManager(indexMgr)
-	
+
 	// Insert some test data
 	insertData := []struct {
 		id    int32
@@ -98,19 +98,19 @@ func TestIndexScanOperator(t *testing.T) {
 		{4, "Product D", 200},
 		{5, "Product E", 125},
 	}
-	
+
 	ctx := &ExecContext{
 		Catalog: cat,
 		Engine:  eng,
 		Stats:   &ExecStats{},
 	}
-	
+
 	for _, data := range insertData {
 		// For this test, we'll simulate having the data in storage
 		// In a real scenario, this would go through the INSERT operator
 		t.Logf("Would insert: id=%d, name=%s, price=%d", data.id, data.name, data.price)
 	}
-	
+
 	// Test index scan operator directly
 	t.Run("Index scan for price >= 100", func(t *testing.T) {
 		// Create start key expression (price >= 100)
@@ -118,7 +118,7 @@ func TestIndexScanOperator(t *testing.T) {
 			Value: types.NewValue(int32(100)),
 			Type:  types.Integer,
 		}
-		
+
 		// Create index scan operator
 		indexScanOp := NewIndexScanOperator(
 			table,
@@ -128,14 +128,14 @@ func TestIndexScanOperator(t *testing.T) {
 			startKey,
 			nil, // No end key
 		)
-		
+
 		// Open the operator
 		err := indexScanOp.Open(ctx)
 		if err != nil {
 			t.Fatalf("Failed to open index scan operator: %v", err)
 		}
 		defer indexScanOp.Close()
-		
+
 		// Read rows
 		rowCount := 0
 		for {
@@ -146,11 +146,11 @@ func TestIndexScanOperator(t *testing.T) {
 			if row == nil {
 				break // No more rows
 			}
-			
+
 			rowCount++
 			t.Logf("Found row: %v", row.Values)
 		}
-		
+
 		// Since we don't have actual data inserted, we expect 0 rows
 		// but the operator should work without errors
 		t.Logf("Index scan returned %d rows", rowCount)
@@ -161,16 +161,16 @@ func TestIndexScanIntegration(t *testing.T) {
 	// This test will verify that the full planner → executor integration works
 	// Clean up test files
 	defer os.Remove("test_integration.db")
-	
+
 	// Create catalog
 	cat := catalog.NewMemoryCatalog()
-	
+
 	// Create test schema
 	err := cat.CreateSchema("test")
 	if err != nil {
 		t.Fatalf("Failed to create schema: %v", err)
 	}
-	
+
 	// Create test table
 	tableSchema := &catalog.TableSchema{
 		SchemaName: "test", // Use "test" schema to match existing tests
@@ -184,39 +184,39 @@ func TestIndexScanIntegration(t *testing.T) {
 			catalog.PrimaryKeyConstraint{Columns: []string{"id"}},
 		},
 	}
-	
+
 	table, err := cat.CreateTable(tableSchema)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
-	
+
 	// Create storage backend
 	diskManager, err := storage.NewDiskManager("test_integration.db")
 	if err != nil {
 		t.Fatalf("Failed to create disk manager: %v", err)
 	}
 	defer diskManager.Close()
-	
+
 	bufferPool := storage.NewBufferPool(diskManager, 128)
 	diskStorage := NewDiskStorageBackend(bufferPool, cat)
-	
+
 	err = diskStorage.CreateTable(table)
 	if err != nil {
 		t.Fatalf("Failed to create table storage: %v", err)
 	}
-	
+
 	// Create index manager
 	indexMgr := index.NewManager(cat)
-	
+
 	// Create executor with all components
 	eng := engine.NewMemoryEngine()
 	executor := NewBasicExecutor(cat, eng)
 	executor.SetStorageBackend(diskStorage)
 	executor.SetIndexManager(indexMgr)
-	
+
 	// Create planner
 	plannerObj := planner.NewBasicPlannerWithCatalog(cat)
-	
+
 	// Test query that should use index scan
 	sql := "SELECT * FROM users WHERE id = 1"
 	p := parser.NewParser(sql)
@@ -224,31 +224,31 @@ func TestIndexScanIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse query: %v", err)
 	}
-	
+
 	// Plan the query
 	plan, err := plannerObj.Plan(stmt)
 	if err != nil {
 		t.Fatalf("Failed to plan query: %v", err)
 	}
-	
+
 	// Check if plan uses index scan
 	planStr := planner.ExplainPlan(plan)
 	t.Logf("Query plan: %s", planStr)
-	
+
 	// Execute the plan
 	ctx := &ExecContext{
 		Catalog: cat,
 		Engine:  eng,
 		Stats:   &ExecStats{},
 	}
-	
+
 	result, err := executor.Execute(plan, ctx)
 	if err != nil {
 		t.Logf("Expected error since no data exists: %v", err)
 		// This is expected since we don't have actual data
 		return
 	}
-	
+
 	// Read results
 	for {
 		row, err := result.Next()
@@ -261,6 +261,6 @@ func TestIndexScanIntegration(t *testing.T) {
 		}
 		t.Logf("Result row: %v", row.Values)
 	}
-	
+
 	result.Close()
 }

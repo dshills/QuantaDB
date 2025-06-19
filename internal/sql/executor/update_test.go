@@ -14,14 +14,14 @@ func TestUpdateOperator(t *testing.T) {
 	// Create temporary directory for test
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
-	
+
 	// Create disk manager and buffer pool
 	dm, err := storage.NewDiskManager(dbPath)
 	if err != nil {
 		t.Fatalf("failed to create disk manager: %v", err)
 	}
 	defer dm.Close()
-	
+
 	bufferPool := storage.NewBufferPool(dm, 10)
 	cat := catalog.NewMemoryCatalog()
 	storageBackend := NewDiskStorageBackend(bufferPool, cat)
@@ -66,7 +66,7 @@ func TestUpdateOperator(t *testing.T) {
 
 		updateOp := NewUpdateOperator(table, storageBackend, assignments, nil)
 		ctx := &ExecContext{Stats: &ExecStats{}}
-		
+
 		err = updateOp.Open(ctx)
 		if err != nil {
 			t.Fatalf("failed to open update operator: %v", err)
@@ -122,10 +122,10 @@ func TestUpdateOperator(t *testing.T) {
 			t.Fatalf("failed to create disk manager: %v", err)
 		}
 		defer dm2.Close()
-		
+
 		bufferPool2 := storage.NewBufferPool(dm2, 10)
 		storageBackend2 := NewDiskStorageBackend(bufferPool2, cat)
-		
+
 		// Create table in new backend
 		table2 := &catalog.Table{
 			ID:         2,
@@ -133,12 +133,12 @@ func TestUpdateOperator(t *testing.T) {
 			TableName:  "users2",
 			Columns:    table.Columns,
 		}
-		
+
 		err = storageBackend2.CreateTable(table2)
 		if err != nil {
 			t.Fatalf("failed to create table: %v", err)
 		}
-		
+
 		// Insert fresh test data
 		for _, row := range testRows {
 			_, err := storageBackend2.InsertRow(table2.ID, row)
@@ -160,7 +160,7 @@ func TestUpdateOperator(t *testing.T) {
 
 		updateOp := NewUpdateOperator(table2, storageBackend2, assignments, whereClause)
 		ctx := &ExecContext{Stats: &ExecStats{}}
-		
+
 		err = updateOp.Open(ctx)
 		if err != nil {
 			t.Fatalf("failed to open update operator: %v", err)

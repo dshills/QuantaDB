@@ -144,7 +144,7 @@ func TestPlannerOptimization(t *testing.T) {
 	t.Run("Predicate pushdown through projection", func(t *testing.T) {
 		// Since our parser doesn't support subqueries yet, we'll test
 		// predicate pushdown by manually constructing a plan
-		
+
 		// Create a plan: Project -> Filter -> Scan
 		// This simulates SELECT id, name FROM users WHERE id = 1
 		schema := &Schema{
@@ -153,7 +153,7 @@ func TestPlannerOptimization(t *testing.T) {
 				{Name: "name", DataType: types.Text, Nullable: true},
 			},
 		}
-		
+
 		scan := NewLogicalScan("users", "users", schema)
 		filter := NewLogicalFilter(scan, &BinaryOp{
 			Left:     &ColumnRef{ColumnName: "id", ColumnType: types.Integer},
@@ -165,7 +165,7 @@ func TestPlannerOptimization(t *testing.T) {
 			&ColumnRef{ColumnName: "id", ColumnType: types.Integer},
 			&ColumnRef{ColumnName: "name", ColumnType: types.Text},
 		}, []string{"", ""}, schema)
-		
+
 		// Now create a filter on top of the projection
 		// This simulates adding WHERE name = 'John' after the projection
 		topFilter := NewLogicalFilter(project, &BinaryOp{
@@ -174,18 +174,18 @@ func TestPlannerOptimization(t *testing.T) {
 			Operator: OpEqual,
 			Type:     types.Boolean,
 		})
-		
+
 		// Apply optimization
 		optimizer := NewOptimizer()
 		optimized := optimizer.Optimize(topFilter)
-		
+
 		// The top filter should be pushed down through the projection
 		// Expected structure should combine both filters near the scan
 		planStr := ExplainPlan(optimized)
-		
+
 		// Since we have predicate pushdown implemented, the filter should be pushed below projection
 		t.Logf("Optimized plan:\n%s", planStr)
-		
+
 		// Verify the optimization happened by checking that we don't have
 		// Filter -> Project -> Filter structure anymore
 		if topFilter, ok := optimized.(*LogicalFilter); ok {
@@ -262,9 +262,9 @@ func TestPlannerDDL(t *testing.T) {
 			} else {
 				planner = NewBasicPlanner()
 			}
-			
+
 			plan, err := planner.Plan(stmt)
-			
+
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
 			} else if !tt.expectError && err != nil {

@@ -17,7 +17,7 @@ func TestSQLIntegration(t *testing.T) {
 	// Set up catalog and storage
 	cat := catalog.NewMemoryCatalog()
 	eng := engine.NewMemoryEngine()
-	
+
 	// Create a test table
 	tableSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -45,12 +45,12 @@ func TestSQLIntegration(t *testing.T) {
 			},
 		},
 	}
-	
+
 	_, err := cat.CreateTable(tableSchema)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
-	
+
 	// Insert test data using proper row serialization
 	testData := []struct {
 		id         int
@@ -105,11 +105,11 @@ func TestSQLIntegration(t *testing.T) {
 			t.Fatalf("Failed to insert test data: %v", err)
 		}
 	}
-	
+
 	// Create planner and executor
 	plan := planner.NewBasicPlannerWithCatalog(cat)
 	exec := executor.NewBasicExecutor(cat, eng)
-	
+
 	tests := []struct {
 		name     string
 		sql      string
@@ -146,7 +146,7 @@ func TestSQLIntegration(t *testing.T) {
 			expected: 3,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse SQL
@@ -155,26 +155,26 @@ func TestSQLIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to parse SQL: %v", err)
 			}
-			
+
 			// Plan query
 			queryPlan, err := plan.Plan(stmt)
 			if err != nil {
 				t.Fatalf("Failed to plan query: %v", err)
 			}
-			
+
 			// Execute query
 			ctx := &executor.ExecContext{
 				Catalog: cat,
 				Engine:  eng,
 				Stats:   &executor.ExecStats{},
 			}
-			
+
 			result, err := exec.Execute(queryPlan, ctx)
 			if err != nil {
 				t.Fatalf("Failed to execute query: %v", err)
 			}
 			defer result.Close()
-			
+
 			// Count results
 			rowCount := 0
 			for {
@@ -186,15 +186,15 @@ func TestSQLIntegration(t *testing.T) {
 					break
 				}
 				rowCount++
-				
+
 				// Log the row for debugging
 				t.Logf("Row %d: %v", rowCount, row.Values)
 			}
-			
+
 			if rowCount != tt.expected {
 				t.Errorf("Expected %d rows, got %d", tt.expected, rowCount)
 			}
-			
+
 			// Log statistics
 			t.Logf("Query stats: RowsRead=%d, RowsReturned=%d, BytesRead=%d",
 				ctx.Stats.RowsRead, ctx.Stats.RowsReturned, ctx.Stats.BytesRead)
@@ -206,11 +206,11 @@ func TestSQLIntegration(t *testing.T) {
 func TestEndToEndQuery(t *testing.T) {
 	// This test demonstrates what a full integration would look like
 	// with proper row serialization and column resolution
-	
+
 	t.Run("Full query execution", func(t *testing.T) {
 		cat := catalog.NewMemoryCatalog()
 		eng := engine.NewMemoryEngine()
-		
+
 		// Create table
 		tableSchema := &catalog.TableSchema{
 			SchemaName: "public",
@@ -221,7 +221,7 @@ func TestEndToEndQuery(t *testing.T) {
 				{Name: "age", DataType: types.Integer, IsNullable: false},
 			},
 		}
-		
+
 		_, err := cat.CreateTable(tableSchema)
 		if err != nil {
 			t.Fatalf("Failed to create table: %v", err)
@@ -273,35 +273,35 @@ func TestEndToEndQuery(t *testing.T) {
 				t.Fatalf("Failed to insert user: %v", err)
 			}
 		}
-		
+
 		// For this test, we'll simulate what would happen with proper integration
 		sql := "SELECT name, age FROM users WHERE age > 25 ORDER BY age DESC LIMIT 10"
-		
+
 		// Parse
 		p := parser.NewParser(sql)
 		stmt, err := p.Parse()
 		if err != nil {
 			t.Fatalf("Failed to parse: %v", err)
 		}
-		
+
 		// Plan
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
 		if err != nil {
 			t.Fatalf("Failed to plan: %v", err)
 		}
-		
+
 		// Verify plan structure
 		planStr := planner.ExplainPlan(plan)
 		t.Logf("Query plan:\n%s", planStr)
-		
+
 		// The plan should have this structure:
 		// Limit(10)
 		//   Sort(age DESC)
 		//     Project(name, age)
 		//       Filter(age > 25)
 		//         Scan(users)
-		
+
 		// Execute
 		exec := executor.NewBasicExecutor(cat, eng)
 		ctx := &executor.ExecContext{
@@ -309,7 +309,7 @@ func TestEndToEndQuery(t *testing.T) {
 			Engine:  eng,
 			Stats:   &executor.ExecStats{},
 		}
-		
+
 		// Note: This will fail with sort operator not implemented
 		// which is expected for now
 		_, err = exec.Execute(plan, ctx)

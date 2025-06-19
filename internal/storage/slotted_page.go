@@ -33,41 +33,41 @@ func (sp *SlottedPage) AddRecord(data []byte) (uint16, error) {
 	if len(data) > 65535 {
 		return 0, fmt.Errorf("record too large: %d bytes (max 65535)", len(data))
 	}
-	recordLen := uint16(len(data))
+	recordLen := uint16(len(data)) //nolint:gosec // Bounds checked above
 	requiredSpace := recordLen + SlotSize
-	
+
 	// Check if we have enough free space
 	if sp.Header.FreeSpace < requiredSpace {
-		return 0, fmt.Errorf("insufficient space in page: need %d bytes, have %d", 
+		return 0, fmt.Errorf("insufficient space in page: need %d bytes, have %d",
 			requiredSpace, sp.Header.FreeSpace)
 	}
-	
+
 	// Calculate positions
 	slotNum := sp.Header.ItemCount
 	newSlotEnd := sp.Header.FreeSpacePtr + SlotSize
 	recordOffset := sp.Header.FreeSpacePtr + sp.Header.FreeSpace - recordLen
-	
+
 	// Check if slot and record areas would overlap
 	if newSlotEnd > recordOffset {
-		return 0, fmt.Errorf("page is full: slot and record areas would overlap (slot end: %d, record start: %d)", 
+		return 0, fmt.Errorf("page is full: slot and record areas would overlap (slot end: %d, record start: %d)",
 			newSlotEnd, recordOffset)
 	}
-	
+
 	// Add slot entry
 	slotOffset := PageHeaderSize + slotNum*SlotSize
-	
+
 	// Write slot
 	binary.LittleEndian.PutUint16(sp.Data[slotOffset-PageHeaderSize:], recordOffset)
 	binary.LittleEndian.PutUint16(sp.Data[slotOffset-PageHeaderSize+2:], recordLen)
-	
+
 	// Write record data
 	copy(sp.Data[recordOffset-PageHeaderSize:], data)
-	
+
 	// Update header
 	sp.Header.ItemCount++
 	sp.Header.FreeSpace -= requiredSpace
 	sp.Header.FreeSpacePtr = newSlotEnd
-	
+
 	return slotNum, nil
 }
 
@@ -76,20 +76,20 @@ func (sp *SlottedPage) GetRecord(slotNum uint16) ([]byte, error) {
 	if slotNum >= sp.Header.ItemCount {
 		return nil, fmt.Errorf("invalid slot number: %d (max: %d)", slotNum, sp.Header.ItemCount-1)
 	}
-	
+
 	// Read slot
 	slotOffset := PageHeaderSize + slotNum*SlotSize
 	offset := binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize:])
 	length := binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize+2:])
-	
+
 	if length == 0 {
 		return nil, fmt.Errorf("record at slot %d has been deleted", slotNum)
 	}
-	
+
 	// Read record data
 	data := make([]byte, length)
 	copy(data, sp.Data[offset-PageHeaderSize:offset-PageHeaderSize+length])
-	
+
 	return data, nil
 }
 
@@ -98,7 +98,7 @@ func (sp *SlottedPage) UpdateRecord(slotNum uint16, data []byte) error {
 	if slotNum >= sp.Header.ItemCount {
 		return fmt.Errorf("invalid slot number: %d", slotNum)
 	}
-	
+
 	// Read current slot
 	slotOffset := PageHeaderSize + slotNum*SlotSize
 	offset := binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize:])
@@ -106,12 +106,12 @@ func (sp *SlottedPage) UpdateRecord(slotNum uint16, data []byte) error {
 	if len(data) > 65535 {
 		return fmt.Errorf("record too large for update: %d bytes (max 65535)", len(data))
 	}
-	newLength := uint16(len(data))
-	
+	newLength := uint16(len(data)) //nolint:gosec // Bounds checked above
+
 	if oldLength == 0 {
 		return fmt.Errorf("cannot update deleted record at slot %d", slotNum)
 	}
-	
+
 	// If new record is same size or smaller, update in place
 	if newLength <= oldLength {
 		copy(sp.Data[offset-PageHeaderSize:], data)
@@ -123,7 +123,7 @@ func (sp *SlottedPage) UpdateRecord(slotNum uint16, data []byte) error {
 		}
 		return nil
 	}
-	
+
 	// For larger records, would need to implement record relocation
 	return fmt.Errorf("record too large for in-place update: old=%d, new=%d", oldLength, newLength)
 }
@@ -133,24 +133,24 @@ func (sp *SlottedPage) DeleteRecord(slotNum uint16) error {
 	if slotNum >= sp.Header.ItemCount {
 		return fmt.Errorf("invalid slot number: %d", slotNum)
 	}
-	
+
 	// Read slot
 	slotOffset := PageHeaderSize + slotNum*SlotSize
 	_ = binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize:]) // offset not needed for delete
 	length := binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize+2:])
-	
+
 	if length == 0 {
 		return nil // Already deleted
 	}
-	
+
 	// Mark as deleted by setting length to 0
 	binary.LittleEndian.PutUint16(sp.Data[slotOffset-PageHeaderSize+2:], 0)
-	
+
 	// Update free space
 	sp.Header.FreeSpace += length
-	
+
 	// TODO: Implement compaction to reclaim space
-	
+
 	return nil
 }
 
