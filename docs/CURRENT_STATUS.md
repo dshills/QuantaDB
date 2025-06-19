@@ -56,8 +56,9 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 
 2. **Query Planner** (`internal/sql/planner/`)
    - Logical plan generation
-   - Basic query optimization
-   - Cost-based plan selection
+   - Cost-based query optimization with statistics framework
+   - Index selection optimization (chooses best index based on cost)
+   - Missing: ParameterRef handling for prepared statements
 
 3. **Query Executor** (`internal/sql/executor/`)
    - Physical operators (Scan, Filter, Join, Aggregate, Sort)
@@ -79,11 +80,13 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
    - PostgreSQL wire protocol v3
    - SSL negotiation handling
    - Connection management
+   - Extended Query Protocol (Parse/Bind/Execute) - infrastructure complete but parameters broken
 
 7. **B+Tree Index** (`internal/index/`)
    - Complete B+Tree implementation
    - Insert, search, delete operations
    - Range scan support
+   - ✅ Full query planner integration with cost-based optimization
 
 8. **Write-Ahead Logging** (`internal/wal/`)
    - Segment-based WAL files with automatic rotation
@@ -109,11 +112,10 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 
 ### ❌ Not Started
 
-1. **Index-Query Planner Integration**
-3. **Authentication System**
-4. **Distributed Features**
-5. **Backup and Recovery**
-6. **Advanced SQL Features** (CTEs, Window Functions)
+1. **Authentication System**
+2. **Distributed Features**
+3. **Backup and Recovery**
+4. **Advanced SQL Features** (CTEs, Window Functions)
 
 ## Known Issues
 
@@ -121,9 +123,9 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
    - ✅ FIXED: Secure secret key generation using crypto/rand
    - ✅ FIXED: Write timeouts properly applied
 2. **Transaction Isolation**: MVCC not integrated with storage layer
-3. **Index Usage**: B+Tree indexes exist but aren't used by query planner
+3. ~~**Index Usage**: B+Tree indexes exist but aren't used by query planner~~ ✅ FIXED - Full cost-based index optimization implemented
 4. **Memory Management**: No memory limits on buffer pool or query execution
-5. **Extended Query Protocol**: Parse/Bind/Execute commands not implemented
+5. **Extended Query Protocol**: 🚨 **CRITICAL** - Infrastructure complete but parameters don't work (planner doesn't handle ParameterRef nodes)
 6. **Error Codes**: Generic error codes used instead of specific PostgreSQL SQLSTATE codes
 
 ## Performance Characteristics
@@ -143,10 +145,10 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 4. ✅ **COMPLETED: Add Write-Ahead Logging for durability** - Full WAL implementation with recovery
 
 ### Medium Priority
-1. **Integrate indexes with query planner** - B+Tree exists but unused
-6. **Implement extended query protocol** - Parse/Bind/Execute for prepared statements
-7. **Improve error handling** - Map errors to specific PostgreSQL SQLSTATE codes
-8. **Fix transaction state timing** - Update state only after successful commit/rollback
+1. ~~**Integrate indexes with query planner**~~ ✅ COMPLETED - Cost-based index optimization implemented
+2. **Fix extended query protocol parameters** - Infrastructure exists but parameters fail in planner
+3. **Improve error handling** - Map errors to specific PostgreSQL SQLSTATE codes
+4. **Fix transaction state timing** - Update state only after successful commit/rollback
 
 ### Lower Priority
 9. **Add transaction-storage integration** - MVCC ready but not connected

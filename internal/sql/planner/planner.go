@@ -426,6 +426,13 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 	case *parser.ParenExpr:
 		return p.convertExpression(e.Expr)
 
+	case *parser.ParameterRef:
+		// Convert parser.ParameterRef to planner.ParameterRef
+		return &ParameterRef{
+			Index: e.Index,
+			Type:  types.Unknown, // Type will be inferred during bind
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}

@@ -795,11 +795,18 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 		return fmt.Errorf("planning error: %w", err)
 	}
 
-	// TODO: Apply parameter substitution to the plan
-	// This would require updating the planner to support parameter substitution
-	// For now, parameter values are stored in the portal and will need to be
-	// applied during execution
-	_ = sql.NewParameterSubstitutor(portal.ParamValues) // Will be used when executor supports it
+	// Apply parameter substitution to the plan
+	if len(portal.ParamValues) > 0 {
+		// Check if plan is a LogicalPlan (it should be from the planner)
+		if logicalPlan, ok := plan.(planner.LogicalPlan); ok {
+			substitutor := sql.NewParameterSubstitutor(portal.ParamValues)
+			substitutedPlan, err := substitutor.SubstituteInPlan(logicalPlan)
+			if err != nil {
+				return fmt.Errorf("parameter substitution error: %w", err)
+			}
+			plan = substitutedPlan
+		}
+	}
 
 	// Execute the query
 	exec := executor.NewBasicExecutor(c.catalog, c.engine)

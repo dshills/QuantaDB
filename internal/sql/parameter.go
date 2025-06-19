@@ -21,9 +21,133 @@ func NewParameterSubstitutor(values []types.Value) *ParameterSubstitutor {
 
 // SubstituteInPlan substitutes parameters in a logical plan.
 func (s *ParameterSubstitutor) SubstituteInPlan(plan planner.LogicalPlan) (planner.LogicalPlan, error) {
-	// For now, we'll implement a simple version that walks the plan tree
-	// In a full implementation, this would use the visitor pattern
-	return plan, nil
+	switch p := plan.(type) {
+	case *planner.LogicalFilter:
+		// Substitute in the predicate
+		newPredicate, err := s.SubstituteInExpression(p.Predicate)
+		if err != nil {
+			return nil, err
+		}
+		// Create new filter with substituted predicate
+		newFilter := planner.NewLogicalFilter(nil, newPredicate)
+		// Recursively substitute in children
+		if len(p.Children()) > 0 {
+			// Need to convert Plan to LogicalPlan
+			if child, ok := p.Children()[0].(planner.LogicalPlan); ok {
+				substitutedChild, err := s.SubstituteInPlan(child)
+				if err != nil {
+					return nil, err
+				}
+				newFilter = planner.NewLogicalFilter(substitutedChild, newPredicate)
+			}
+		}
+		return newFilter, nil
+
+	case *planner.LogicalProject:
+		// Substitute in all projections
+		newProjections := make([]planner.Expression, len(p.Projections))
+		for i, proj := range p.Projections {
+			newProj, err := s.SubstituteInExpression(proj)
+			if err != nil {
+				return nil, err
+			}
+			newProjections[i] = newProj
+		}
+		// Recursively substitute in children
+		var childPlan planner.LogicalPlan
+		if len(p.Children()) > 0 {
+			if child, ok := p.Children()[0].(planner.LogicalPlan); ok {
+				var err error
+				childPlan, err = s.SubstituteInPlan(child)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		// Create new project with substituted projections
+		return planner.NewLogicalProject(childPlan, newProjections, p.Aliases, p.Schema()), nil
+
+	case *planner.LogicalSort:
+		// Substitute in order by expressions
+		newOrderBy := make([]planner.OrderByExpr, len(p.OrderBy))
+		for i, orderBy := range p.OrderBy {
+			newExpr, err := s.SubstituteInExpression(orderBy.Expr)
+			if err != nil {
+				return nil, err
+			}
+			newOrderBy[i] = planner.OrderByExpr{
+				Expr:  newExpr,
+				Order: orderBy.Order,
+			}
+		}
+		// Recursively substitute in children
+		var childPlan planner.LogicalPlan
+		if len(p.Children()) > 0 {
+			if child, ok := p.Children()[0].(planner.LogicalPlan); ok {
+				var err error
+				childPlan, err = s.SubstituteInPlan(child)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		// Create new sort with substituted order by
+		return planner.NewLogicalSort(childPlan, newOrderBy), nil
+
+	case *planner.LogicalJoin:
+		// Substitute in join condition
+		var newCondition planner.Expression
+		if p.Condition != nil {
+			var err error
+			newCondition, err = s.SubstituteInExpression(p.Condition)
+			if err != nil {
+				return nil, err
+			}
+		}
+		// Recursively substitute in both children
+		var leftPlan, rightPlan planner.LogicalPlan
+		if len(p.Children()) >= 2 {
+			if left, ok := p.Children()[0].(planner.LogicalPlan); ok {
+				var err error
+				leftPlan, err = s.SubstituteInPlan(left)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if right, ok := p.Children()[1].(planner.LogicalPlan); ok {
+				var err error
+				rightPlan, err = s.SubstituteInPlan(right)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		// Create new join with substituted condition
+		return planner.NewLogicalJoin(leftPlan, rightPlan, p.JoinType, newCondition, p.Schema()), nil
+
+	case *planner.LogicalInsert:
+		// For INSERT, values are stored as parser.Expression, not planner.Expression
+		// We need to handle this case separately in the executor
+		// The values will be substituted when they are evaluated
+		return p, nil
+
+	case *planner.LogicalUpdate:
+		// For UPDATE, assignments and where use parser.Expression
+		// These will be handled during execution when converting to storage operations
+		return p, nil
+
+	case *planner.LogicalDelete:
+		// For DELETE, where clause uses parser.Expression
+		// This will be handled during execution when converting to storage operations
+		return p, nil
+
+	default:
+		// For other plan types (Scan, Limit, DDL operations), no substitution needed
+		// Just recursively process children if any
+		// Most leaf nodes (Scan, Limit) don't have parameters, so we can return as-is
+		// If needed in future, we can add specific handling for other plan types
+		return plan, nil
+	}
 }
 
 // SubstituteInExpression substitutes parameters in an expression.
