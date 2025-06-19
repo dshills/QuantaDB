@@ -47,14 +47,14 @@ func (m *mockStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 func (m *mockStorageBackend) ScanTable(tableID int64) (RowIterator, error) {
 	rows, ok := m.tables[tableID]
 	if !ok {
-		return nil, nil
+		return nil, nil //nolint:nilnil // No table found
 	}
 	return &mockRowIterator{rows: rows, pos: 0}, nil
 }
 
 func (m *mockStorageBackend) GetRow(tableID int64, rowID RowID) (*Row, error) {
 	// Not implemented for this test
-	return nil, nil
+	return nil, nil //nolint:nilnil // Not implemented for test
 }
 
 func (m *mockStorageBackend) SetTransactionID(txnID uint64) {
@@ -125,8 +125,8 @@ func TestAnalyzeOperator(t *testing.T) {
 	}{
 		{1, strPtr("Alice"), int64Ptr(100)},
 		{2, strPtr("Bob"), int64Ptr(85)},
-		{3, nil, int64Ptr(90)},           // NULL name
-		{4, strPtr("Charlie"), nil},       // NULL score
+		{3, nil, int64Ptr(90)},      // NULL name
+		{4, strPtr("Charlie"), nil}, // NULL score
 		{5, strPtr("David"), int64Ptr(95)},
 		{6, strPtr("Eve"), int64Ptr(88)},
 		{7, strPtr("Frank"), int64Ptr(92)},
@@ -139,20 +139,20 @@ func TestAnalyzeOperator(t *testing.T) {
 		values := []types.Value{
 			types.NewValue(data.id),
 		}
-		
+
 		// Handle nullable columns properly
 		if data.name != nil {
 			values = append(values, types.NewValue(*data.name))
 		} else {
 			values = append(values, types.NewNullValue()) // NULL value
 		}
-		
+
 		if data.score != nil {
 			values = append(values, types.NewValue(*data.score))
 		} else {
 			values = append(values, types.NewNullValue()) // NULL value
 		}
-		
+
 		row := &Row{Values: values}
 		storage.InsertRow(table.ID, row)
 	}

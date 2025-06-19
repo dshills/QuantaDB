@@ -64,7 +64,7 @@ func (op *AnalyzeOperator) Open(ctx *ExecContext) error {
 func (op *AnalyzeOperator) Next() (*Row, error) {
 	// Only return one row
 	if op.done {
-		return nil, nil
+		return nil, nil //nolint:nilnil // EOF - standard iterator pattern
 	}
 	op.done = true
 
@@ -153,7 +153,7 @@ func (op *AnalyzeOperator) collectTableStats(table *catalog.Table) (*catalog.Tab
 		}
 
 		stats.RowCount++
-		
+
 		// Estimate row size
 		rowSize := 0
 		for _, val := range row.Values {
@@ -226,7 +226,7 @@ func (op *AnalyzeOperator) collectColumnStats(table *catalog.Table, column *cata
 		}
 
 		rowNum++
-		
+
 		// Sample rows for large tables
 		if sampleInterval > 1 && rowNum%sampleInterval != 0 {
 			continue
@@ -237,7 +237,7 @@ func (op *AnalyzeOperator) collectColumnStats(table *catalog.Table, column *cata
 		}
 
 		val := row.Values[colIndex]
-		
+
 		// Count nulls
 		if val.IsNull() {
 			stats.NullCount++
@@ -380,17 +380,17 @@ func estimateDistinctCount(sampleDistinct, totalRows, sampleRows int64) int64 {
 	if sampleRows >= totalRows {
 		return sampleDistinct
 	}
-	
+
 	// Simple estimation formula
 	// For better accuracy, use statistical methods like Good-Turing or HyperLogLog
 	ratio := float64(totalRows) / float64(sampleRows)
 	estimated := float64(sampleDistinct) * ratio
-	
+
 	// Cap at total rows
 	if estimated > float64(totalRows) {
 		return totalRows
 	}
-	
+
 	return int64(estimated)
 }
 

@@ -247,19 +247,23 @@ func ReadStartupMessage(r io.Reader) (map[string]string, error) {
 
 // ErrorResponse represents an error response message
 type ErrorResponse struct {
-	Severity string
-	Code     string
-	Message  string
-	Detail   string
-	Hint     string
-	Position string
-	Where    string
-	Schema   string
-	Table    string
-	Column   string
-	File     string
-	Line     string
-	Routine  string
+	Severity         string
+	Code             string
+	Message          string
+	Detail           string
+	Hint             string
+	Position         string
+	InternalPosition string
+	InternalQuery    string
+	Where            string
+	SchemaName       string
+	TableName        string
+	ColumnName       string
+	DataType         string
+	ConstraintName   string
+	File             string
+	Line             string
+	Routine          string
 }
 
 // ToMessage converts ErrorResponse to a Message
@@ -293,6 +297,78 @@ func (e *ErrorResponse) ToMessage() *Message {
 	if e.Hint != "" {
 		buf = append(buf, ErrorFieldHint)
 		buf = append(buf, []byte(e.Hint)...)
+		buf = append(buf, 0)
+	}
+
+	if e.Position != "" {
+		buf = append(buf, ErrorFieldPosition)
+		buf = append(buf, []byte(e.Position)...)
+		buf = append(buf, 0)
+	}
+
+	if e.InternalPosition != "" {
+		buf = append(buf, ErrorFieldInternalPosition)
+		buf = append(buf, []byte(e.InternalPosition)...)
+		buf = append(buf, 0)
+	}
+
+	if e.InternalQuery != "" {
+		buf = append(buf, ErrorFieldInternalQuery)
+		buf = append(buf, []byte(e.InternalQuery)...)
+		buf = append(buf, 0)
+	}
+
+	if e.Where != "" {
+		buf = append(buf, ErrorFieldWhere)
+		buf = append(buf, []byte(e.Where)...)
+		buf = append(buf, 0)
+	}
+
+	if e.SchemaName != "" {
+		buf = append(buf, ErrorFieldSchema)
+		buf = append(buf, []byte(e.SchemaName)...)
+		buf = append(buf, 0)
+	}
+
+	if e.TableName != "" {
+		buf = append(buf, ErrorFieldTable)
+		buf = append(buf, []byte(e.TableName)...)
+		buf = append(buf, 0)
+	}
+
+	if e.ColumnName != "" {
+		buf = append(buf, ErrorFieldColumn)
+		buf = append(buf, []byte(e.ColumnName)...)
+		buf = append(buf, 0)
+	}
+
+	if e.DataType != "" {
+		buf = append(buf, ErrorFieldDataType)
+		buf = append(buf, []byte(e.DataType)...)
+		buf = append(buf, 0)
+	}
+
+	if e.ConstraintName != "" {
+		buf = append(buf, ErrorFieldConstraint)
+		buf = append(buf, []byte(e.ConstraintName)...)
+		buf = append(buf, 0)
+	}
+
+	if e.File != "" {
+		buf = append(buf, ErrorFieldFile)
+		buf = append(buf, []byte(e.File)...)
+		buf = append(buf, 0)
+	}
+
+	if e.Line != "" {
+		buf = append(buf, ErrorFieldLine)
+		buf = append(buf, []byte(e.Line)...)
+		buf = append(buf, 0)
+	}
+
+	if e.Routine != "" {
+		buf = append(buf, ErrorFieldRoutine)
+		buf = append(buf, []byte(e.Routine)...)
 		buf = append(buf, 0)
 	}
 

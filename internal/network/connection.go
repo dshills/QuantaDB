@@ -15,6 +15,7 @@ import (
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
+	"github.com/dshills/QuantaDB/internal/errors"
 	"github.com/dshills/QuantaDB/internal/log"
 	"github.com/dshills/QuantaDB/internal/network/protocol"
 	"github.com/dshills/QuantaDB/internal/sql"
@@ -376,14 +377,45 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	p := parser.NewParser(query)
 	stmt, err := p.Parse()
 	if err != nil {
-		return fmt.Errorf("parse error: %w", err)
+		// Parser errors should already have position info
+		// but wrap them in case they don't
+		if pErr, ok := err.(*parser.ParseError); ok && pErr.Line > 0 {
+			return errors.ParseError(pErr.Msg, pErr.Line, pErr.Column)
+		}
+		return errors.SyntaxErrorf(0, "parse error: %v", err)
 	}
 
 	// Plan query
 	planr := planner.NewBasicPlannerWithCatalog(c.catalog)
 	plan, err := planr.Plan(stmt)
 	if err != nil {
-		return fmt.Errorf("planning error: %w", err)
+		// Convert planner errors to appropriate PostgreSQL errors
+		// Check for common error patterns
+		errStr := err.Error()
+		if strings.Contains(errStr, "table") && strings.Contains(errStr, "not found") {
+			// Extract table name if possible
+			parts := strings.Split(errStr, "\"")
+			if len(parts) >= 2 {
+				return errors.TableNotFoundError(parts[1])
+			}
+			return errors.UndefinedTableError("unknown")
+		}
+		if strings.Contains(errStr, "column") && strings.Contains(errStr, "not found") {
+			// Extract column name if possible
+			parts := strings.Split(errStr, "\"")
+			if len(parts) >= 2 {
+				return errors.ColumnNotFoundError(parts[1], "")
+			}
+			return errors.UndefinedColumnError("unknown", "")
+		}
+		if strings.Contains(errStr, "ambiguous") {
+			parts := strings.Split(errStr, "\"")
+			if len(parts) >= 2 {
+				return errors.AmbiguousColumnError(parts[1])
+			}
+			return errors.New(errors.AmbiguousColumn, errStr)
+		}
+		return errors.Newf(errors.SyntaxErrorOrAccessRuleViolation, "planning error: %v", err)
 	}
 
 	// Execute query
@@ -401,7 +433,24 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 
 	result, err := exec.Execute(plan, execCtx)
 	if err != nil {
-		return fmt.Errorf("execution error: %w", err)
+		// Convert executor errors to appropriate PostgreSQL errors
+		errStr := err.Error()
+		if strings.Contains(errStr, "division by zero") {
+			return errors.DivisionByZeroError()
+		}
+		if strings.Contains(errStr, "type mismatch") {
+			return errors.DataTypeMismatchError("unknown", "unknown")
+		}
+		if strings.Contains(errStr, "not null constraint") {
+			return errors.NotNullViolationError("unknown", "unknown")
+		}
+		if strings.Contains(errStr, "unique constraint") {
+			return errors.UniqueViolationError("unknown", "unknown")
+		}
+		if strings.Contains(errStr, "foreign key constraint") {
+			return errors.ForeignKeyViolationError("unknown", "unknown")
+		}
+		return errors.InternalErrorf("execution error: %v", err)
 	}
 	defer result.Close()
 
@@ -426,7 +475,7 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 // handleBegin starts a new transaction
 func (c *Connection) handleBegin(ctx context.Context) error {
 	if c.currentTxn != nil {
-		return fmt.Errorf("already in a transaction")
+		return errors.TransactionAlreadyActiveError()
 	}
 
 	txn, err := c.txnManager.BeginTransaction(ctx, txn.ReadCommitted)
@@ -465,7 +514,7 @@ func (c *Connection) handleRollback(ctx context.Context) error {
 // endTransaction handles transaction commit or rollback
 func (c *Connection) endTransaction(commit bool, tag string) error {
 	if c.currentTxn == nil {
-		return fmt.Errorf("not in a transaction")
+		return errors.NoActiveTransactionError()
 	}
 
 	var err error
@@ -593,29 +642,38 @@ func (c *Connection) sendError(err error) error {
 	if c.server.config.WriteTimeout > 0 {
 		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
 	}
+
+	// Convert to QuantaDB error if it isn't already
+	qErr := errors.GetError(err)
+
 	errResp := &protocol.ErrorResponse{
-		Severity: protocol.SeverityError,
-		Code:     "42000", // Syntax error
-		Message:  err.Error(),
+		Severity:       protocol.SeverityError,
+		Code:           qErr.Code,
+		Message:        qErr.Message,
+		Detail:         qErr.Detail,
+		Hint:           qErr.Hint,
+		Where:          qErr.Where,
+		SchemaName:     qErr.Schema,
+		TableName:      qErr.Table,
+		ColumnName:     qErr.Column,
+		DataType:       qErr.DataType,
+		ConstraintName: qErr.Constraint,
+		File:           qErr.File,
+		Routine:        qErr.Routine,
 	}
 
-	if err := protocol.WriteMessage(c.writer, errResp.ToMessage()); err != nil {
-		return err
+	// Convert integer fields to strings
+	if qErr.Position > 0 {
+		errResp.Position = fmt.Sprintf("%d", qErr.Position)
 	}
-
-	return c.writer.Flush()
-}
-
-// sendErrorWithCode sends an error response with a specific error code
-func (c *Connection) sendErrorWithCode(code string, message string) error {
-	// Set write deadline
-	if c.server.config.WriteTimeout > 0 {
-		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	if qErr.InternalPosition > 0 {
+		errResp.InternalPosition = fmt.Sprintf("%d", qErr.InternalPosition)
 	}
-	errResp := &protocol.ErrorResponse{
-		Severity: protocol.SeverityError,
-		Code:     code,
-		Message:  message,
+	if qErr.Line > 0 {
+		errResp.Line = fmt.Sprintf("%d", qErr.Line)
+	}
+	if qErr.InternalQuery != "" {
+		errResp.InternalQuery = qErr.InternalQuery
 	}
 
 	if err := protocol.WriteMessage(c.writer, errResp.ToMessage()); err != nil {
@@ -866,7 +924,24 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 
 	result, err := exec.Execute(plan, execCtx)
 	if err != nil {
-		return fmt.Errorf("execution error: %w", err)
+		// Convert executor errors to appropriate PostgreSQL errors
+		errStr := err.Error()
+		if strings.Contains(errStr, "division by zero") {
+			return errors.DivisionByZeroError()
+		}
+		if strings.Contains(errStr, "type mismatch") {
+			return errors.DataTypeMismatchError("unknown", "unknown")
+		}
+		if strings.Contains(errStr, "not null constraint") {
+			return errors.NotNullViolationError("unknown", "unknown")
+		}
+		if strings.Contains(errStr, "unique constraint") {
+			return errors.UniqueViolationError("unknown", "unknown")
+		}
+		if strings.Contains(errStr, "foreign key constraint") {
+			return errors.ForeignKeyViolationError("unknown", "unknown")
+		}
+		return errors.InternalErrorf("execution error: %v", err)
 	}
 	defer result.Close()
 
@@ -946,7 +1021,7 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 
 				if format == protocol.FormatBinary {
 					// TODO: Implement binary formatting
-					return fmt.Errorf("binary result format not supported")
+					return errors.FeatureNotSupportedError("binary result format")
 				}
 
 				dataRow.Values[i] = []byte(val.String())
@@ -1023,7 +1098,7 @@ func (c *Connection) handleDescribe(ctx context.Context, msg *protocol.Message) 
 		stmt, err := c.extQuerySession.GetPreparedStatement(name)
 		if err != nil {
 			// Statement not found
-			return c.sendErrorWithCode("26000", fmt.Sprintf("prepared statement %q does not exist", name))
+			return errors.InvalidStatementNameError(name)
 		}
 
 		// Send ParameterDescription
@@ -1071,7 +1146,7 @@ func (c *Connection) handleDescribe(ctx context.Context, msg *protocol.Message) 
 		portal, err := c.extQuerySession.GetPortal(name)
 		if err != nil {
 			// Portal not found
-			return c.sendErrorWithCode("26000", fmt.Sprintf("portal %q does not exist", name))
+			return errors.InvalidPortalNameError(name)
 		}
 
 		// Send RowDescription if portal produces results

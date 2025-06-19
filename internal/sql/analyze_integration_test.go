@@ -293,7 +293,7 @@ func (m *mockStorageForTest) ScanTable(tableID int64) (executor.RowIterator, err
 }
 
 func (m *mockStorageForTest) GetRow(tableID int64, rowID executor.RowID) (*executor.Row, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // Not implemented for test
 }
 
 func (m *mockStorageForTest) SetTransactionID(txnID uint64) {}

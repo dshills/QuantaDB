@@ -1195,14 +1195,16 @@ func (p *Parser) consume(tokenType TokenType, message string) bool {
 }
 
 func (p *Parser) error(message string) error {
-	return fmt.Errorf("parse error at line %d, column %d: %s", p.current.Line, p.current.Column, message)
+	err := NewParseError(message, p.current.Line, p.current.Column)
+	p.errors = append(p.errors, err)
+	return err
 }
 
 func (p *Parser) lastError() error {
 	if len(p.errors) > 0 {
 		return p.errors[len(p.errors)-1]
 	}
-	return fmt.Errorf("unknown parse error")
+	return NewParseError("unknown parse error", 0, 0)
 }
 
 // Additional AST node definitions.
