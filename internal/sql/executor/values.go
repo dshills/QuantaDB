@@ -34,7 +34,7 @@ func (v *ValuesOperator) Open(ctx *ExecContext) error {
 func (v *ValuesOperator) Next() (*Row, error) {
 	v.current++
 	if v.current >= len(v.rows) {
-		return nil, nil // EOF
+		return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 	}
 
 	return &Row{Values: v.rows[v.current]}, nil

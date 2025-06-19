@@ -2,6 +2,7 @@ package network
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/binary"
@@ -221,13 +222,14 @@ func (c *Connection) handleStartup() error {
 		// Not an SSL request, parse as normal startup message
 		c.logger.Debug("Regular startup message detected")
 
-		// Reconstruct the full message for parsing
+		// Create a reader with the full message (including length)
 		fullMsg := make([]byte, length)
 		copy(fullMsg[:4], lengthBuf)
 		copy(fullMsg[4:], msgBuf)
+		msgReader := bytes.NewReader(fullMsg)
 
-		// Parse the startup message
-		params, err := parseStartupMessage(fullMsg)
+		// Use the standard protocol.ReadStartupMessage
+		params, err := protocol.ReadStartupMessage(msgReader)
 		if err != nil {
 			return fmt.Errorf("failed to parse startup message: %w", err)
 		}
@@ -1216,67 +1218,4 @@ func statementReturnsData(stmt parser.Statement) bool {
 	default:
 		return false
 	}
-}
-
-// parseStartupMessage parses a startup message from raw bytes
-func parseStartupMessage(data []byte) (map[string]string, error) {
-	if len(data) < 8 {
-		return nil, fmt.Errorf("startup message too short")
-	}
-
-	// Skip length (already read)
-	data = data[4:]
-
-	// Check protocol version
-	version := binary.BigEndian.Uint32(data[:4])
-	if version != protocol.ProtocolVersion {
-		return nil, fmt.Errorf("unsupported protocol version: %d", version)
-	}
-
-	// Parse parameters
-	params := make(map[string]string)
-	data = data[4:] // Skip version
-
-	for len(data) > 0 {
-		// Find null terminator
-		nullIdx := -1
-		for i, b := range data {
-			if b == 0 {
-				nullIdx = i
-				break
-			}
-		}
-
-		if nullIdx == -1 {
-			break
-		}
-
-		// Empty string marks end
-		if nullIdx == 0 {
-			break
-		}
-
-		key := string(data[:nullIdx])
-		data = data[nullIdx+1:]
-
-		// Find value null terminator
-		nullIdx = -1
-		for i, b := range data {
-			if b == 0 {
-				nullIdx = i
-				break
-			}
-		}
-
-		if nullIdx == -1 {
-			return nil, fmt.Errorf("unterminated parameter value")
-		}
-
-		value := string(data[:nullIdx])
-		data = data[nullIdx+1:]
-
-		params[key] = value
-	}
-
-	return params, nil
 }
