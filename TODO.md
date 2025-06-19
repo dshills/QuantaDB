@@ -4,6 +4,7 @@
 **Last Updated**: December 19, 2024
 **Project Status**: Core features complete! Ready for performance optimizations and enterprise features.
 **Recent Updates**: 
+- Fixed server hanging issue with "SELECT 1" queries - added support for SELECT without FROM
 - Fixed all golangci-lint issues (92 total) - improved code quality and compliance
 - Index-Query Planner Integration completed with cost-based optimization
 - Extended Query Protocol fully implemented with parameter support
@@ -165,6 +166,14 @@ SELECT * FROM users;
 ```
 
 ## Recent Improvements ✨
+
+### Connection Handling Fix (December 19, 2024)
+- ✅ Fixed PostgreSQL client connection timeout issue:
+  - Replaced blocking `bufio.Reader.Peek(8)` with proper message reading
+  - Now reads startup message length first, then the rest of the message
+  - Handles SSL negotiation correctly without blocking
+  - Added better error logging and debugging information
+  - PostgreSQL drivers (pq, pgx) can now connect successfully
 
 ### Code Quality (December 19, 2024)
 - ✅ Fixed all 92 golangci-lint issues:

@@ -205,9 +205,14 @@ func TestParseSelect(t *testing.T) {
 			expected: "SELECT (id + 1), name FROM users",
 		},
 		{
-			name:    "SELECT missing FROM",
-			input:   "SELECT *",
-			wantErr: true,
+			name:     "SELECT without FROM",
+			input:    "SELECT 1",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "SELECT * without FROM",
+			input:    "SELECT *",
+			expected: "SELECT *",
 		},
 		{
 			name:    "SELECT missing table",

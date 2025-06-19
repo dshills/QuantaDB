@@ -193,6 +193,7 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 	}()
 
 	// Set timeouts
+	s.logger.Debug("Setting connection timeouts", "read_timeout", s.config.ReadTimeout, "write_timeout", s.config.WriteTimeout)
 	conn.SetReadTimeout(s.config.ReadTimeout)
 	conn.SetWriteTimeout(s.config.WriteTimeout)
 

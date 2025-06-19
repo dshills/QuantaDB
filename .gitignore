@@ -4,6 +4,7 @@ vendor
 dist
 .DS_Store
 *.swp
+*.log
 
 # compiled app
 alas

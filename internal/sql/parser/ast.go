@@ -160,8 +160,10 @@ func (s *SelectStmt) String() string {
 	}
 	parts = append(parts, fmt.Sprintf("SELECT %s", strings.Join(cols, ", ")))
 
-	// FROM clause
-	parts = append(parts, fmt.Sprintf("FROM %s", s.From))
+	// FROM clause (only if present)
+	if s.From != "" {
+		parts = append(parts, fmt.Sprintf("FROM %s", s.From))
+	}
 
 	// WHERE clause
 	if s.Where != nil {

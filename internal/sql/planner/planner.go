@@ -84,33 +84,46 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 
 // planSelect converts a SELECT statement to a logical plan.
 func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) {
-	// Get table from catalog
-	table, err := p.catalog.GetTable(defaultSchema, stmt.From)
-	if err != nil {
-		// If table doesn't exist in catalog, use a placeholder schema
-		// This allows tests to work without setting up catalog
+	var plan LogicalPlan
+
+	// Handle SELECT without FROM clause (e.g., SELECT 1, SELECT 1+2)
+	if stmt.From == "" {
+		// Create a dummy plan that returns a single row
+		// We'll use a special "dual" table concept similar to Oracle/MySQL
 		schema := &Schema{
 			Columns: []Column{
-				{Name: "*", DataType: types.Unknown, Nullable: true},
+				{Name: "dummy", DataType: types.Integer, Nullable: false},
 			},
 		}
-		var plan LogicalPlan = NewLogicalScan(stmt.From, stmt.From, schema)
-		return p.buildSelectPlan(plan, stmt)
-	}
-
-	// Build schema from table metadata
-	schema := &Schema{
-		Columns: make([]Column, len(table.Columns)),
-	}
-	for i, col := range table.Columns {
-		schema.Columns[i] = Column{
-			Name:     col.Name,
-			DataType: col.DataType,
-			Nullable: col.IsNullable,
+		plan = NewLogicalValues([][]types.Value{{types.NewValue(int64(1))}}, schema)
+	} else {
+		// Get table from catalog
+		table, err := p.catalog.GetTable(defaultSchema, stmt.From)
+		if err != nil {
+			// If table doesn't exist in catalog, use a placeholder schema
+			// This allows tests to work without setting up catalog
+			schema := &Schema{
+				Columns: []Column{
+					{Name: "*", DataType: types.Unknown, Nullable: true},
+				},
+			}
+			plan = NewLogicalScan(stmt.From, stmt.From, schema)
+		} else {
+			// Build schema from table metadata
+			schema := &Schema{
+				Columns: make([]Column, len(table.Columns)),
+			}
+			for i, col := range table.Columns {
+				schema.Columns[i] = Column{
+					Name:     col.Name,
+					DataType: col.DataType,
+					Nullable: col.IsNullable,
+				}
+			}
+			plan = NewLogicalScan(stmt.From, stmt.From, schema)
 		}
 	}
 
-	var plan LogicalPlan = NewLogicalScan(stmt.From, stmt.From, schema)
 	return p.buildSelectPlan(plan, stmt)
 }
 

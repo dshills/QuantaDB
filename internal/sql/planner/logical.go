@@ -3,6 +3,8 @@ package planner
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
 // LogicalScan represents a table scan operation.
@@ -218,5 +220,28 @@ func NewLogicalAggregate(child LogicalPlan, groupBy []Expression, aggregates []A
 		},
 		GroupBy:    groupBy,
 		Aggregates: aggregates,
+	}
+}
+
+// LogicalValues represents a plan node that returns constant values
+// Used for queries like SELECT 1, SELECT 'hello' that don't have a FROM clause
+type LogicalValues struct {
+	basePlan
+	Rows [][]types.Value
+}
+
+func (v *LogicalValues) logicalNode() {}
+
+func (v *LogicalValues) String() string {
+	return fmt.Sprintf("Values(%d rows)", len(v.Rows))
+}
+
+// NewLogicalValues creates a new logical values node.
+func NewLogicalValues(rows [][]types.Value, schema *Schema) *LogicalValues {
+	return &LogicalValues{
+		basePlan: basePlan{
+			schema: schema,
+		},
+		Rows: rows,
 	}
 }

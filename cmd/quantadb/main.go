@@ -87,11 +87,9 @@ func main() {
 	defer eng.Close()
 
 	// Configure server
-	config := network.Config{
-		Host:           *host,
-		Port:           *port,
-		MaxConnections: 100,
-	}
+	config := network.DefaultConfig()
+	config.Host = *host
+	config.Port = *port
 
 	// Create and start server
 	server := network.NewServer(config, cat, eng, logger)

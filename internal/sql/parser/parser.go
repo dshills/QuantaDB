@@ -477,19 +477,18 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 		}
 	}
 
-	if !p.consume(TokenFrom, "expected FROM") {
-		return nil, p.lastError()
-	}
-
-	// Get table name
-	tableName := p.current.Value
-	if !p.consume(TokenIdentifier, "expected table name") {
-		return nil, p.lastError()
-	}
-
 	stmt := &SelectStmt{
 		Columns: columns,
-		From:    tableName,
+	}
+
+	// Check for optional FROM clause
+	if p.match(TokenFrom) {
+		// Get table name
+		tableName := p.current.Value
+		if !p.consume(TokenIdentifier, "expected table name") {
+			return nil, p.lastError()
+		}
+		stmt.From = tableName
 	}
 
 	// Parse optional WHERE clause

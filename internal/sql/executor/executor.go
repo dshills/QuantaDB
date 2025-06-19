@@ -158,6 +158,8 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildDropIndexOperator(p, ctx)
 	case *planner.IndexScan:
 		return e.buildIndexScanOperator(p, ctx)
+	case *planner.LogicalValues:
+		return e.buildValuesOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -579,4 +581,10 @@ func (r *operatorResult) Close() error {
 
 func (r *operatorResult) Schema() *Schema {
 	return r.schema
+}
+
+// buildValuesOperator builds a values operator for constant values.
+func (e *BasicExecutor) buildValuesOperator(plan *planner.LogicalValues, ctx *ExecContext) (Operator, error) {
+	_ = ctx // Context not needed for values operator
+	return NewValuesOperator(plan.Rows, convertSchema(plan.Schema())), nil
 }

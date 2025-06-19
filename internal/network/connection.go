@@ -92,13 +92,19 @@ func (c *Connection) Handle(ctx context.Context) error {
 	// Set initial state
 	c.setState(StateStartup)
 
-	// Reset timeout for startup phase
+	// Log connection details
+	c.logger.Debug("New connection established",
+		"local_addr", c.conn.LocalAddr(),
+		"remote_addr", c.conn.RemoteAddr())
+
+	// Set a reasonable timeout for the startup phase
 	if c.server.config.ReadTimeout > 0 {
 		c.conn.SetReadDeadline(time.Now().Add(c.server.config.ReadTimeout))
 	}
 
 	// Handle startup
 	if err := c.handleStartup(); err != nil {
+		c.logger.Error("Startup phase failed", "error", err)
 		// Set write deadline before sending error
 		if c.server.config.WriteTimeout > 0 {
 			c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
@@ -153,6 +159,11 @@ func (c *Connection) Handle(ctx context.Context) error {
 				if c.state == StateClosed {
 					return err
 				}
+				// For simple queries, we need to send ReadyForQuery after an error
+				// to indicate the server is ready for the next command
+				if msg.Type == protocol.MsgQuery {
+					c.sendReadyForQuery()
+				}
 			}
 		}
 	}
@@ -160,26 +171,34 @@ func (c *Connection) Handle(ctx context.Context) error {
 
 // handleStartup handles the startup phase.
 func (c *Connection) handleStartup() error {
-	// Peek at the first 8 bytes to check for SSL request
-	peekBuf, err := c.reader.Peek(8)
-	if err != nil {
-		return fmt.Errorf("failed to peek startup message: %w", err)
+	c.logger.Debug("Entering handleStartup")
+
+	// First, read the message length (4 bytes)
+	lengthBuf := make([]byte, 4)
+	c.logger.Debug("About to read startup message length")
+	if _, err := io.ReadFull(c.reader, lengthBuf); err != nil {
+		c.logger.Debug("Failed to read startup message length", "error", err)
+		return fmt.Errorf("failed to read startup message length: %w", err)
 	}
 
-	// Check if this is an SSL request
-	length := int(binary.BigEndian.Uint32(peekBuf[:4]))
-	version := binary.BigEndian.Uint32(peekBuf[4:])
+	length := int(binary.BigEndian.Uint32(lengthBuf))
+	if length < 8 {
+		return fmt.Errorf("invalid startup message length: %d", length)
+	}
+
+	// Read the rest of the message
+	msgBuf := make([]byte, length-4)
+	if _, err := io.ReadFull(c.reader, msgBuf); err != nil {
+		return fmt.Errorf("failed to read startup message: %w", err)
+	}
+
+	// Check the version/request code
+	version := binary.BigEndian.Uint32(msgBuf[:4])
 
 	c.logger.Debug("Startup message received", "length", length, "version", version)
 
 	if length == 8 && version == protocol.SSLRequestCode {
 		c.logger.Debug("SSL request detected")
-
-		// Consume the 8 bytes we peeked
-		_, err := c.reader.Discard(8)
-		if err != nil {
-			return fmt.Errorf("failed to discard SSL request bytes: %w", err)
-		}
 
 		// SSL request - respond with 'N' (no SSL support)
 		// Set write deadline
@@ -199,12 +218,18 @@ func (c *Connection) handleStartup() error {
 		}
 		c.params = params
 	} else {
-		// Not an SSL request, read as normal startup message
+		// Not an SSL request, parse as normal startup message
 		c.logger.Debug("Regular startup message detected")
 
-		params, err := protocol.ReadStartupMessage(c.reader)
+		// Reconstruct the full message for parsing
+		fullMsg := make([]byte, length)
+		copy(fullMsg[:4], lengthBuf)
+		copy(fullMsg[4:], msgBuf)
+
+		// Parse the startup message
+		params, err := parseStartupMessage(fullMsg)
 		if err != nil {
-			return fmt.Errorf("failed to read startup message: %w", err)
+			return fmt.Errorf("failed to parse startup message: %w", err)
 		}
 		c.params = params
 	}
@@ -379,12 +404,21 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	defer result.Close()
 
 	// Send results
+	c.logger.Debug("Sending results")
 	if err := c.sendResults(result, stmt); err != nil {
+		c.logger.Debug("Failed to send results", "error", err)
 		return err
 	}
+	c.logger.Debug("Results sent")
 
 	// Send ready for query
-	return c.sendReadyForQuery()
+	c.logger.Debug("Sending ready for query")
+	if err := c.sendReadyForQuery(); err != nil {
+		c.logger.Debug("Failed to send ready for query", "error", err)
+		return err
+	}
+	c.logger.Debug("Ready for query sent")
+	return nil
 }
 
 // handleBegin starts a new transaction
@@ -459,11 +493,13 @@ func (c *Connection) endTransaction(commit bool, tag string) error {
 
 // sendResults sends query results to the client
 func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) error {
+	c.logger.Debug("sendResults called")
 	// Set write deadline for all result writes
 	if c.server.config.WriteTimeout > 0 {
 		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
 	}
 	schema := result.Schema()
+	c.logger.Debug("Got schema", "columns", len(schema.Columns))
 
 	// Send row description
 	rowDesc := &protocol.RowDescription{
@@ -589,12 +625,16 @@ func (c *Connection) sendErrorWithCode(code string, message string) error {
 
 // SetReadTimeout sets the read timeout
 func (c *Connection) SetReadTimeout(timeout time.Duration) {
-	c.conn.SetReadDeadline(time.Now().Add(timeout))
+	if timeout > 0 {
+		c.conn.SetReadDeadline(time.Now().Add(timeout))
+	}
 }
 
 // SetWriteTimeout sets the write timeout
 func (c *Connection) SetWriteTimeout(timeout time.Duration) {
-	c.conn.SetWriteDeadline(time.Now().Add(timeout))
+	if timeout > 0 {
+		c.conn.SetWriteDeadline(time.Now().Add(timeout))
+	}
 }
 
 // Close closes the connection
@@ -1176,4 +1216,67 @@ func statementReturnsData(stmt parser.Statement) bool {
 	default:
 		return false
 	}
+}
+
+// parseStartupMessage parses a startup message from raw bytes
+func parseStartupMessage(data []byte) (map[string]string, error) {
+	if len(data) < 8 {
+		return nil, fmt.Errorf("startup message too short")
+	}
+
+	// Skip length (already read)
+	data = data[4:]
+
+	// Check protocol version
+	version := binary.BigEndian.Uint32(data[:4])
+	if version != protocol.ProtocolVersion {
+		return nil, fmt.Errorf("unsupported protocol version: %d", version)
+	}
+
+	// Parse parameters
+	params := make(map[string]string)
+	data = data[4:] // Skip version
+
+	for len(data) > 0 {
+		// Find null terminator
+		nullIdx := -1
+		for i, b := range data {
+			if b == 0 {
+				nullIdx = i
+				break
+			}
+		}
+
+		if nullIdx == -1 {
+			break
+		}
+
+		// Empty string marks end
+		if nullIdx == 0 {
+			break
+		}
+
+		key := string(data[:nullIdx])
+		data = data[nullIdx+1:]
+
+		// Find value null terminator
+		nullIdx = -1
+		for i, b := range data {
+			if b == 0 {
+				nullIdx = i
+				break
+			}
+		}
+
+		if nullIdx == -1 {
+			return nil, fmt.Errorf("unterminated parameter value")
+		}
+
+		value := string(data[:nullIdx])
+		data = data[nullIdx+1:]
+
+		params[key] = value
+	}
+
+	return params, nil
 }
