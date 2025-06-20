@@ -184,8 +184,8 @@ func (e *BasicExecutor) buildScanOperator(plan *planner.LogicalScan, ctx *ExecCo
 		return NewStorageScanOperator(table, e.storage), nil
 	}
 
-	// Fall back to key-value scan
-	return NewScanOperator(table, ctx), nil
+	// Storage backend is required for MVCC compliance
+	return nil, fmt.Errorf("storage backend not configured - non-MVCC scans are deprecated")
 }
 
 // buildIndexScanOperator builds an index scan operator.

@@ -58,11 +58,11 @@
 - [ ] Phase 6: Comprehensive testing and validation
 **New Issues Found**:
 - [x] Fix transaction test API mismatches - BeginTransaction signature changed (DONE)
-- [ ] Fix TestVacuumWithConcurrentReads timeout issue
-- [ ] Fix concurrent insert performance test - slice bounds error in raw iterator
-- [ ] Remove or deprecate non-MVCC ScanOperator that bypasses visibility checks
-- [ ] Extract timestamp helpers to shared utility package (low priority)
-**Estimated Time**: 2-3 days remaining (Phase 6)
+- [x] Fix TestVacuumWithConcurrentReads timeout issue (DONE)
+- [x] Fix concurrent insert performance test - slice bounds error in raw iterator
+- [x] Remove or deprecate non-MVCC ScanOperator that bypasses visibility checks
+- [x] Extract timestamp helpers to shared utility package (low priority)
+**Estimated Time**: 1-2 days remaining (Phase 6)
 **Impact**: True ACID compliance with proper isolation
 
 #### 2. Query Optimization Improvements
@@ -125,6 +125,15 @@ See CONTRIBUTING.md for guidelines. Priority areas:
 - Documentation updates
 
 ## Recent Improvements ✨
+
+### Vacuum Test Fixes (December 20, 2024)
+- ✅ Fixed TestVacuumWithConcurrentReads timeout caused by infinite iterator loop
+- ✅ Implemented proper transaction management in vacuum tests
+- ✅ Added active read transaction protection to prevent premature vacuum
+- ✅ Used actual RowIDs from InsertRow instead of hardcoded slot positions
+- ✅ Set aggressive safety config for deterministic test behavior
+- ✅ Fixed TestVacuumOperator by creating table in storage
+- ✅ All vacuum tests now pass reliably with race detector
 
 ### Testing Infrastructure (December 20, 2024)
 - ✅ Added unit tests for transaction context propagation

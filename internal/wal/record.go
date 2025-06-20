@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"time"
+
+	"github.com/dshills/QuantaDB/internal/util/timeutil"
 )
 
 const (
@@ -35,7 +36,7 @@ func SerializeRecord(w io.Writer, record *LogRecord) error {
 	pos += 8
 	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(record.PrevLSN))
 	pos += 8
-	binary.BigEndian.PutUint64(buf[pos:pos+8], uint64(record.Timestamp.UnixNano())) //nolint:gosec // Safe bit pattern preservation
+	timeutil.WriteTimestampToBuf(buf, pos, record.Timestamp) //nolint:errcheck // Buffer size is pre-calculated
 	pos += 8
 	binary.BigEndian.PutUint32(buf[pos:pos+4], uint32(dataLen))
 	pos += 4
@@ -73,7 +74,7 @@ func DeserializeRecord(r io.Reader) (*LogRecord, error) {
 	pos += 8
 	prevLSN := LSN(binary.BigEndian.Uint64(headerBuf[pos : pos+8]))
 	pos += 8
-	timestamp := time.Unix(0, int64(binary.BigEndian.Uint64(headerBuf[pos:pos+8]))) //nolint:gosec // Safe bit pattern restoration
+	timestamp, _ := timeutil.ReadTimestampFromBuf(headerBuf, pos) // Error impossible with pre-validated buffer
 	pos += 8
 	dataLen := binary.BigEndian.Uint32(headerBuf[pos : pos+4])
 
@@ -119,7 +120,7 @@ func DeserializeRecord(r io.Reader) (*LogRecord, error) {
 func NewBeginTxnRecord(lsn LSN, txnID uint64) *LogRecord {
 	txnRec := &TransactionRecord{
 		TxnID:     txnID,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 	}
 
 	return &LogRecord{
@@ -127,7 +128,7 @@ func NewBeginTxnRecord(lsn LSN, txnID uint64) *LogRecord {
 		Type:      RecordTypeBeginTxn,
 		TxnID:     txnID,
 		PrevLSN:   InvalidLSN,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 		Data:      txnRec.Marshal(),
 	}
 }
@@ -136,7 +137,7 @@ func NewBeginTxnRecord(lsn LSN, txnID uint64) *LogRecord {
 func NewCommitTxnRecord(lsn LSN, txnID uint64, prevLSN LSN) *LogRecord {
 	txnRec := &TransactionRecord{
 		TxnID:     txnID,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 	}
 
 	return &LogRecord{
@@ -144,7 +145,7 @@ func NewCommitTxnRecord(lsn LSN, txnID uint64, prevLSN LSN) *LogRecord {
 		Type:      RecordTypeCommitTxn,
 		TxnID:     txnID,
 		PrevLSN:   prevLSN,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 		Data:      txnRec.Marshal(),
 	}
 }
@@ -153,7 +154,7 @@ func NewCommitTxnRecord(lsn LSN, txnID uint64, prevLSN LSN) *LogRecord {
 func NewAbortTxnRecord(lsn LSN, txnID uint64, prevLSN LSN) *LogRecord {
 	txnRec := &TransactionRecord{
 		TxnID:     txnID,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 	}
 
 	return &LogRecord{
@@ -161,7 +162,7 @@ func NewAbortTxnRecord(lsn LSN, txnID uint64, prevLSN LSN) *LogRecord {
 		Type:      RecordTypeAbortTxn,
 		TxnID:     txnID,
 		PrevLSN:   prevLSN,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 		Data:      txnRec.Marshal(),
 	}
 }
@@ -180,7 +181,7 @@ func NewInsertRecord(lsn LSN, txnID uint64, prevLSN LSN, tableID int64, pageID u
 		Type:      RecordTypeInsert,
 		TxnID:     txnID,
 		PrevLSN:   prevLSN,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 		Data:      insertRec.Marshal(),
 	}
 }
@@ -198,7 +199,7 @@ func NewDeleteRecord(lsn LSN, txnID uint64, prevLSN LSN, tableID int64, pageID u
 		Type:      RecordTypeDelete,
 		TxnID:     txnID,
 		PrevLSN:   prevLSN,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 		Data:      deleteRec.Marshal(),
 	}
 }
@@ -218,7 +219,7 @@ func NewUpdateRecord(lsn LSN, txnID uint64, prevLSN LSN, tableID int64, pageID u
 		Type:      RecordTypeUpdate,
 		TxnID:     txnID,
 		PrevLSN:   prevLSN,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 		Data:      updateRec.Marshal(),
 	}
 }
@@ -226,7 +227,7 @@ func NewUpdateRecord(lsn LSN, txnID uint64, prevLSN LSN, tableID int64, pageID u
 // NewCheckpointRecord creates a new CHECKPOINT log record
 func NewCheckpointRecord(lsn LSN, lastLSN LSN, activeTxns []uint64) *LogRecord {
 	checkpointRec := &CheckpointRecord{
-		Timestamp:  time.Now(),
+		Timestamp:  timeutil.Now(),
 		LastLSN:    lastLSN,
 		ActiveTxns: activeTxns,
 	}
@@ -236,7 +237,7 @@ func NewCheckpointRecord(lsn LSN, lastLSN LSN, activeTxns []uint64) *LogRecord {
 		Type:      RecordTypeCheckpoint,
 		TxnID:     0, // Checkpoint is not associated with a transaction
 		PrevLSN:   InvalidLSN,
-		Timestamp: time.Now(),
+		Timestamp: timeutil.Now(),
 		Data:      checkpointRec.Marshal(),
 	}
 }

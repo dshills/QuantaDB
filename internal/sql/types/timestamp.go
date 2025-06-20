@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"time"
+
+	"github.com/dshills/QuantaDB/internal/util/timeutil"
 )
 
 func init() {
@@ -77,7 +79,7 @@ func (t *timestampType) IsValid(v Value) bool {
 }
 
 func (t *timestampType) Zero() Value {
-	return NewValue(time.Unix(0, 0))
+	return NewValue(timeutil.EpochTime())
 }
 
 // dateType implements the DATE data type
@@ -122,7 +124,7 @@ func (t *dateType) Serialize(v Value) ([]byte, error) {
 	}
 
 	// Store as days since Unix epoch (in UTC)
-	epoch := time.Unix(0, 0).UTC()
+	epoch := timeutil.EpochUTC()
 	days := int32(val.UTC().Sub(epoch).Hours() / 24)
 
 	buf := make([]byte, 4)
@@ -141,7 +143,7 @@ func (t *dateType) Deserialize(data []byte) (Value, error) {
 
 	days := int32(binary.BigEndian.Uint32(data)) // nolint:gosec // uint32 to int32 conversion is safe for date data
 	// Use UTC epoch to avoid timezone issues
-	epoch := time.Unix(0, 0).UTC()
+	epoch := timeutil.EpochUTC()
 	val := epoch.AddDate(0, 0, int(days))
 
 	return NewValue(val), nil
@@ -157,7 +159,7 @@ func (t *dateType) IsValid(v Value) bool {
 }
 
 func (t *dateType) Zero() Value {
-	return NewValue(time.Unix(0, 0).Truncate(24 * time.Hour))
+	return NewValue(timeutil.EpochTime().Truncate(24 * time.Hour))
 }
 
 // Helper functions for creating time values

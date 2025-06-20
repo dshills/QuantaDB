@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
@@ -14,6 +15,7 @@ import (
 type MVCCStorageBackend struct {
 	*DiskStorageBackend
 	txnManager *txn.Manager
+	pageMutex  sync.RWMutex // Protects against concurrent page modifications
 }
 
 // SetTransactionID atomically sets the current transaction ID
@@ -71,6 +73,10 @@ func (m *MVCCStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 	if err != nil {
 		return RowID{}, fmt.Errorf("failed to serialize row: %w", err)
 	}
+
+	// Protect the entire page selection and modification process
+	m.pageMutex.Lock()
+	defer m.pageMutex.Unlock()
 
 	// Find a page with enough space
 	pageID := meta.LastPageID

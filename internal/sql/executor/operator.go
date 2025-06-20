@@ -45,6 +45,7 @@ type ScanOperator struct {
 
 // NewScanOperator creates a new scan operator.
 // DEPRECATED: Use NewStorageScanOperator for MVCC support.
+// This operator bypasses MVCC visibility checks and should not be used in production.
 func NewScanOperator(table *catalog.Table, ctx *ExecContext) *ScanOperator {
 	// Build schema from table columns
 	schema := &Schema{

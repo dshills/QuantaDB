@@ -268,8 +268,22 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 		panic(fmt.Sprintf("data too large for page: %d exceeds max uint16", len(data)))
 	}
 	dataSize := uint16(len(data)) //nolint:gosec // Bounds checked above
+
+	// Bounds check for slot offset
+	if int(slotOffset)+4 > len(page.Data) {
+		panic(fmt.Sprintf("slot offset out of bounds: %d+4 > %d", slotOffset, len(page.Data)))
+	}
+
 	// FreeSpacePtr is relative to page start, we need offset in Data array
 	dataOffset := page.Header.FreeSpacePtr - dataSize - storage.PageHeaderSize
+
+	// Bounds check for data offset
+	if int(dataOffset) >= len(page.Data) {
+		panic(fmt.Sprintf("data offset out of bounds: %d not in [0, %d)", dataOffset, len(page.Data)))
+	}
+	if int(dataOffset)+len(data) > len(page.Data) {
+		panic(fmt.Sprintf("data write would exceed page bounds: %d+%d > %d", dataOffset, len(data), len(page.Data)))
+	}
 
 	// Write slot entry (offset and size)
 	// Store the offset as relative to page start (including header)
@@ -281,7 +295,7 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 	slotData[3] = byte(dataSize)
 
 	// Write data
-	copy(page.Data[dataOffset:], data)
+	copy(page.Data[dataOffset:dataOffset+dataSize], data)
 
 	// Update page header
 	page.Header.ItemCount++

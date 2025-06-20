@@ -90,7 +90,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		if err := insertOp.Open(ctx); err != nil {
 			t.Fatalf("Failed to insert initial data: %v", err)
 		}
-		
+
 		// Execute the insert
 		for {
 			row, err := insertOp.Next()
@@ -101,7 +101,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				break
 			}
 		}
-		
+
 		insertOp.Close()
 	}
 	insertInitialData()
@@ -504,7 +504,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 // Helper function to read account balance
 func readAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, storage StorageBackend, accountID int32) int32 {
 	scanOp := NewStorageScanOperator(table, storage)
-	
+
 	if err := scanOp.Open(ctx); err != nil {
 		t.Fatalf("Failed to open scan: %v", err)
 	}
@@ -539,16 +539,16 @@ func updateAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, 
 			Value:  &parser.Literal{Value: types.Value{Data: newBalance}},
 		},
 	}
-	
+
 	// Create WHERE clause for id = accountID
 	whereClause := &parser.BinaryExpr{
 		Operator: parser.TokenEqual,
 		Left:     &parser.Identifier{Name: "id"},
 		Right:    &parser.Literal{Value: types.Value{Data: accountID}},
 	}
-	
+
 	updateOp := NewUpdateOperator(table, storage, assignments, whereClause)
-	
+
 	if err := updateOp.Open(ctx); err != nil {
 		t.Fatalf("Failed to update: %v", err)
 	}
@@ -558,7 +558,7 @@ func updateAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, 
 // Helper function to count rows
 func countRows(t *testing.T, ctx *ExecContext, table *catalog.Table, storage StorageBackend) int {
 	scanOp := NewStorageScanOperator(table, storage)
-	
+
 	if err := scanOp.Open(ctx); err != nil {
 		t.Fatalf("Failed to open scan: %v", err)
 	}
@@ -671,11 +671,11 @@ func TestMVCCVersionChaining(t *testing.T) {
 		// Verify both versions exist in storage
 		// This would require direct access to storage internals
 		// For now, we verify through visibility
-		
+
 		// Note: Testing historical snapshots would require:
 		// 1. Direct access to storage internals to verify version chains
 		// 2. Ability to set custom snapshot timestamps on transactions
-		// 
+		//
 		// Currently, our implementation doesn't fully support this level of testing
 		// without modifying the transaction manager or storage backend
 		t.Logf("Note: Version chain testing is limited in current implementation")
@@ -810,13 +810,21 @@ func TestConcurrentInsertPerformance(t *testing.T) {
 	t.Logf("  Elapsed time: %v", elapsed)
 	t.Logf("  Inserts/second: %.2f", insertsPerSecond)
 
-	// Verify all inserts succeeded
+	// Verify all inserts succeeded with a proper transaction
+	verifyTxn, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+	if err != nil {
+		t.Fatalf("Failed to begin verification transaction: %v", err)
+	}
+	defer verifyTxn.Rollback()
+
 	ctx := &ExecContext{
-		Catalog:    cat,
-		Engine:     eng,
-		TxnManager: txnManager,
-		SnapshotTS: int64(txnManager.GetCurrentTimestamp()),
-		Stats:      &ExecStats{},
+		Catalog:        cat,
+		Engine:         eng,
+		TxnManager:     txnManager,
+		Txn:            verifyTxn,
+		SnapshotTS:     int64(verifyTxn.ReadTimestamp()),
+		IsolationLevel: txn.ReadCommitted,
+		Stats:          &ExecStats{},
 	}
 
 	count := countRows(t, ctx, table, storageBackend)

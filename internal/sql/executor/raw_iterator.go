@@ -62,6 +62,14 @@ func (it *DiskRawRowIterator) Next() bool {
 
 		// Check if slot is valid (not deleted)
 		slotOffset := storage.PageHeaderSize + it.slotID*4
+
+		// Bounds check for slot access
+		if int(slotOffset)+4 > len(it.currentPage.Data) {
+			// Page is corrupted, move to next page
+			it.slotID = it.currentPage.Header.ItemCount
+			continue
+		}
+
 		slotData := it.currentPage.Data[slotOffset : slotOffset+4]
 		dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
 
@@ -81,6 +89,12 @@ func (it *DiskRawRowIterator) Value() ([]byte, RowID, error) {
 
 	// Read slot entry
 	slotOffset := storage.PageHeaderSize + it.slotID*4
+
+	// Bounds check for slot access
+	if int(slotOffset)+4 > len(it.currentPage.Data) {
+		return nil, RowID{}, fmt.Errorf("slot offset out of bounds: %d+4 > %d", slotOffset, len(it.currentPage.Data))
+	}
+
 	slotData := it.currentPage.Data[slotOffset : slotOffset+4]
 	pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 	dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
@@ -91,6 +105,15 @@ func (it *DiskRawRowIterator) Value() ([]byte, RowID, error) {
 
 	// Read row data
 	dataOffset := pageDataOffset - storage.PageHeaderSize
+
+	// Bounds check for data access
+	if int(dataOffset) >= len(it.currentPage.Data) {
+		return nil, RowID{}, fmt.Errorf("data offset out of bounds: %d not in [0, %d)", dataOffset, len(it.currentPage.Data))
+	}
+	if int(dataOffset)+int(dataSize) > len(it.currentPage.Data) {
+		return nil, RowID{}, fmt.Errorf("data read would exceed page bounds: %d+%d > %d", dataOffset, dataSize, len(it.currentPage.Data))
+	}
+
 	rowData := make([]byte, dataSize)
 	copy(rowData, it.currentPage.Data[dataOffset:dataOffset+dataSize])
 
