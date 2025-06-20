@@ -1,25 +1,33 @@
 # QuantaDB TODO List
 
 ## Summary
-**Last Updated**: December 19, 2024
-**Project Status**: Core features complete! Ready for performance optimizations and enterprise features.
+**Last Updated**: December 20, 2024
+**Project Status**: MVCC transaction-storage integration in progress
 **Recent Updates**: 
-- Moved all completed items to `docs/COMPLETED.md`
-- Focus is now on pending optimizations and future roadmap items
+- Implemented MVCC row format with transaction metadata (Phase 1 complete)
+- Added MVCCStorageBackend with visibility checks
+- Fixed all critical concurrency and safety issues from code review
+- See `docs/transaction-storage-integration-plan.md` for full integration plan
 
 ## Current Sprint (Q1 2025 - Phase 1: Performance Optimization)
 
 ### Medium Priority 🟡
 
 #### 1. Transaction-Storage Full Integration
-**Status**: MVCC exists but not fully integrated with storage
-**Location**: `internal/txn/` and `internal/storage/`
-**Tasks**:
-- [ ] Connect transaction manager with storage operations
-- [ ] Implement visibility checks in scan operators
-- [ ] Add transaction ID to all row operations
-- [ ] Implement vacuum process for old versions
-**Estimated Time**: 1 week
+**Status**: Phase 1 complete - MVCC row format implemented
+**Location**: `internal/txn/`, `internal/storage/`, `internal/sql/executor/`
+**Completed** (Phase 1):
+- [x] Enhanced row format with MVCC metadata
+- [x] MVCCStorageBackend with atomic transaction ID handling
+- [x] Timestamp-based visibility checks
+- [x] Raw iterator for MVCC-aware scans
+**Remaining Tasks** (Phases 2-6):
+- [ ] Phase 2: Thread transaction context through operations
+- [ ] Phase 3: Add visibility filtering to all scan operators
+- [ ] Phase 4: Implement version chain management
+- [ ] Phase 5: Create vacuum process for old versions
+- [ ] Phase 6: Comprehensive testing and validation
+**Estimated Time**: 10 days remaining
 **Impact**: True ACID compliance with proper isolation
 
 #### 2. Query Optimization Improvements
@@ -81,7 +89,20 @@ See CONTRIBUTING.md for guidelines. Priority areas:
 - Test coverage expansion
 - Documentation updates
 
+## Recent Improvements ✨
+
+### MVCC Row Format Implementation (December 20, 2024)
+- ✅ Created MVCCRowHeader with transaction metadata (IDs, timestamps, version pointers)
+- ✅ Implemented MVCCRow with efficient serialization/deserialization
+- ✅ Built MVCCStorageBackend extending DiskStorageBackend
+- ✅ Added RawRowIterator for accessing raw row data
+- ✅ Implemented timestamp-based visibility checks for proper MVCC semantics
+- ✅ Fixed all concurrency issues with atomic operations
+- ✅ Added comprehensive error handling with typed errors
+- ✅ Optimized performance with pre-allocated buffers and cached formatters
+- ✅ All tests pass with race detection enabled
+
 ---
-*Last Updated: December 19, 2024*
+*Last Updated: December 20, 2024*
 *For completed features, see `docs/COMPLETED.md`*
 *For detailed planning, see `docs/ROADMAP.md` and `docs/CURRENT_STATUS.md`*
