@@ -11,10 +11,11 @@ import (
 // DeleteOperator executes DELETE statements
 type DeleteOperator struct {
 	baseOperator
-	table       *catalog.Table
-	storage     StorageBackend
-	whereClause parser.Expression
-	rowsDeleted int64
+	table            *catalog.Table
+	storage          StorageBackend
+	whereClause      parser.Expression
+	rowsDeleted      int64
+	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance
 }
 
 // NewDeleteOperator creates a new delete operator
@@ -127,6 +128,14 @@ func (d *DeleteOperator) Next() (*Row, error) {
 
 // Close cleans up resources
 func (d *DeleteOperator) Close() error {
-	// Nothing to clean up for DELETE
+	// Trigger statistics maintenance if rows were deleted
+	if d.rowsDeleted > 0 && d.statsMaintenance != nil {
+		catalog.StatsMaintenanceHook(d.statsMaintenance, d.table.ID, catalog.ChangeDelete, d.rowsDeleted)
+	}
 	return nil
+}
+
+// SetStatsMaintenance sets the statistics maintenance handler
+func (d *DeleteOperator) SetStatsMaintenance(maintenance catalog.StatsMaintenance) {
+	d.statsMaintenance = maintenance
 }

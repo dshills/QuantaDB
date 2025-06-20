@@ -122,9 +122,8 @@ func (d *DiskStorageBackend) CreateTable(table *catalog.Table) error {
 
 	// Set page type and initialize
 	page.Header.Type = storage.PageTypeData
-	page.Header.FreeSpacePtr = storage.PageSize // Start from end of page
-	page.Header.FreeSpace = storage.PageSize - storage.PageHeaderSize
-	page.Header.ItemCount = 0
+	// Note: NewPage already set FreeSpacePtr = PageSize and FreeSpace correctly
+	// We don't need to set them again
 
 	// Create table metadata
 	schema := &Schema{
@@ -196,38 +195,60 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 
 	// Check if page has space
 	if len(rowData) > math.MaxUint16 {
+		d.bufferPool.UnpinPage(pageID, false)
 		return RowID{}, fmt.Errorf("row data too large: %d exceeds max uint16", len(rowData))
 	}
 	rowSize := uint16(len(rowData)) //nolint:gosec // Bounds checked above
+	
+	// Acquire page lock before checking space and modifying
+	d.bufferPool.AcquirePageLock(pageID)
+	
+	// Re-check if page has space after acquiring lock
 	if !page.HasSpaceFor(rowSize) {
-		d.bufferPool.UnpinPage(pageID, false)
+		// Need to allocate a new page
+		// First release current page lock to avoid deadlock
+		d.bufferPool.ReleasePageLock(pageID)
 
 		// Allocate new page
 		newPage, err := d.bufferPool.NewPage()
 		if err != nil {
+			d.bufferPool.UnpinPage(pageID, false)
 			return RowID{}, fmt.Errorf("failed to allocate new page: %w", err)
 		}
 		newPageID := newPage.Header.PageID
+		
+		// Initialize new page
+		newPage.Header.Type = storage.PageTypeData
+		newPage.Header.NextPageID = storage.InvalidPageID
 
-		// Link pages
+		// Re-acquire lock on old page to update link
+		d.bufferPool.AcquirePageLock(pageID)
 		page.Header.NextPageID = newPageID
+		d.bufferPool.ReleasePageLock(pageID)
 		d.bufferPool.UnpinPage(pageID, true)
 
-		// Update metadata
+		// Update metadata atomically - re-check if another thread already allocated
 		d.mu.Lock()
+		if meta.LastPageID != pageID {
+			// Another thread already allocated a new page, use that instead
+			d.mu.Unlock()
+			d.bufferPool.UnpinPage(newPageID, false)
+			// Retry with the new last page
+			return d.InsertRow(tableID, row)
+		}
+		// We're the first to allocate, update metadata
 		meta.LastPageID = newPageID
 		d.mu.Unlock()
 
 		// Use new page
 		pageID = newPageID
 		page = newPage
-		page.Header.Type = storage.PageTypeData
-		page.Header.FreeSpacePtr = storage.PageSize
-		page.Header.FreeSpace = storage.PageSize - storage.PageHeaderSize
-		page.Header.ItemCount = 0
+		
+		// Acquire lock for new page
+		d.bufferPool.AcquirePageLock(pageID)
 	}
 
-	// Insert row into page using slotted page format
+	// Insert row into page using slotted page format - lock is already held
 	slotID := d.insertIntoPage(page, rowData)
 
 	// Log the insert if WAL is enabled
@@ -235,6 +256,7 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 		lsn, err := d.walManager.LogInsert(d.currentTxnID, tableID, uint32(pageID), slotID, rowData)
 		if err != nil {
 			// Rollback the insert on WAL failure
+			d.bufferPool.ReleasePageLock(pageID)
 			d.bufferPool.UnpinPage(pageID, false)
 			return RowID{}, fmt.Errorf("failed to log insert: %w", err)
 		}
@@ -242,6 +264,8 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 		page.Header.LSN = uint64(lsn)
 	}
 
+	// Release page lock before unpinning
+	d.bufferPool.ReleasePageLock(pageID)
 	d.bufferPool.UnpinPage(pageID, true)
 
 	// Update row count
@@ -261,8 +285,15 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 	// Slots grow from the beginning, data grows from the end
 
 	slotID := page.Header.ItemCount
-	slotOffset := storage.PageHeaderSize + slotID*4 // Each slot is 4 bytes
+	// Calculate slot offset within the Data array (excluding header)
+	slotOffset := int(slotID) * 4 // Each slot is 4 bytes
 
+	// Validate page state before insert
+	if page.Header.FreeSpacePtr < storage.PageHeaderSize || page.Header.FreeSpacePtr > storage.PageSize {
+		panic(fmt.Sprintf("invalid FreeSpacePtr before insert: %d (must be in [%d, %d])", 
+			page.Header.FreeSpacePtr, storage.PageHeaderSize, storage.PageSize))
+	}
+	
 	// Calculate data position (grows from end)
 	if len(data) > math.MaxUint16 {
 		panic(fmt.Sprintf("data too large for page: %d exceeds max uint16", len(data)))
@@ -274,8 +305,18 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 		panic(fmt.Sprintf("slot offset out of bounds: %d+4 > %d", slotOffset, len(page.Data)))
 	}
 
-	// FreeSpacePtr is relative to page start, we need offset in Data array
-	dataOffset := page.Header.FreeSpacePtr - dataSize - storage.PageHeaderSize
+	// FreeSpacePtr points to start of free space (where next data will be written)
+	// Data grows from the end backwards, so new data position is FreeSpacePtr - dataSize
+	pageDataOffset := page.Header.FreeSpacePtr - dataSize
+	
+	// Validate we're not going below the header
+	if pageDataOffset < storage.PageHeaderSize {
+		panic(fmt.Sprintf("data would overlap header: pageDataOffset=%d < PageHeaderSize=%d (FreeSpacePtr=%d, dataSize=%d, slotID=%d)", 
+			pageDataOffset, storage.PageHeaderSize, page.Header.FreeSpacePtr, dataSize, slotID))
+	}
+	
+	// Calculate offset within Data array
+	dataOffset := pageDataOffset - storage.PageHeaderSize
 
 	// Bounds check for data offset
 	if int(dataOffset) >= len(page.Data) {
@@ -287,12 +328,38 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 
 	// Write slot entry (offset and size)
 	// Store the offset as relative to page start (including header)
+	if slotOffset+4 > len(page.Data) {
+		panic(fmt.Sprintf("Invalid slot offset calculation: slotOffset=%d, page.Data len=%d", slotOffset, len(page.Data)))
+	}
 	slotData := page.Data[slotOffset : slotOffset+4]
-	pageDataOffset := dataOffset + storage.PageHeaderSize
+	
+	// Validate before writing
+	if pageDataOffset < storage.PageHeaderSize {
+		panic(fmt.Sprintf("invalid pageDataOffset: %d < %d", pageDataOffset, storage.PageHeaderSize))
+	}
+	if pageDataOffset > storage.PageSize {
+		panic(fmt.Sprintf("pageDataOffset out of bounds: %d > %d", pageDataOffset, storage.PageSize))
+	}
+	
 	slotData[0] = byte(pageDataOffset >> 8)
 	slotData[1] = byte(pageDataOffset)
 	slotData[2] = byte(dataSize >> 8)
 	slotData[3] = byte(dataSize)
+	
+	// Verify slot was written correctly
+	writtenOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
+	writtenSize := uint16(slotData[2])<<8 | uint16(slotData[3])
+	if writtenOffset != pageDataOffset {
+		panic(fmt.Sprintf("slot write verification failed: wrote offset %d, read back %d (slot %d, page %d)", 
+			pageDataOffset, writtenOffset, slotID, page.Header.PageID))
+	}
+	if writtenSize != dataSize {
+		panic(fmt.Sprintf("slot write verification failed: wrote size %d, read back %d (slot %d, page %d)", 
+			dataSize, writtenSize, slotID, page.Header.PageID))
+	}
+	if pageDataOffset == 0 {
+		panic(fmt.Sprintf("invalid pageDataOffset=0 written to slot %d on page %d", slotID, page.Header.PageID))
+	}
 
 	// Write data
 	copy(page.Data[dataOffset:dataOffset+dataSize], data)
@@ -301,6 +368,8 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 	page.Header.ItemCount++
 	page.Header.FreeSpacePtr = pageDataOffset
 	page.Header.FreeSpace -= dataSize + 4
+	
+	
 
 	return slotID
 }
@@ -363,7 +432,12 @@ func (it *diskRowIterator) Next() (*Row, RowID, error) {
 		}
 
 		// Read slot entry
-		slotOffset := storage.PageHeaderSize + it.slotID*4
+		slotOffset := int(it.slotID) * 4 // Offset within Data array
+		if slotOffset+4 > len(it.currentPage.Data) {
+			// Invalid slot offset, skip
+			it.slotID++
+			continue
+		}
 		slotData := it.currentPage.Data[slotOffset : slotOffset+4]
 		pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 		dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
@@ -376,6 +450,11 @@ func (it *diskRowIterator) Next() (*Row, RowID, error) {
 
 		// Read row data - pageDataOffset includes header, so subtract it
 		dataOffset := pageDataOffset - storage.PageHeaderSize
+		if int(dataOffset) >= len(it.currentPage.Data) || int(dataOffset)+int(dataSize) > len(it.currentPage.Data) {
+			// Invalid data bounds, skip
+			it.slotID++
+			continue
+		}
 		rowData := it.currentPage.Data[dataOffset : dataOffset+dataSize]
 
 		// Deserialize row
@@ -454,6 +533,10 @@ func (d *DiskStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 		return fmt.Errorf("failed to fetch page: %w", err)
 	}
 
+	// Acquire page lock before modifying
+	d.bufferPool.AcquirePageLock(rowID.PageID)
+	defer d.bufferPool.ReleasePageLock(rowID.PageID)
+
 	// Log the delete if WAL is enabled
 	if d.walManager != nil {
 		lsn, err := d.walManager.LogDelete(d.currentTxnID, tableID, uint32(rowID.PageID), rowID.SlotID)
@@ -466,9 +549,9 @@ func (d *DiskStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 	}
 
 	// Mark slot as deleted by setting size to 0
-	slotOffset := storage.PageHeaderSize + rowID.SlotID*4
+	slotOffset := int(rowID.SlotID) * 4 // Offset within Data array
 	// Correct slice access: directly index into page.Data
-	if int(slotOffset)+4 > len(page.Data)+storage.PageHeaderSize {
+	if slotOffset+4 > len(page.Data) {
 		d.bufferPool.UnpinPage(rowID.PageID, false)
 		return fmt.Errorf("slot offset out of bounds")
 	}
@@ -500,7 +583,7 @@ func (d *DiskStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS int64
 	defer d.bufferPool.UnpinPage(rowID.PageID, false)
 
 	// Read slot entry
-	slotOffset := storage.PageHeaderSize + rowID.SlotID*4
+	slotOffset := int(rowID.SlotID) * 4 // Offset within Data array
 	slotData := page.Data[slotOffset : slotOffset+4]
 	pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 	dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])

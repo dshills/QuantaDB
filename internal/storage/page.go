@@ -57,7 +57,9 @@ func NewPage(id PageID, pageType PageType) *Page {
 			PageID:       id,
 			Type:         pageType,
 			FreeSpace:    MaxPayloadSize,
-			FreeSpacePtr: PageHeaderSize,
+			FreeSpacePtr: PageSize, // Data grows from end of page
+			ItemCount:    0,
+			NextPageID:   InvalidPageID,
 		},
 	}
 	return p
@@ -113,5 +115,16 @@ func (p *Page) GetFreeSpace() uint16 {
 // HasSpaceFor returns true if the page has enough space for the given size
 func (p *Page) HasSpaceFor(size uint16) bool {
 	// Need space for the data plus a slot entry (4 bytes)
-	return p.Header.FreeSpace >= size+4
+	if p.Header.FreeSpace < size+4 {
+		return false
+	}
+	
+	// Also check that slots won't collide with data
+	// Calculate where the next slot would end (slots are stored in Data array)
+	nextSlotEnd := (p.Header.ItemCount + 1) * 4
+	// Calculate where the new data would start (relative to Data array start)
+	dataStart := p.Header.FreeSpacePtr - size - PageHeaderSize
+	
+	// Ensure slot array won't overlap with data area
+	return uint16(nextSlotEnd) < dataStart
 }

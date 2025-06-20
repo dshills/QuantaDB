@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
 // CostParams defines system-wide cost parameters for optimization decisions.
@@ -164,7 +165,11 @@ func (ce *CostEstimator) estimateBinaryOpSelectivity(table *catalog.Table, expr 
 	case OpEqual:
 		// Equality: use column statistics if available
 		if col, ok := expr.Left.(*ColumnRef); ok {
-			return ce.estimateEqualitySelectivity(table, col.ColumnName)
+			return ce.estimateEqualitySelectivity(table, col.ColumnName, expr.Right)
+		}
+		// Try the other side for commutative equality
+		if col, ok := expr.Right.(*ColumnRef); ok {
+			return ce.estimateEqualitySelectivity(table, col.ColumnName, expr.Left)
 		}
 		return 0.05 // Default for equality predicates
 
@@ -179,7 +184,7 @@ func (ce *CostEstimator) estimateBinaryOpSelectivity(table *catalog.Table, expr 
 	case OpLess, OpLessEqual, OpGreater, OpGreaterEqual:
 		// Range predicates: use histogram if available, otherwise default
 		if col, ok := expr.Left.(*ColumnRef); ok {
-			return ce.estimateRangeSelectivity(table, col.ColumnName, expr.Operator)
+			return ce.estimateRangeSelectivity(table, col.ColumnName, expr.Operator, expr.Right)
 		}
 		return 0.3 // Default for range predicates
 
@@ -193,12 +198,21 @@ func (ce *CostEstimator) estimateBinaryOpSelectivity(table *catalog.Table, expr 
 	}
 }
 
-// estimateEqualitySelectivity estimates selectivity for equality predicates.
-func (ce *CostEstimator) estimateEqualitySelectivity(table *catalog.Table, columnName string) float64 {
+// estimateEqualitySelectivity estimates selectivity for equality predicates using column statistics.
+func (ce *CostEstimator) estimateEqualitySelectivity(table *catalog.Table, columnName string, value Expression) float64 {
 	// Try to get column statistics
-	if colStats := ce.getColumnStats(table, columnName); colStats != nil && colStats.DistinctCount > 0 {
-		// If we have distinct count, use it for selectivity
-		return 1.0 / float64(colStats.DistinctCount)
+	if colStats := ce.getColumnStats(table, columnName); colStats != nil {
+		// Convert expression to types.Value for histogram estimation
+		if val := ce.expressionToValue(value); !val.IsNull() {
+			// Use the enhanced histogram-based selectivity estimation
+			selectivity := catalog.EstimateSelectivity(colStats, catalog.OpEqual, val)
+			return float64(selectivity)
+		}
+
+		// Fallback to distinct count if value conversion failed
+		if colStats.DistinctCount > 0 {
+			return 1.0 / float64(colStats.DistinctCount)
+		}
 	}
 
 	// Check if it's a primary key or unique column
@@ -230,27 +244,58 @@ func (ce *CostEstimator) estimateEqualitySelectivity(table *catalog.Table, colum
 	return 0.05
 }
 
-// estimateRangeSelectivity estimates selectivity for range predicates.
-func (ce *CostEstimator) estimateRangeSelectivity(table *catalog.Table, columnName string, operator BinaryOperator) float64 {
-	// Try to get column statistics with histogram
-	if colStats := ce.getColumnStats(table, columnName); colStats != nil && colStats.Histogram != nil {
-		// TODO: Implement histogram-based selectivity estimation
-		// Will use bucket boundaries and frequencies for accurate range estimates
-		_ = colStats // Placeholder to avoid empty branch warning
+// estimateRangeSelectivity estimates selectivity for range predicates using histograms.
+func (ce *CostEstimator) estimateRangeSelectivity(table *catalog.Table, columnName string, operator BinaryOperator, value Expression) float64 {
+	// Try to get column statistics
+	if colStats := ce.getColumnStats(table, columnName); colStats != nil {
+		// Convert expression to types.Value for histogram estimation
+		if val := ce.expressionToValue(value); !val.IsNull() {
+			// Map planner operators to catalog operators
+			var catalogOp catalog.ComparisonOp
+			switch operator {
+			case OpLess:
+				catalogOp = catalog.OpLess
+			case OpLessEqual:
+				catalogOp = catalog.OpLessEqual
+			case OpGreater:
+				catalogOp = catalog.OpGreater
+			case OpGreaterEqual:
+				catalogOp = catalog.OpGreaterEqual
+			default:
+				// For non-range operators, use default
+				return 0.3
+			}
+
+			// Use the enhanced histogram-based selectivity estimation
+			selectivity := catalog.EstimateSelectivity(colStats, catalogOp, val)
+			return float64(selectivity)
+		}
 	}
 
-	// Default range selectivity estimates
+	// Default range selectivity estimates when no statistics available
 	switch operator {
 	case OpLess, OpLessEqual:
 		return 0.3 // 30% of rows are typically less than a random value
 	case OpGreater, OpGreaterEqual:
 		return 0.3 // 30% of rows are typically greater than a random value
-	case OpAdd, OpSubtract, OpMultiply, OpDivide, OpModulo, OpEqual, OpNotEqual,
-		OpAnd, OpOr, OpConcat, OpLike, OpNotLike, OpIn, OpNotIn, OpIs, OpIsNot:
-		// Not range operators
-		return 0.3
 	default:
 		return 0.3
+	}
+}
+
+// expressionToValue converts a planner expression to a types.Value for statistics.
+func (ce *CostEstimator) expressionToValue(expr Expression) types.Value {
+	switch e := expr.(type) {
+	case *Literal:
+		// Convert literal value to types.Value
+		return e.Value
+	case *ParameterRef:
+		// For parameters, we can't determine the value at plan time
+		// Return null to indicate unknown value
+		return types.Value{}
+	default:
+		// For complex expressions, we can't determine the value at plan time
+		return types.Value{}
 	}
 }
 

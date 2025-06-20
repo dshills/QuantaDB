@@ -61,10 +61,10 @@ func (it *DiskRawRowIterator) Next() bool {
 		}
 
 		// Check if slot is valid (not deleted)
-		slotOffset := storage.PageHeaderSize + it.slotID*4
+		slotOffset := int(it.slotID) * 4 // Offset within Data array
 
 		// Bounds check for slot access
-		if int(slotOffset)+4 > len(it.currentPage.Data) {
+		if slotOffset+4 > len(it.currentPage.Data) {
 			// Page is corrupted, move to next page
 			it.slotID = it.currentPage.Header.ItemCount
 			continue
@@ -74,6 +74,7 @@ func (it *DiskRawRowIterator) Next() bool {
 		dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
 
 		if dataSize > 0 {
+			// Don't increment slotID here - Value() will use current slotID
 			return true // Found a valid row
 		}
 
@@ -88,10 +89,10 @@ func (it *DiskRawRowIterator) Value() ([]byte, RowID, error) {
 	}
 
 	// Read slot entry
-	slotOffset := storage.PageHeaderSize + it.slotID*4
+	slotOffset := int(it.slotID) * 4 // Offset within Data array
 
 	// Bounds check for slot access
-	if int(slotOffset)+4 > len(it.currentPage.Data) {
+	if slotOffset+4 > len(it.currentPage.Data) {
 		return nil, RowID{}, fmt.Errorf("slot offset out of bounds: %d+4 > %d", slotOffset, len(it.currentPage.Data))
 	}
 
@@ -108,7 +109,8 @@ func (it *DiskRawRowIterator) Value() ([]byte, RowID, error) {
 
 	// Bounds check for data access
 	if int(dataOffset) >= len(it.currentPage.Data) {
-		return nil, RowID{}, fmt.Errorf("data offset out of bounds: %d not in [0, %d)", dataOffset, len(it.currentPage.Data))
+		return nil, RowID{}, fmt.Errorf("data offset out of bounds: %d not in [0, %d) - pageDataOffset=%d, slot %d on page %d (bytes: %02x %02x %02x %02x)", 
+			dataOffset, len(it.currentPage.Data), pageDataOffset, it.slotID, it.pageID, slotData[0], slotData[1], slotData[2], slotData[3])
 	}
 	if int(dataOffset)+int(dataSize) > len(it.currentPage.Data) {
 		return nil, RowID{}, fmt.Errorf("data read would exceed page bounds: %d+%d > %d", dataOffset, dataSize, len(it.currentPage.Data))
@@ -122,6 +124,7 @@ func (it *DiskRawRowIterator) Value() ([]byte, RowID, error) {
 		SlotID: it.slotID,
 	}
 
+	// Increment slotID for next iteration
 	it.slotID++
 
 	return rowData, rowID, nil
@@ -159,13 +162,25 @@ func (it *MVCCRawRowIterator) Next() (*Row, RowID, error) {
 	mvccFormat := NewMVCCRowFormat(it.schema)
 	legacyFormat := NewRowFormat(it.schema)
 
+	errorCount := 0
+	maxErrors := 10 // Prevent infinite loops on persistent errors
+
 	for it.baseIterator.Next() {
 		rowData, rowID, err := it.baseIterator.Value()
 		if err != nil {
+			errorCount++
+			if errorCount >= maxErrors {
+				// Too many consecutive errors, likely data corruption
+				return nil, RowID{}, err
+			}
 			continue
 		}
 
+		// Reset error count on successful read
+		errorCount = 0
+
 		// Check if this is MVCC format by looking at version byte
+		
 		if len(rowData) > 0 && rowData[0] == 1 {
 			// MVCC format
 			mvccRow, err := mvccFormat.Deserialize(rowData)
@@ -198,10 +213,20 @@ func (it *MVCCRawRowIterator) Close() error {
 // isVisible checks if a row version is visible to the current transaction
 func (it *MVCCRawRowIterator) isVisible(row *MVCCRow) bool {
 	// Row is visible if:
-	// 1. It was created before our snapshot timestamp
-	// 2. It hasn't been deleted, or was deleted after our snapshot
+	// 1. It was created by our transaction (always visible)
+	// 2. It was created before our snapshot timestamp
+	// 3. It hasn't been deleted, or was deleted after our snapshot
 
-	// Use timestamp-based visibility for MVCC correctness
+	// Always see our own writes
+	if row.Header.CreatedByTxn == it.txnID {
+		// Check if we deleted it ourselves
+		if row.Header.DeletedByTxn == it.txnID {
+			return false
+		}
+		return true
+	}
+
+	// Use timestamp-based visibility for other transactions
 	if row.Header.CreatedAt > it.timestamp {
 		return false // Created after our snapshot
 	}
@@ -209,6 +234,5 @@ func (it *MVCCRawRowIterator) isVisible(row *MVCCRow) bool {
 	if row.Header.DeletedAt > 0 && row.Header.DeletedAt <= it.timestamp {
 		return false // Deleted before or at our snapshot
 	}
-
 	return true
 }

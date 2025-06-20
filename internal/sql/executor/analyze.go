@@ -114,6 +114,9 @@ func (op *AnalyzeOperator) Next() (*Row, error) {
 			return nil, fmt.Errorf("failed to collect statistics for column %s: %w", colName, err)
 		}
 
+		// Set the table row count for selectivity calculations
+		colStats.TableRowCount = tableStats.RowCount
+
 		// Update column statistics in catalog
 		if err := op.statsWriter.UpdateColumnStatistics(table.ID, column.ID, colStats); err != nil {
 			return nil, fmt.Errorf("failed to update statistics for column %s: %w", colName, err)

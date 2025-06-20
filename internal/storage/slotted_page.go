@@ -44,13 +44,13 @@ func (sp *SlottedPage) AddRecord(data []byte) (uint16, error) {
 
 	// Calculate positions
 	slotNum := sp.Header.ItemCount
-	newSlotEnd := sp.Header.FreeSpacePtr + SlotSize
-	recordOffset := sp.Header.FreeSpacePtr + sp.Header.FreeSpace - recordLen
+	slotEnd := PageHeaderSize + (slotNum+1)*SlotSize
+	recordOffset := sp.Header.FreeSpacePtr - recordLen
 
 	// Check if slot and record areas would overlap
-	if newSlotEnd > recordOffset {
+	if slotEnd > recordOffset {
 		return 0, fmt.Errorf("page is full: slot and record areas would overlap (slot end: %d, record start: %d)",
-			newSlotEnd, recordOffset)
+			slotEnd, recordOffset)
 	}
 
 	// Add slot entry
@@ -66,7 +66,7 @@ func (sp *SlottedPage) AddRecord(data []byte) (uint16, error) {
 	// Update header
 	sp.Header.ItemCount++
 	sp.Header.FreeSpace -= requiredSpace
-	sp.Header.FreeSpacePtr = newSlotEnd
+	sp.Header.FreeSpacePtr = recordOffset
 
 	return slotNum, nil
 }

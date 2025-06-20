@@ -72,6 +72,9 @@ func TestExecutorWithTransactions(t *testing.T) {
 			Stats:          &ExecStats{},
 		}
 
+		// Set the transaction context on the storage backend
+		storageBackend.SetCurrentTransaction(mvccTxn.ID(), int64(mvccTxn.ReadTimestamp()))
+
 		// Insert test data within transaction
 		insertRows := []struct {
 			id      int

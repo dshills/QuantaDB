@@ -12,11 +12,12 @@ import (
 // UpdateOperator executes UPDATE statements
 type UpdateOperator struct {
 	baseOperator
-	table       *catalog.Table
-	storage     StorageBackend
-	assignments []parser.Assignment
-	whereClause parser.Expression
-	rowsUpdated int64
+	table            *catalog.Table
+	storage          StorageBackend
+	assignments      []parser.Assignment
+	whereClause      parser.Expression
+	rowsUpdated      int64
+	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance
 }
 
 // NewUpdateOperator creates a new update operator
@@ -189,8 +190,16 @@ func (u *UpdateOperator) Next() (*Row, error) {
 
 // Close cleans up resources
 func (u *UpdateOperator) Close() error {
-	// Nothing to clean up for UPDATE
+	// Trigger statistics maintenance if rows were updated
+	if u.rowsUpdated > 0 && u.statsMaintenance != nil {
+		catalog.StatsMaintenanceHook(u.statsMaintenance, u.table.ID, catalog.ChangeUpdate, u.rowsUpdated)
+	}
 	return nil
+}
+
+// SetStatsMaintenance sets the statistics maintenance handler
+func (u *UpdateOperator) SetStatsMaintenance(maintenance catalog.StatsMaintenance) {
+	u.statsMaintenance = maintenance
 }
 
 // isTypeCompatible checks if a value is compatible with a column type

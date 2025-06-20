@@ -83,6 +83,14 @@ func (dm *DiskManager) AllocatePage() (PageID, error) {
 	if err := dm.file.Truncate(newSize); err != nil {
 		return InvalidPageID, fmt.Errorf("failed to extend file: %w", err)
 	}
+	
+	// Write zeros to the new page to ensure it's properly initialized
+	// This is important because truncate behavior is OS-dependent
+	zeroPage := make([]byte, PageSize)
+	offset := int64(pageID) * PageSize
+	if _, err := dm.file.WriteAt(zeroPage, offset); err != nil {
+		return InvalidPageID, fmt.Errorf("failed to initialize page %d: %w", pageID, err)
+	}
 
 	return pageID, nil
 }

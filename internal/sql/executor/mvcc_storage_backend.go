@@ -78,8 +78,18 @@ func (m *MVCCStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 	m.pageMutex.Lock()
 	defer m.pageMutex.Unlock()
 
+	// Re-read metadata inside the critical section to ensure consistency
+	m.mu.RLock()
+	currentMeta, exists := m.tableMeta[tableID]
+	if !exists {
+		m.mu.RUnlock()
+		return RowID{}, NewTableNotFoundError(tableID)
+	}
+	currentLastPageID := currentMeta.LastPageID
+	m.mu.RUnlock()
+
 	// Find a page with enough space
-	pageID := meta.LastPageID
+	pageID := currentLastPageID
 	page, err := m.bufferPool.FetchPage(pageID)
 	if err != nil {
 		return RowID{}, fmt.Errorf("failed to fetch page: %w", err)
@@ -93,10 +103,18 @@ func (m *MVCCStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 	requiredSpace := uint16(dataLen) + 4 // data + slot entry
 	if page.Header.FreeSpace < requiredSpace {
 		// Need to allocate a new page - use helper method
-		newPageID, newPage, err := m.allocateNewDataPage(pageID, page, meta)
+		newPageID, newPage, err := m.allocateNewDataPage(pageID, page)
 		if err != nil {
 			return RowID{}, err
 		}
+		
+		// Update metadata safely
+		m.mu.Lock()
+		if currentMeta, exists := m.tableMeta[tableID]; exists {
+			currentMeta.LastPageID = newPageID
+		}
+		m.mu.Unlock()
+		
 		pageID = newPageID
 		page = newPage
 	}
@@ -118,7 +136,9 @@ func (m *MVCCStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 
 	// Update row count
 	m.mu.Lock()
-	meta.RowCount++
+	if currentMeta, exists := m.tableMeta[tableID]; exists {
+		currentMeta.RowCount++
+	}
 	m.mu.Unlock()
 
 	// Set RowID in header for future reference
@@ -209,6 +229,7 @@ func (m *MVCCStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 
 // ScanTable returns an MVCC-aware iterator
 func (m *MVCCStorageBackend) ScanTable(tableID int64, snapshotTS int64) (RowIterator, error) {
+	
 	// Get table metadata - copy needed data while holding lock
 	m.mu.RLock()
 	meta, exists := m.tableMeta[tableID]
@@ -275,7 +296,13 @@ func (m *MVCCStorageBackend) GetMVCCRow(tableID int64, rowID RowID) (*MVCCRow, e
 	defer m.bufferPool.UnpinPage(rowID.PageID, false)
 
 	// Read slot entry
-	slotOffset := storage.PageHeaderSize + rowID.SlotID*4
+	slotOffset := int(rowID.SlotID) * 4 // Offset within Data array
+	
+	// Bounds check for slot access
+	if int(slotOffset)+4 > len(page.Data) {
+		return nil, fmt.Errorf("slot offset out of bounds: %d+4 > %d", slotOffset, len(page.Data))
+	}
+	
 	slotData := page.Data[slotOffset : slotOffset+4]
 	pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 	dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
@@ -284,8 +311,20 @@ func (m *MVCCStorageBackend) GetMVCCRow(tableID int64, rowID RowID) (*MVCCRow, e
 		return nil, ErrRowDeleted
 	}
 
-	// Read row data
+	// Read row data - check for underflow first
+	if pageDataOffset < storage.PageHeaderSize {
+		return nil, fmt.Errorf("invalid page data offset: %d < header size %d", pageDataOffset, storage.PageHeaderSize)
+	}
 	dataOffset := pageDataOffset - storage.PageHeaderSize
+	
+	// Bounds check for data access
+	if int(dataOffset) >= len(page.Data) {
+		return nil, fmt.Errorf("data offset out of bounds: %d not in [0, %d)", dataOffset, len(page.Data))
+	}
+	if int(dataOffset)+int(dataSize) > len(page.Data) {
+		return nil, fmt.Errorf("data read would exceed page bounds: %d+%d > %d", dataOffset, dataSize, len(page.Data))
+	}
+	
 	rowData := page.Data[dataOffset : dataOffset+dataSize]
 
 	// Deserialize as MVCC row
@@ -318,8 +357,12 @@ func (m *MVCCStorageBackend) updateRowInPlace(tableID int64, rowID RowID, mvccRo
 	}
 	defer m.bufferPool.UnpinPage(rowID.PageID, true)
 
+	// Acquire page lock before modifying
+	m.bufferPool.AcquirePageLock(rowID.PageID)
+	defer m.bufferPool.ReleasePageLock(rowID.PageID)
+
 	// Read current slot to get size
-	slotOffset := storage.PageHeaderSize + rowID.SlotID*4
+	slotOffset := int(rowID.SlotID) * 4 // Offset within Data array
 	slotData := page.Data[slotOffset : slotOffset+4]
 	pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 	currentSize := uint16(slotData[2])<<8 | uint16(slotData[3])
@@ -373,36 +416,34 @@ func (m *MVCCStorageBackend) physicalDeleteRow(tableID int64, rowID RowID) error
 }
 
 // allocateNewDataPage allocates a new data page and links it to the current page
-func (m *MVCCStorageBackend) allocateNewDataPage(currentPageID storage.PageID, currentPage *storage.Page, meta *TableMetadata) (storage.PageID, *storage.Page, error) {
-	m.bufferPool.UnpinPage(currentPageID, false)
-
-	// Allocate new page
+func (m *MVCCStorageBackend) allocateNewDataPage(currentPageID storage.PageID, currentPage *storage.Page) (storage.PageID, *storage.Page, error) {
+	// Allocate new page first
 	newPage, err := m.bufferPool.NewPage()
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to allocate new page: %w", err)
 	}
 	newPageID := newPage.Header.PageID
 
-	// Link pages
-	currentPage.Header.NextPageID = newPageID
-	m.bufferPool.UnpinPage(currentPageID, true)
-
-	// Update metadata
-	m.mu.Lock()
-	meta.LastPageID = newPageID
-	m.mu.Unlock()
-
-	// Initialize new page
+	// Initialize new page BEFORE linking to prevent race conditions
 	newPage.Header.Type = storage.PageTypeData
-	newPage.Header.FreeSpacePtr = storage.PageSize
-	newPage.Header.FreeSpace = storage.PageSize - storage.PageHeaderSize
-	newPage.Header.ItemCount = 0
+	// NewPage already sets FreeSpacePtr = PageSize and FreeSpace correctly
+	newPage.Header.NextPageID = storage.InvalidPageID
+
+	// Acquire lock before modifying current page
+	m.bufferPool.AcquirePageLock(currentPageID)
+	// Link pages and mark current page as dirty
+	currentPage.Header.NextPageID = newPageID
+	m.bufferPool.ReleasePageLock(currentPageID)
+	
+	// Unpin current page after all modifications are complete
+	m.bufferPool.UnpinPage(currentPageID, true)
 
 	return newPageID, newPage, nil
 }
 
 // insertMVCCRow inserts an already-constructed MVCC row and returns its RowID
 func (m *MVCCStorageBackend) insertMVCCRow(tableID int64, mvccRow *MVCCRow) (RowID, error) {
+	// Check table exists and serialize row first
 	m.mu.RLock()
 	meta, exists := m.tableMeta[tableID]
 	if !exists {
@@ -419,30 +460,80 @@ func (m *MVCCStorageBackend) insertMVCCRow(tableID int64, mvccRow *MVCCRow) (Row
 		return RowID{}, fmt.Errorf("failed to serialize MVCC row: %w", err)
 	}
 
-	// Find a page with enough space
-	pageID := meta.LastPageID
-	page, err := m.bufferPool.FetchPage(pageID)
-	if err != nil {
-		return RowID{}, fmt.Errorf("failed to fetch page: %w", err)
-	}
-
-	// Check if we have enough space
+	// Check size first
 	dataLen := len(rowData)
 	if dataLen > 65531 { // max uint16 - 4 for slot entry
 		return RowID{}, fmt.Errorf("row data too large: %d bytes", dataLen)
 	}
-	requiredSpace := uint16(dataLen) + 4 // data + slot entry
-	if page.Header.FreeSpace < requiredSpace {
+
+	// Now lock table metadata to get current last page
+	m.mu.Lock()
+	meta, exists = m.tableMeta[tableID]
+	if !exists {
+		m.mu.Unlock()
+		return RowID{}, NewTableNotFoundError(tableID)
+	}
+	pageID := meta.LastPageID
+	m.mu.Unlock()
+
+	// Try to insert into current last page
+	page, err := m.bufferPool.FetchPage(pageID)
+	if err != nil {
+		return RowID{}, fmt.Errorf("failed to fetch page: %w", err)
+	}
+	
+	// Acquire page lock before checking space and modifying
+	m.bufferPool.AcquirePageLock(pageID)
+	
+	// Re-check if page has space after acquiring lock (another thread might have filled it)
+	if !page.HasSpaceFor(uint16(dataLen)) {
 		// Need to allocate a new page
-		newPageID, newPage, err := m.allocateNewDataPage(pageID, page, meta)
+		// First release current page lock to avoid deadlock
+		m.bufferPool.ReleasePageLock(pageID)
+		
+		// Allocate new page
+		newPage, err := m.bufferPool.NewPage()
 		if err != nil {
-			return RowID{}, err
+			m.bufferPool.UnpinPage(pageID, false)
+			return RowID{}, fmt.Errorf("failed to allocate new page: %w", err)
 		}
+		newPageID := newPage.Header.PageID
+		
+		// Initialize new page
+		newPage.Header.Type = storage.PageTypeData
+		newPage.Header.NextPageID = storage.InvalidPageID
+		
+		// Re-acquire lock on old page to update link
+		m.bufferPool.AcquirePageLock(pageID)
+		page.Header.NextPageID = newPageID
+		m.bufferPool.ReleasePageLock(pageID)
+		m.bufferPool.UnpinPage(pageID, true)
+		
+		// Update metadata atomically - re-check if another thread already allocated
+		m.mu.Lock()
+		if currentMeta, exists := m.tableMeta[tableID]; exists {
+			// Check if another thread already updated LastPageID
+			if currentMeta.LastPageID != pageID {
+				// Another thread already allocated a new page, use that instead
+				m.mu.Unlock()
+				m.bufferPool.UnpinPage(newPageID, false)
+				// Retry with the new last page
+				return m.insertMVCCRow(tableID, mvccRow)
+			}
+			// We're the first to allocate, update metadata
+			currentMeta.LastPageID = newPageID
+		}
+		m.mu.Unlock()
+		
+		// Switch to new page
 		pageID = newPageID
 		page = newPage
+		
+		// Acquire lock for new page
+		m.bufferPool.AcquirePageLock(pageID)
 	}
 
-	// Insert row into page
+	// Insert row into page - lock is already held
 	slotID := m.insertIntoPage(page, rowData)
 
 	// Log the insert if WAL is enabled
@@ -450,17 +541,22 @@ func (m *MVCCStorageBackend) insertMVCCRow(tableID int64, mvccRow *MVCCRow) (Row
 		currentTxnID := atomic.LoadUint64(&m.currentTxnID)
 		lsn, err := m.walManager.LogInsert(currentTxnID, tableID, uint32(pageID), slotID, rowData)
 		if err != nil {
+			m.bufferPool.ReleasePageLock(pageID)
 			m.bufferPool.UnpinPage(pageID, false)
 			return RowID{}, fmt.Errorf("failed to log insert: %w", err)
 		}
 		page.Header.LSN = uint64(lsn)
 	}
 
+	// Release page lock before unpinning
+	m.bufferPool.ReleasePageLock(pageID)
 	m.bufferPool.UnpinPage(pageID, true)
 
 	// Update row count
 	m.mu.Lock()
-	meta.RowCount++
+	if currentMeta, exists := m.tableMeta[tableID]; exists {
+		currentMeta.RowCount++
+	}
 	m.mu.Unlock()
 
 	return RowID{PageID: pageID, SlotID: slotID}, nil

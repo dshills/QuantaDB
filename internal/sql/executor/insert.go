@@ -11,10 +11,11 @@ import (
 // InsertOperator executes INSERT statements
 type InsertOperator struct {
 	baseOperator
-	table        *catalog.Table
-	storage      StorageBackend
-	values       [][]parser.Expression // List of value tuples to insert
-	rowsInserted int64
+	table            *catalog.Table
+	storage          StorageBackend
+	values           [][]parser.Expression // List of value tuples to insert
+	rowsInserted     int64
+	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance
 }
 
 // NewInsertOperator creates a new insert operator
@@ -121,8 +122,16 @@ func (i *InsertOperator) Next() (*Row, error) {
 	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
-// Close cleans up resources
+// Close cleans up resources and triggers statistics maintenance
 func (i *InsertOperator) Close() error {
-	// Nothing to clean up for INSERT
+	// Trigger statistics maintenance if rows were inserted
+	if i.rowsInserted > 0 && i.statsMaintenance != nil {
+		catalog.StatsMaintenanceHook(i.statsMaintenance, i.table.ID, catalog.ChangeInsert, i.rowsInserted)
+	}
 	return nil
+}
+
+// SetStatsMaintenance sets the statistics maintenance handler
+func (i *InsertOperator) SetStatsMaintenance(maintenance catalog.StatsMaintenance) {
+	i.statsMaintenance = maintenance
 }

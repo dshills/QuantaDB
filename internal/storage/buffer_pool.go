@@ -8,11 +8,12 @@ import (
 
 // BufferPool manages pages in memory with LRU eviction.
 type BufferPool struct {
-	diskManager *DiskManager
-	pages       map[PageID]*BufferPoolPage
-	lruList     *list.List
-	maxPages    int
-	mu          sync.RWMutex
+	diskManager  *DiskManager
+	pages        map[PageID]*BufferPoolPage
+	lruList      *list.List
+	maxPages     int
+	mu           sync.RWMutex
+	pageLockMgr  *PageLockManager
 }
 
 // BufferPoolPage wraps a page with metadata for buffer management.
@@ -30,6 +31,7 @@ func NewBufferPool(diskManager *DiskManager, maxPages int) *BufferPool {
 		pages:       make(map[PageID]*BufferPoolPage),
 		lruList:     list.New(),
 		maxPages:    maxPages,
+		pageLockMgr: NewPageLockManager(),
 	}
 }
 
@@ -203,6 +205,9 @@ func (bp *BufferPool) evictPage() bool {
 			// Remove from LRU list and map
 			bp.lruList.Remove(elem)
 			delete(bp.pages, pageID)
+			
+			// Clean up page lock
+			bp.pageLockMgr.CleanupPageLock(pageID)
 
 			return true
 		}
@@ -232,4 +237,14 @@ func (bp *BufferPool) GetPinnedCount() int {
 	}
 
 	return count
+}
+
+// AcquirePageLock acquires an exclusive lock on a page for modifications
+func (bp *BufferPool) AcquirePageLock(pageID PageID) {
+	bp.pageLockMgr.AcquirePageLock(pageID)
+}
+
+// ReleasePageLock releases the exclusive lock on a page
+func (bp *BufferPool) ReleasePageLock(pageID PageID) {
+	bp.pageLockMgr.ReleasePageLock(pageID)
 }

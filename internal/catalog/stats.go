@@ -23,6 +23,7 @@ type ColumnStats struct {
 	MaxValue      types.Value
 	Histogram     *Histogram
 	LastAnalyzed  time.Time
+	TableRowCount int64 // Total rows in the table (for selectivity calculation)
 }
 
 // Histogram represents the distribution of values in a column.
@@ -62,7 +63,7 @@ type StatsCollector interface {
 // Selectivity estimates the fraction of rows that match a predicate.
 type Selectivity float64
 
-// EstimateSelectivity estimates the selectivity of a predicate.
+// EstimateSelectivity estimates the selectivity of a predicate using histogram-based estimation.
 func EstimateSelectivity(stats *ColumnStats, op ComparisonOp, value types.Value) Selectivity {
 	if stats == nil || stats.RowCount() == 0 {
 		// Default selectivity when no statistics available
@@ -71,25 +72,19 @@ func EstimateSelectivity(stats *ColumnStats, op ComparisonOp, value types.Value)
 
 	switch op {
 	case OpEqual:
-		if stats.DistinctCount > 0 {
-			return Selectivity(1.0 / float64(stats.DistinctCount))
-		}
-		return 0.1 // Default for equality
+		return estimateEqualitySelectivity(stats, value)
 
-	case OpLess, OpLessEqual:
-		if stats.MinValue.IsNull() || stats.MaxValue.IsNull() {
-			return 0.3 // Default for range
-		}
-		// Estimate based on value position in range
-		// This is simplified; real implementation would use histogram
-		return 0.3
+	case OpLess:
+		return estimateRangeSelectivity(stats, value, true, false)
 
-	case OpGreater, OpGreaterEqual:
-		if stats.MinValue.IsNull() || stats.MaxValue.IsNull() {
-			return 0.3 // Default for range
-		}
-		// Estimate based on value position in range
-		return 0.3
+	case OpLessEqual:
+		return estimateRangeSelectivity(stats, value, true, true)
+
+	case OpGreater:
+		return estimateRangeSelectivity(stats, value, false, false)
+
+	case OpGreaterEqual:
+		return estimateRangeSelectivity(stats, value, false, true)
 
 	case OpIsNull:
 		if stats.NullCount > 0 {
@@ -104,13 +99,238 @@ func EstimateSelectivity(stats *ColumnStats, op ComparisonOp, value types.Value)
 		return 0.99 // High default for IS NOT NULL
 
 	case OpNotEqual:
-		if stats.DistinctCount > 0 {
-			return Selectivity(1.0 - (1.0 / float64(stats.DistinctCount)))
-		}
-		return 0.9 // Default for not equal
+		equalSel := estimateEqualitySelectivity(stats, value)
+		return Selectivity(1.0 - float64(equalSel))
 
 	default:
 		return 0.5 // Conservative default
+	}
+}
+
+// estimateEqualitySelectivity estimates selectivity for equality predicates.
+func estimateEqualitySelectivity(stats *ColumnStats, value types.Value) Selectivity {
+	if stats.DistinctCount > 0 {
+		// Use uniform distribution assumption
+		return Selectivity(1.0 / float64(stats.DistinctCount))
+	}
+	return 0.1 // Default for equality
+}
+
+// estimateRangeSelectivity estimates selectivity for range predicates using histograms.
+func estimateRangeSelectivity(stats *ColumnStats, value types.Value, isLower bool, inclusive bool) Selectivity {
+	// If no histogram, fall back to simple range estimation
+	if stats.Histogram == nil || len(stats.Histogram.Buckets) == 0 {
+		return estimateRangeSelectivitySimple(stats, value, isLower)
+	}
+
+	totalRows := stats.RowCount()
+	if totalRows == 0 {
+		return 0.3 // Default
+	}
+
+	var selectedRows int64 = 0
+
+	for _, bucket := range stats.Histogram.Buckets {
+		bucketSelectivity := calculateBucketSelectivity(bucket, value, isLower, inclusive)
+		selectedRows += int64(float64(bucket.Frequency) * float64(bucketSelectivity))
+	}
+
+	selectivity := Selectivity(float64(selectedRows) / float64(totalRows))
+
+	// Ensure selectivity is within bounds
+	if selectivity < 0.0 {
+		return 0.0
+	}
+	if selectivity > 1.0 {
+		return 1.0
+	}
+
+	return selectivity
+}
+
+// calculateBucketSelectivity calculates what fraction of a bucket satisfies the predicate.
+func calculateBucketSelectivity(bucket HistogramBucket, value types.Value, isLower bool, inclusive bool) Selectivity {
+	lowerBound := bucket.LowerBound
+	upperBound := bucket.UpperBound
+
+	// Compare value with bucket bounds
+	cmpLower := compareValues(value, lowerBound)
+	cmpUpper := compareValues(value, upperBound)
+
+	if isLower {
+		// For < or <= predicates, we want values less than 'value'
+		if cmpLower <= 0 {
+			// value <= lowerBound, so no rows in this bucket satisfy predicate
+			return 0.0
+		}
+		if cmpUpper >= 0 {
+			// value >= upperBound, so all rows in this bucket satisfy predicate
+			return 1.0
+		}
+		// value is within bucket range, estimate fraction
+		return estimateFractionInRange(lowerBound, upperBound, value, true, inclusive)
+	} else {
+		// For > or >= predicates, we want values greater than 'value'
+		if cmpUpper <= 0 {
+			// value >= upperBound, so no rows in this bucket satisfy predicate
+			return 0.0
+		}
+		if cmpLower >= 0 {
+			// value <= lowerBound, so all rows in this bucket satisfy predicate
+			return 1.0
+		}
+		// value is within bucket range, estimate fraction
+		return estimateFractionInRange(lowerBound, upperBound, value, false, inclusive)
+	}
+}
+
+// estimateFractionInRange estimates what fraction of values in [lower, upper] satisfy the predicate.
+func estimateFractionInRange(lower, upper, value types.Value, isLower bool, inclusive bool) Selectivity {
+	// For simplicity, assume uniform distribution within bucket
+	// More sophisticated implementations could use interpolation
+
+	totalRange := calculateRange(lower, upper)
+	if totalRange <= 0 {
+		return 0.5 // Can't determine, use conservative estimate
+	}
+
+	if isLower {
+		// Calculate fraction less than value
+		valueRange := calculateRange(lower, value)
+		fraction := float64(valueRange) / float64(totalRange)
+		if !inclusive && fraction > 0 {
+			// Adjust for non-inclusive comparison
+			fraction -= 1.0 / float64(totalRange)
+		}
+		return Selectivity(fraction)
+	} else {
+		// Calculate fraction greater than value
+		valueRange := calculateRange(value, upper)
+		fraction := float64(valueRange) / float64(totalRange)
+		if !inclusive && fraction > 0 {
+			// Adjust for non-inclusive comparison
+			fraction -= 1.0 / float64(totalRange)
+		}
+		return Selectivity(fraction)
+	}
+}
+
+// calculateRange calculates the "distance" between two values for range estimation.
+func calculateRange(lower, upper types.Value) int64 {
+	if lower.IsNull() || upper.IsNull() {
+		return 0
+	}
+
+	switch lv := lower.Data.(type) {
+	case int64:
+		if uv, ok := upper.Data.(int64); ok {
+			if uv > lv {
+				return uv - lv
+			}
+		}
+	case float64:
+		if uv, ok := upper.Data.(float64); ok {
+			if uv > lv {
+				return int64((uv - lv) * 1000) // Scale for precision
+			}
+		}
+	case string:
+		// For strings, use lexicographic ordering approximation
+		if uv, ok := upper.Data.(string); ok {
+			if len(lv) > 0 && len(uv) > 0 {
+				return int64(uv[0] - lv[0]) // Simple first-character difference
+			}
+		}
+	}
+
+	return 1 // Default minimal range
+}
+
+// compareValues compares two values and returns -1, 0, or 1.
+func compareValues(a, b types.Value) int {
+	if a.IsNull() && b.IsNull() {
+		return 0
+	}
+	if a.IsNull() {
+		return -1
+	}
+	if b.IsNull() {
+		return 1
+	}
+
+	switch va := a.Data.(type) {
+	case int64:
+		if vb, ok := b.Data.(int64); ok {
+			if va < vb {
+				return -1
+			} else if va > vb {
+				return 1
+			}
+			return 0
+		}
+	case float64:
+		if vb, ok := b.Data.(float64); ok {
+			if va < vb {
+				return -1
+			} else if va > vb {
+				return 1
+			}
+			return 0
+		}
+	case string:
+		if vb, ok := b.Data.(string); ok {
+			if va < vb {
+				return -1
+			} else if va > vb {
+				return 1
+			}
+			return 0
+		}
+	}
+
+	// Default string comparison
+	sa := a.String()
+	sb := b.String()
+	if sa < sb {
+		return -1
+	} else if sa > sb {
+		return 1
+	}
+	return 0
+}
+
+// estimateRangeSelectivitySimple provides fallback range estimation without histogram.
+func estimateRangeSelectivitySimple(stats *ColumnStats, value types.Value, isLower bool) Selectivity {
+	if stats.MinValue.IsNull() || stats.MaxValue.IsNull() {
+		return 0.3 // Default for range
+	}
+
+	// Simple linear interpolation between min and max
+	totalRange := calculateRange(stats.MinValue, stats.MaxValue)
+	if totalRange <= 0 {
+		return 0.3
+	}
+
+	if isLower {
+		valueRange := calculateRange(stats.MinValue, value)
+		fraction := float64(valueRange) / float64(totalRange)
+		if fraction < 0 {
+			return 0.0
+		}
+		if fraction > 1 {
+			return 1.0
+		}
+		return Selectivity(fraction)
+	} else {
+		valueRange := calculateRange(value, stats.MaxValue)
+		fraction := float64(valueRange) / float64(totalRange)
+		if fraction < 0 {
+			return 0.0
+		}
+		if fraction > 1 {
+			return 1.0
+		}
+		return Selectivity(fraction)
 	}
 }
 
@@ -148,9 +368,7 @@ func defaultSelectivity(op ComparisonOp) Selectivity {
 
 // RowCount returns the total row count from table stats.
 func (c *ColumnStats) RowCount() int64 {
-	// This would normally come from the associated table stats
-	// For now, return a placeholder
-	return 0
+	return c.TableRowCount
 }
 
 // CombineSelectivity combines multiple selectivities.
