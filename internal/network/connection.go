@@ -426,13 +426,13 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 		exec.SetStorageBackend(c.storage)
 	}
 	execCtx := &executor.ExecContext{
-		Catalog:    c.catalog,
-		Engine:     c.engine,
-		TxnManager: c.txnManager,
-		Txn:        c.currentTxn,
-		SnapshotTS: c.getSnapshotTimestamp(),
+		Catalog:        c.catalog,
+		Engine:         c.engine,
+		TxnManager:     c.txnManager,
+		Txn:            c.currentTxn,
+		SnapshotTS:     c.getSnapshotTimestamp(),
 		IsolationLevel: c.getIsolationLevel(),
-		Stats:      &executor.ExecStats{},
+		Stats:          &executor.ExecStats{},
 	}
 
 	result, err := exec.Execute(plan, execCtx)
@@ -739,7 +739,7 @@ func (c *Connection) getIsolationLevel() txn.IsolationLevel {
 // parseIsolationLevel parses the isolation level from a BEGIN statement
 func (c *Connection) parseIsolationLevel(query string) txn.IsolationLevel {
 	upperQuery := strings.ToUpper(query)
-	
+
 	// Check for isolation level in the query
 	if strings.Contains(upperQuery, "SERIALIZABLE") {
 		return txn.Serializable
@@ -753,7 +753,7 @@ func (c *Connection) parseIsolationLevel(query string) txn.IsolationLevel {
 	if strings.Contains(upperQuery, "READ UNCOMMITTED") {
 		return txn.ReadUncommitted
 	}
-	
+
 	// Default to Read Committed
 	return txn.ReadCommitted
 }
@@ -1344,3 +1344,4 @@ func statementReturnsData(stmt parser.Statement) bool {
 		return false
 	}
 }
+

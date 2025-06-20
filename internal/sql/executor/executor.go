@@ -160,6 +160,8 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildDropIndexOperator(p, ctx)
 	case *planner.LogicalAnalyze:
 		return e.buildAnalyzeOperator(p, ctx)
+	case *planner.LogicalVacuum:
+		return e.buildVacuumOperator(p, ctx)
 	case *planner.IndexScan:
 		return e.buildIndexScanOperator(p, ctx)
 	case *planner.LogicalValues:
@@ -555,6 +557,37 @@ func (e *BasicExecutor) buildAnalyzeOperator(plan *planner.LogicalAnalyze, ctx *
 	}
 
 	return NewAnalyzeOperator(plan, ctx.Catalog, e.storage), nil
+}
+
+// buildVacuumOperator builds a VACUUM operator.
+func (e *BasicExecutor) buildVacuumOperator(plan *planner.LogicalVacuum, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+
+	// Get storage backend as MVCCStorageBackend
+	mvccStorage, ok := e.storage.(*MVCCStorageBackend)
+	if !ok {
+		return nil, fmt.Errorf("vacuum requires MVCC storage backend")
+	}
+
+	// Get table if specified
+	var table *catalog.Table
+	if plan.TableName != "" {
+		var err error
+		table, err = ctx.Catalog.GetTable(plan.SchemaName, plan.TableName)
+		if err != nil {
+			return nil, fmt.Errorf("table not found: %w", err)
+		}
+	}
+
+	if plan.Analyze {
+		// Create VACUUM ANALYZE operator
+		return NewVacuumAnalyzeOperator(mvccStorage, ctx.Catalog, table), nil
+	}
+
+	// Create regular VACUUM operator
+	return NewVacuumOperator(mvccStorage, table), nil
 }
 
 // convertSchema converts a planner schema to executor schema.

@@ -66,6 +66,9 @@ type DiskStorageBackend struct {
 	// TODO: In a production system, this should be passed as a parameter to each operation
 	// or managed via context.Context to ensure thread safety for concurrent transactions
 	currentTxnID uint64
+
+	// Current timestamp for MVCC operations
+	currentTimestamp int64
 }
 
 // TableMetadata stores metadata about a table's storage

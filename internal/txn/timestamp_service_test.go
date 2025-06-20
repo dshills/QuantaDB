@@ -8,15 +8,15 @@ import (
 // TestTimestampServiceConcurrency verifies thread-safe timestamp operations
 func TestTimestampServiceConcurrency(t *testing.T) {
 	ts := NewTimestampService()
-	
+
 	// Test concurrent reads don't cause race conditions
 	t.Run("ConcurrentReads", func(t *testing.T) {
 		const goroutines = 100
 		const reads = 1000
-		
+
 		var wg sync.WaitGroup
 		wg.Add(goroutines)
-		
+
 		for i := 0; i < goroutines; i++ {
 			go func() {
 				defer wg.Done()
@@ -25,18 +25,18 @@ func TestTimestampServiceConcurrency(t *testing.T) {
 				}
 			}()
 		}
-		
+
 		wg.Wait()
 	})
-	
+
 	// Test mixed reads and writes
 	t.Run("MixedOperations", func(t *testing.T) {
 		const goroutines = 50
 		const operations = 100
-		
+
 		var wg sync.WaitGroup
 		wg.Add(goroutines * 2)
-		
+
 		// Half goroutines read
 		for i := 0; i < goroutines; i++ {
 			go func() {
@@ -46,7 +46,7 @@ func TestTimestampServiceConcurrency(t *testing.T) {
 				}
 			}()
 		}
-		
+
 		// Half goroutines advance
 		for i := 0; i < goroutines; i++ {
 			go func() {
@@ -56,18 +56,18 @@ func TestTimestampServiceConcurrency(t *testing.T) {
 				}
 			}()
 		}
-		
+
 		wg.Wait()
 	})
-	
+
 	// Test GetSnapshotTimestamp with nil transaction
 	t.Run("SnapshotWithNilTxn", func(t *testing.T) {
 		const goroutines = 100
 		const calls = 1000
-		
+
 		var wg sync.WaitGroup
 		wg.Add(goroutines)
-		
+
 		for i := 0; i < goroutines; i++ {
 			go func() {
 				defer wg.Done()
@@ -76,7 +76,8 @@ func TestTimestampServiceConcurrency(t *testing.T) {
 				}
 			}()
 		}
-		
+
 		wg.Wait()
 	})
 }
+

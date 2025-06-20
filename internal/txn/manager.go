@@ -11,12 +11,13 @@ import (
 
 // Manager manages transactions with MVCC support.
 type Manager struct {
-	mu            sync.RWMutex
-	activeTxns    map[TransactionID]*MvccTransaction
-	committedTxns map[TransactionID]*TransactionInfo
-	engine        engine.Engine
-	gcThreshold   time.Duration
-	maxActiveTime time.Duration
+	mu             sync.RWMutex
+	activeTxns     map[TransactionID]*MvccTransaction
+	committedTxns  map[TransactionID]*TransactionInfo
+	engine         engine.Engine
+	gcThreshold    time.Duration
+	maxActiveTime  time.Duration
+	horizonTracker *HorizonTracker
 }
 
 // ManagerOptions contains configuration for the transaction manager.
@@ -25,6 +26,12 @@ type ManagerOptions struct {
 	GCThreshold time.Duration
 	// MaxActiveTime is the maximum time a transaction can be active.
 	MaxActiveTime time.Duration
+}
+
+// NewTransactionManager creates a new transaction manager with default options.
+func NewTransactionManager() *Manager {
+	// For tests, we can use a nil engine since MVCC storage doesn't use it
+	return NewManager(nil, nil)
 }
 
 // NewManager creates a new transaction manager.
@@ -37,16 +44,27 @@ func NewManager(eng engine.Engine, opts *ManagerOptions) *Manager {
 	}
 
 	return &Manager{
-		activeTxns:    make(map[TransactionID]*MvccTransaction),
-		committedTxns: make(map[TransactionID]*TransactionInfo),
-		engine:        eng,
-		gcThreshold:   opts.GCThreshold,
-		maxActiveTime: opts.MaxActiveTime,
+		activeTxns:     make(map[TransactionID]*MvccTransaction),
+		committedTxns:  make(map[TransactionID]*TransactionInfo),
+		engine:         eng,
+		gcThreshold:    opts.GCThreshold,
+		maxActiveTime:  opts.MaxActiveTime,
+		horizonTracker: NewHorizonTracker(),
 	}
 }
 
-// BeginTransaction starts a new transaction with the specified isolation level.
+// GetHorizonTracker returns the horizon tracker for vacuum operations
+func (m *Manager) GetHorizonTracker() *HorizonTracker {
+	return m.horizonTracker
+}
+
+// BeginTransaction starts a new transaction.
 func (m *Manager) BeginTransaction(ctx context.Context, isolation IsolationLevel) (*MvccTransaction, error) {
+	return m.BeginTransactionWithIsolation(ctx, isolation)
+}
+
+// BeginTransactionWithIsolation starts a new transaction with the specified isolation level.
+func (m *Manager) BeginTransactionWithIsolation(ctx context.Context, isolation IsolationLevel) (*MvccTransaction, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -68,10 +86,14 @@ func (m *Manager) BeginTransaction(ctx context.Context, isolation IsolationLevel
 		WriteTimestamp: writeTS,
 	}
 
-	// Start underlying engine transaction
-	engineTxn, err := m.engine.BeginTransaction(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start engine transaction: %w", err)
+	// Start underlying engine transaction if engine is available
+	var engineTxn engine.Transaction
+	if m.engine != nil {
+		var err error
+		engineTxn, err = m.engine.BeginTransaction(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to start engine transaction: %w", err)
+		}
 	}
 
 	txn := &MvccTransaction{
@@ -84,6 +106,14 @@ func (m *Manager) BeginTransaction(ctx context.Context, isolation IsolationLevel
 	}
 
 	m.activeTxns[txnID] = txn
+
+	// Register with horizon tracker
+	m.horizonTracker.OnTransactionStart(&Transaction{
+		id:            txnID,
+		readTimestamp: readTS,
+		isolation:     isolation,
+	})
+
 	return txn, nil
 }
 
@@ -109,9 +139,11 @@ func (m *Manager) CommitTransaction(txn *MvccTransaction) error {
 		return err
 	}
 
-	// Commit the underlying engine transaction
-	if err := txn.engineTxn.Commit(); err != nil {
-		return fmt.Errorf("engine commit failed: %w", err)
+	// Commit the underlying engine transaction if available
+	if txn.engineTxn != nil {
+		if err := txn.engineTxn.Commit(); err != nil {
+			return fmt.Errorf("engine commit failed: %w", err)
+		}
 	}
 
 	// Update transaction info
@@ -123,6 +155,13 @@ func (m *Manager) CommitTransaction(txn *MvccTransaction) error {
 	m.committedTxns[txn.info.ID] = txn.info
 	delete(m.activeTxns, txn.info.ID)
 
+	// Unregister from horizon tracker
+	m.horizonTracker.OnTransactionEnd(&Transaction{
+		id:            txn.info.ID,
+		readTimestamp: txn.info.ReadTimestamp,
+		isolation:     txn.info.IsolationLevel,
+	})
+
 	return nil
 }
 
@@ -131,9 +170,11 @@ func (m *Manager) AbortTransaction(txn *MvccTransaction) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Rollback the underlying engine transaction
-	if err := txn.engineTxn.Rollback(); err != nil {
-		return fmt.Errorf("engine rollback failed: %w", err)
+	// Rollback the underlying engine transaction if available
+	if txn.engineTxn != nil {
+		if err := txn.engineTxn.Rollback(); err != nil {
+			return fmt.Errorf("engine rollback failed: %w", err)
+		}
 	}
 
 	// Update transaction info
@@ -142,6 +183,13 @@ func (m *Manager) AbortTransaction(txn *MvccTransaction) error {
 
 	// Remove from active transactions
 	delete(m.activeTxns, txn.info.ID)
+
+	// Unregister from horizon tracker
+	m.horizonTracker.OnTransactionEnd(&Transaction{
+		id:            txn.info.ID,
+		readTimestamp: txn.info.ReadTimestamp,
+		isolation:     txn.info.IsolationLevel,
+	})
 
 	return nil
 }

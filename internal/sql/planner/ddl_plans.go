@@ -433,3 +433,84 @@ func (p *LogicalAnalyze) Children() []Plan {
 
 // logicalNode marks this as a logical plan node
 func (p *LogicalAnalyze) logicalNode() {}
+
+// LogicalVacuum represents a VACUUM operation
+type LogicalVacuum struct {
+	basePlan
+	TableName  string // Empty means vacuum all tables
+	SchemaName string
+	Analyze    bool // True for VACUUM ANALYZE
+}
+
+// NewLogicalVacuum creates a new VACUUM plan node
+func NewLogicalVacuum(schemaName, tableName string, analyze bool) *LogicalVacuum {
+	return &LogicalVacuum{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		Analyze:    analyze,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalVacuum) Type() string {
+	return "Vacuum"
+}
+
+// Schema returns the output schema (vacuum statistics)
+func (p *LogicalVacuum) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "operation",
+				DataType: types.Text,
+				Nullable: false,
+			},
+			{
+				Name:     "tables_processed",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+			{
+				Name:     "versions_scanned",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+			{
+				Name:     "versions_removed",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+			{
+				Name:     "space_reclaimed",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+			{
+				Name:     "duration_ms",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalVacuum) String() string {
+	cmd := "Vacuum"
+	if p.Analyze {
+		cmd = "VacuumAnalyze"
+	}
+	if p.TableName != "" {
+		return fmt.Sprintf("%s(%s.%s)", cmd, p.SchemaName, p.TableName)
+	}
+	return fmt.Sprintf("%s(all tables)", cmd)
+}
+
+// Children returns child plans (none for VACUUM)
+func (p *LogicalVacuum) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalVacuum) logicalNode() {}

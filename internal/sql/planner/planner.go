@@ -79,6 +79,8 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 		return p.planDropIndex(s)
 	case *parser.AnalyzeStmt:
 		return p.planAnalyze(s)
+	case *parser.VacuumStmt:
+		return p.planVacuum(s)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}
@@ -345,6 +347,22 @@ func (p *BasicPlanner) planAnalyze(stmt *parser.AnalyzeStmt) (LogicalPlan, error
 	}
 
 	return NewLogicalAnalyze(schemaName, stmt.TableName, stmt.Columns), nil
+}
+
+// planVacuum converts a VACUUM statement to a logical plan.
+func (p *BasicPlanner) planVacuum(stmt *parser.VacuumStmt) (LogicalPlan, error) {
+	// Default to public schema
+	schemaName := defaultSchema
+
+	// If specific table is provided, verify it exists
+	if stmt.TableName != "" {
+		_, err := p.catalog.GetTable(schemaName, stmt.TableName)
+		if err != nil {
+			return nil, fmt.Errorf("table %s.%s not found", schemaName, stmt.TableName)
+		}
+	}
+
+	return NewLogicalVacuum(schemaName, stmt.TableName, stmt.Analyze), nil
 }
 
 // convertExpression converts a parser expression to a planner expression.

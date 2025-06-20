@@ -235,13 +235,13 @@ func (m *MVCCStorageBackend) ScanTable(tableID int64, snapshotTS int64) (RowIter
 func (m *MVCCStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS int64) (*Row, error) {
 	// Create version chain iterator
 	iterator := NewVersionChainIterator(m, tableID)
-	
+
 	// Find the visible version in the chain
 	visibleRow, _, err := iterator.FindVisibleVersion(rowID, snapshotTS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to traverse version chain: %w", err)
 	}
-	
+
 	// If no visible version found, row doesn't exist for this snapshot
 	if visibleRow == nil {
 		return nil, ErrRowNotVisible
@@ -328,7 +328,7 @@ func (m *MVCCStorageBackend) updateRowInPlace(tableID int64, rowID RowID, mvccRo
 	// Update the data
 	dataOffset := pageDataOffset - storage.PageHeaderSize
 	copy(page.Data[dataOffset:dataOffset+uint16(dataLen)], rowData)
-	
+
 	// Update slot size if new data is smaller
 	if uint16(dataLen) < currentSize {
 		// Update the slot entry with new size
@@ -348,6 +348,13 @@ func (m *MVCCStorageBackend) updateRowInPlace(tableID int64, rowID RowID, mvccRo
 	}
 
 	return nil
+}
+
+// SetCurrentTransaction sets the current transaction ID and timestamp for operations
+// This is mainly used for testing
+func (m *MVCCStorageBackend) SetCurrentTransaction(txnID txn.TransactionID, timestamp int64) {
+	atomic.StoreUint64(&m.currentTxnID, uint64(txnID))
+	atomic.StoreInt64(&m.currentTimestamp, timestamp)
 }
 
 // physicalDeleteRow physically removes a row (used for cleanup)

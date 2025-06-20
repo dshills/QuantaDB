@@ -37,3 +37,4 @@ func (ts *TimestampService) GetSnapshotTimestamp(txn *MvccTransaction) Timestamp
 	// Note: This doesn't advance the counter, avoiding unnecessary timestamp advancement
 	return ts.GetCurrentTimestamp()
 }
+

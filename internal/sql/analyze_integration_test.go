@@ -287,12 +287,12 @@ func (m *mockStorageForTest) DeleteRow(tableID int64, rowID executor.RowID) erro
 	return nil
 }
 
-func (m *mockStorageForTest) ScanTable(tableID int64) (executor.RowIterator, error) {
+func (m *mockStorageForTest) ScanTable(tableID int64, snapshotTS int64) (executor.RowIterator, error) {
 	rows := m.tables[tableID]
 	return &mockRowIteratorForTest{rows: rows, pos: 0}, nil
 }
 
-func (m *mockStorageForTest) GetRow(tableID int64, rowID executor.RowID) (*executor.Row, error) {
+func (m *mockStorageForTest) GetRow(tableID int64, rowID executor.RowID, snapshotTS int64) (*executor.Row, error) {
 	return nil, nil //nolint:nilnil // Not implemented for test
 }
 

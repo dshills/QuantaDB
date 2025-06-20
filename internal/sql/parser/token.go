@@ -52,6 +52,7 @@ const (
 	TokenOn
 	TokenUsing
 	TokenAnalyze
+	TokenVacuum
 
 	// Data types.
 	TokenInteger
@@ -132,6 +133,7 @@ var tokenStrings = map[TokenType]string{
 	TokenOn:           "ON",
 	TokenUsing:        "USING",
 	TokenAnalyze:      "ANALYZE",
+	TokenVacuum:       "VACUUM",
 	TokenInteger:      "INTEGER",
 	TokenBigint:       "BIGINT",
 	TokenSmallint:     "SMALLINT",
@@ -244,6 +246,7 @@ var keywords = map[string]TokenType{
 	"IN":        TokenIn,
 	"BETWEEN":   TokenBetween,
 	"IS":        TokenIs,
+	"VACUUM":    TokenVacuum,
 }
 
 // LookupKeyword returns the token type for a keyword.

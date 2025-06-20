@@ -378,3 +378,21 @@ func (s *AnalyzeStmt) String() string {
 	}
 	return fmt.Sprintf("ANALYZE %s", s.TableName)
 }
+
+// VacuumStmt represents a VACUUM statement.
+type VacuumStmt struct {
+	TableName string // Empty means vacuum all tables
+	Analyze   bool   // True for VACUUM ANALYZE
+}
+
+func (s *VacuumStmt) statementNode() {}
+func (s *VacuumStmt) String() string {
+	cmd := "VACUUM"
+	if s.Analyze {
+		cmd = "VACUUM ANALYZE"
+	}
+	if s.TableName != "" {
+		return fmt.Sprintf("%s %s", cmd, s.TableName)
+	}
+	return cmd
+}

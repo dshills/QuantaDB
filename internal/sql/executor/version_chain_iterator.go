@@ -68,7 +68,7 @@ func (vci *VersionChainIterator) FindVisibleVersion(startRowID RowID, snapshotTS
 func (vci *VersionChainIterator) GetAllVersions(startRowID RowID) ([]*MVCCRow, []RowID, error) {
 	var versions []*MVCCRow
 	var rowIDs []RowID
-	
+
 	currentRowID := startRowID
 	visitedRows := make(map[RowID]bool) // Cycle detection
 	maxChainLength := 100               // Prevent infinite loops
@@ -191,11 +191,11 @@ type VersionChainStats struct {
 // - Proper transaction metadata
 func (vci *VersionChainIterator) ValidateVersionChain(startRowID RowID) (*VersionChainValidationResult, error) {
 	result := &VersionChainValidationResult{
-		StartRowID:    startRowID,
-		ChainLength:   0,
-		Errors:        []string{},
-		Warnings:      []string{},
-		IsValid:       true,
+		StartRowID:  startRowID,
+		ChainLength: 0,
+		Errors:      []string{},
+		Warnings:    []string{},
+		IsValid:     true,
 	}
 
 	currentRowID := startRowID
@@ -223,20 +223,20 @@ func (vci *VersionChainIterator) ValidateVersionChain(startRowID RowID) (*Versio
 
 		// Validate timestamp ordering (newer versions should have newer or equal timestamps)
 		if previousTimestamp != -1 && currentRow.Header.CreatedAt > previousTimestamp {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("timestamp ordering violation at RowID %v: timestamp %d > previous %d", 
+			result.Warnings = append(result.Warnings, fmt.Sprintf("timestamp ordering violation at RowID %v: timestamp %d > previous %d",
 				currentRowID, currentRow.Header.CreatedAt, previousTimestamp))
 		}
 		previousTimestamp = currentRow.Header.CreatedAt
 
 		// Validate transaction metadata
 		if currentRow.Header.CreatedByTxn <= 0 {
-			result.Errors = append(result.Errors, fmt.Sprintf("invalid created by transaction ID %d at RowID %v", 
+			result.Errors = append(result.Errors, fmt.Sprintf("invalid created by transaction ID %d at RowID %v",
 				currentRow.Header.CreatedByTxn, currentRowID))
 			result.IsValid = false
 		}
 
 		if currentRow.Header.CreatedAt <= 0 {
-			result.Errors = append(result.Errors, fmt.Sprintf("invalid created timestamp %d at RowID %v", 
+			result.Errors = append(result.Errors, fmt.Sprintf("invalid created timestamp %d at RowID %v",
 				currentRow.Header.CreatedAt, currentRowID))
 			result.IsValid = false
 		}
@@ -244,12 +244,12 @@ func (vci *VersionChainIterator) ValidateVersionChain(startRowID RowID) (*Versio
 		// Validate deletion metadata consistency
 		if currentRow.Header.DeletedAt > 0 {
 			if currentRow.Header.DeletedByTxn <= 0 {
-				result.Errors = append(result.Errors, fmt.Sprintf("row marked as deleted at %d but no deleting transaction at RowID %v", 
+				result.Errors = append(result.Errors, fmt.Sprintf("row marked as deleted at %d but no deleting transaction at RowID %v",
 					currentRow.Header.DeletedAt, currentRowID))
 				result.IsValid = false
 			}
 			if currentRow.Header.DeletedAt < currentRow.Header.CreatedAt {
-				result.Errors = append(result.Errors, fmt.Sprintf("deletion timestamp %d < creation timestamp %d at RowID %v", 
+				result.Errors = append(result.Errors, fmt.Sprintf("deletion timestamp %d < creation timestamp %d at RowID %v",
 					currentRow.Header.DeletedAt, currentRow.Header.CreatedAt, currentRowID))
 				result.IsValid = false
 			}
@@ -284,21 +284,21 @@ func (vci *VersionChainIterator) ValidateVersionChain(startRowID RowID) (*Versio
 
 // VersionChainValidationResult contains the results of version chain validation
 type VersionChainValidationResult struct {
-	StartRowID    RowID     // The starting RowID of the chain
-	ChainLength   int       // Length of the version chain
-	Errors        []string  // Validation errors that make the chain invalid
-	Warnings      []string  // Warnings about potential issues
-	IsValid       bool      // Whether the chain passed validation
+	StartRowID  RowID    // The starting RowID of the chain
+	ChainLength int      // Length of the version chain
+	Errors      []string // Validation errors that make the chain invalid
+	Warnings    []string // Warnings about potential issues
+	IsValid     bool     // Whether the chain passed validation
 }
 
 // GetSingleVersionChainStats returns statistics for a single version chain starting from the given RowID
 func (vci *VersionChainIterator) GetSingleVersionChainStats(startRowID RowID, snapshotTS int64) (*SingleVersionChainStats, error) {
 	stats := &SingleVersionChainStats{
-		StartRowID:     startRowID,
-		ChainLength:    0,
+		StartRowID:      startRowID,
+		ChainLength:     0,
 		VisibleVersions: 0,
-		DeadVersions:   0,
-		HasUpdates:     false,
+		DeadVersions:    0,
+		HasUpdates:      false,
 	}
 
 	// Get all versions in the chain
@@ -326,11 +326,11 @@ func (vci *VersionChainIterator) GetSingleVersionChainStats(startRowID RowID, sn
 
 // SingleVersionChainStats contains statistics for a single version chain
 type SingleVersionChainStats struct {
-	StartRowID       RowID // The starting RowID of the chain
-	ChainLength      int   // Total number of versions in the chain
-	VisibleVersions  int   // Number of versions visible at snapshot timestamp
-	DeadVersions     int   // Number of versions not visible (deleted or too new)
-	HasUpdates       bool  // Whether this chain has more than one version
+	StartRowID      RowID // The starting RowID of the chain
+	ChainLength     int   // Total number of versions in the chain
+	VisibleVersions int   // Number of versions visible at snapshot timestamp
+	DeadVersions    int   // Number of versions not visible (deleted or too new)
+	HasUpdates      bool  // Whether this chain has more than one version
 }
 
 // GetTableVersionChainStats returns statistics about all version chains in a table
@@ -340,3 +340,4 @@ func (vci *VersionChainIterator) GetTableVersionChainStats() (*VersionChainStats
 	// This would require scanning all rows in a table and analyzing their version chains
 	return &VersionChainStats{}, fmt.Errorf("table-wide version chain statistics not yet implemented")
 }
+

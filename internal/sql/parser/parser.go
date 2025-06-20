@@ -84,6 +84,8 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseDrop()
 	case TokenAnalyze:
 		return p.parseAnalyze()
+	case TokenVacuum:
+		return p.parseVacuum()
 	default:
 		return nil, p.error(fmt.Sprintf("unexpected statement start: %s", p.current))
 	}
@@ -743,6 +745,34 @@ func (p *Parser) parseAnalyze() (*AnalyzeStmt, error) {
 		if !p.consume(TokenRightParen, "expected ')'") {
 			return nil, p.lastError()
 		}
+	}
+
+	return stmt, nil
+}
+
+// parseVacuum parses a VACUUM statement.
+func (p *Parser) parseVacuum() (*VacuumStmt, error) {
+	if !p.consume(TokenVacuum, "expected VACUUM") {
+		return nil, p.lastError()
+	}
+
+	stmt := &VacuumStmt{
+		TableName: "", // Empty means vacuum all tables
+		Analyze:   false,
+	}
+
+	// Check for VACUUM ANALYZE
+	if p.match(TokenAnalyze) {
+		stmt.Analyze = true
+	}
+
+	// Optional TABLE keyword
+	p.match(TokenTable)
+
+	// Optional table name
+	if p.check(TokenIdentifier) {
+		stmt.TableName = p.current.Value
+		p.advance()
 	}
 
 	return stmt, nil
