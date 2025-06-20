@@ -34,7 +34,13 @@
 - [ ] Phase 4: Implement version chain management
 - [ ] Phase 5: Create vacuum process for old versions
 - [ ] Phase 6: Comprehensive testing and validation
-**Estimated Time**: 8 days remaining
+**Critical Issues Found**:
+- [ ] Fix MVCC isolation level implementation - tests show improper isolation
+  - Repeatable Read not maintaining snapshot isolation
+  - Phantom reads occurring in Repeatable Read level
+- [ ] Remove or deprecate non-MVCC ScanOperator that bypasses visibility checks
+- [ ] Extract timestamp helpers to shared utility package (low priority)
+**Estimated Time**: 10 days remaining (added 2 days for isolation fixes)
 **Impact**: True ACID compliance with proper isolation
 
 #### 2. Query Optimization Improvements
@@ -97,6 +103,12 @@ See CONTRIBUTING.md for guidelines. Priority areas:
 - Documentation updates
 
 ## Recent Improvements ✨
+
+### Testing Infrastructure (December 20, 2024)
+- ✅ Added unit tests for transaction context propagation
+- ✅ Created concurrent transaction isolation tests
+- ✅ Added thread-safe timestamp service to avoid direct NextTimestamp() calls
+- ✅ Tests revealed critical isolation level bugs that need fixing
 
 ### Transaction Context Threading (December 20, 2024)
 - ✅ Updated ExecContext to remove LegacyTxn and use only MVCC transactions

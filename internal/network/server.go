@@ -23,6 +23,7 @@ type Server struct {
 	engine     engine.Engine
 	storage    executor.StorageBackend
 	txnManager *txn.Manager
+	tsService  *txn.TimestampService
 	logger     log.Logger
 
 	// Connection management
@@ -61,6 +62,7 @@ func NewServer(config Config, cat catalog.Catalog, eng engine.Engine, logger log
 		engine:      eng,
 		storage:     nil, // Set with SetStorageBackend
 		txnManager:  txn.NewManager(eng, nil),
+		tsService:   txn.NewTimestampService(),
 		logger:      logger,
 		connections: make(map[uint32]*Connection),
 		shutdown:    make(chan struct{}),
@@ -75,6 +77,7 @@ func NewServerWithTxnManager(config Config, cat catalog.Catalog, eng engine.Engi
 		engine:      eng,
 		storage:     nil, // Set with SetStorageBackend
 		txnManager:  txnMgr,
+		tsService:   txn.NewTimestampService(),
 		logger:      logger,
 		connections: make(map[uint32]*Connection),
 		shutdown:    make(chan struct{}),
@@ -189,6 +192,7 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 		engine:     s.engine,
 		storage:    s.storage,
 		txnManager: s.txnManager,
+		tsService:  s.tsService,
 		logger:     s.logger.With("conn_id", connID),
 		state:      StateStartup,
 		params:     make(map[string]string),

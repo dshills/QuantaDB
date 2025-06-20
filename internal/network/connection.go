@@ -55,6 +55,7 @@ type Connection struct {
 	engine     engine.Engine
 	storage    executor.StorageBackend
 	txnManager *txn.Manager
+	tsService  *txn.TimestampService
 	logger     log.Logger
 
 	// Connection state
@@ -714,11 +715,8 @@ func (c *Connection) Close() error {
 
 // getSnapshotTimestamp returns the snapshot timestamp for reads
 func (c *Connection) getSnapshotTimestamp() int64 {
-	if c.currentTxn != nil {
-		return int64(c.currentTxn.ReadTimestamp())
-	}
-	// For non-transactional reads, use current timestamp
-	return int64(txn.NextTimestamp())
+	// Use shared timestamp service to avoid advancing counter unnecessarily
+	return int64(c.tsService.GetSnapshotTimestamp(c.currentTxn))
 }
 
 // getIsolationLevel returns the current isolation level
