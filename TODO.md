@@ -2,13 +2,12 @@
 
 ## Summary
 **Last Updated**: December 21, 2024
-**Project Status**: MVCC transaction-storage integration COMPLETE ✅
+**Project Status**: Query Optimization Phase 2 COMPLETE ✅
 **Recent Updates**: 
-- Fixed critical data corruption causing test hangs (slot offset calculations)
-- Implemented thread-safe page locking with PageLockManager
-- Completed query optimization Phase 1 (Enhanced Statistics) 
-- Started Phase 2 (Join Reordering) implementation
-- See `docs/planning/query-optimization-improvements-plan.md` for optimization roadmap
+- Completed Phase 2: Sort-merge join, semi/anti joins, join reordering
+- Fixed critical data corruption and vacuum issues
+- Created Phase 3 plan for advanced index optimization
+- See `docs/planning/phase3-index-optimization-plan.md` for next phase
 
 ## Current Sprint (Q1 2025 - Phase 1: Performance Optimization)
 
@@ -99,11 +98,22 @@
 - [x] Sort-merge join implementation with external sort and disk spilling
 - [x] Semi/anti join support for EXISTS/IN predicates
 
-**Phase 3: Advanced Index Optimization (Week 3)**
-- [ ] Multi-column index support and composite predicates
-- [ ] Index-only scans (covering indexes) implementation
-- [ ] Index intersection for combining multiple indexes
-- [ ] Index prefix matching for partial composite keys
+**Phase 3: Advanced Index Optimization (Week 3)** 🚧 READY TO START
+**Plan**: See `docs/planning/phase3-index-optimization-plan.md`
+- [ ] Task 3.1: Multi-column index support (3 days)
+  - [ ] Composite key implementation in B+Tree
+  - [ ] Index matching for composite predicates
+  - [ ] Query planner integration
+- [ ] Task 3.2: Index-only scans / covering indexes (2 days)
+  - [ ] Covering index detection
+  - [ ] IndexOnlyScanOperator implementation
+  - [ ] Visibility map for MVCC
+- [ ] Task 3.3: Index intersection (1 day)
+  - [ ] Bitmap index scan operations
+  - [ ] Index intersection planner
+- [ ] Task 3.4: Additional optimizations (1 day)
+  - [ ] Index condition pushdown
+  - [ ] Partial index support
 
 **Phase 4: Query Transformation Enhancements (Week 4)**
 - [ ] Complete projection pushdown implementation
@@ -263,9 +273,9 @@ See CONTRIBUTING.md for guidelines. Priority areas:
 - ✅ All tests pass with race detection enabled
 
 ---
-*Last Updated: December 20, 2024*
-*MVCC Transaction-Storage Integration: ✅ COMPLETE*
+*Last Updated: December 21, 2024*
+*Query Optimization Phase 2: ✅ COMPLETE*
 *Repository: ✅ CLEANED AND ORGANIZED*
-*Next Focus: Query Optimization Improvements*
+*Next Focus: Phase 3 - Advanced Index Optimization*
 *For completed features, see `docs/COMPLETED.md`*
-*For detailed planning, see `docs/ROADMAP.md` and `docs/CURRENT_STATUS.md`*
+*For detailed planning, see `docs/ROADMAP.md` and `docs/planning/`*
