@@ -71,9 +71,9 @@ func (vs *VacuumScanner) FindDeadVersionsInTable(tableID int64) ([]DeadVersion, 
 		// Scan all slots in the page
 		for slotID := uint16(0); slotID < page.Header.ItemCount; slotID++ {
 			// Read slot entry
-			slotOffset := storage.PageHeaderSize + slotID*4
-			if slotOffset+4 > storage.PageSize {
-				vs.storage.bufferPool.UnpinPage(currentPageID, false)
+			// Slots are stored in the Data array, not including the header
+			slotOffset := slotID * 4
+			if int(slotOffset)+4 > len(page.Data) {
 				continue
 			}
 
@@ -87,13 +87,24 @@ func (vs *VacuumScanner) FindDeadVersionsInTable(tableID int64) ([]DeadVersion, 
 			}
 
 			// Read row data
+			// Validate pageDataOffset
+			if pageDataOffset < storage.PageHeaderSize {
+				continue
+			}
+			
 			dataOffset := pageDataOffset - storage.PageHeaderSize
-			if dataOffset+dataSize > storage.PageSize {
+			if int(dataOffset) >= len(page.Data) || int(dataOffset)+int(dataSize) > len(page.Data) {
 				continue
 			}
 
 			rowData := page.Data[dataOffset : dataOffset+dataSize]
 
+			// Check if this is an MVCC row (has version byte = 1)
+			if len(rowData) > 0 && rowData[0] != 1 {
+				// Not an MVCC row, skip
+				continue
+			}
+			
 			// Deserialize MVCC row
 			mvccRow, err := mvccFormat.Deserialize(rowData)
 			if err != nil {

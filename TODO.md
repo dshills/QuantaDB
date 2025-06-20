@@ -1,14 +1,14 @@
 # QuantaDB TODO List
 
 ## Summary
-**Last Updated**: December 20, 2024
+**Last Updated**: December 21, 2024
 **Project Status**: MVCC transaction-storage integration COMPLETE ✅
 **Recent Updates**: 
-- Completed Phase 6: Comprehensive testing and validation
-- All MVCC integration phases (1-6) successfully implemented
-- Repository cleaned up and organized with structured documentation
-- Enhanced .gitignore and removed build artifacts
-- See `docs/planning/transaction-storage-integration-plan.md` for full integration plan
+- Fixed critical data corruption causing test hangs (slot offset calculations)
+- Implemented thread-safe page locking with PageLockManager
+- Completed query optimization Phase 1 (Enhanced Statistics) 
+- Started Phase 2 (Join Reordering) implementation
+- See `docs/planning/query-optimization-improvements-plan.md` for optimization roadmap
 
 ## Current Sprint (Q1 2025 - Phase 1: Performance Optimization)
 
@@ -87,16 +87,16 @@
 **Plan**: See `docs/planning/query-optimization-improvements-plan.md`
 **Tasks** (4-week implementation):
 
-**Phase 1: Enhanced Statistics Collection (Week 1)**
-- [ ] Column-level statistics infrastructure with histograms
-- [ ] Histogram-based selectivity estimation
-- [ ] Automatic statistics maintenance hooks
-- [ ] Replace simple heuristics with data-driven estimates
+**Phase 1: Enhanced Statistics Collection (Week 1)** ✅ COMPLETE
+- [x] Column-level statistics infrastructure with histograms
+- [x] Histogram-based selectivity estimation
+- [x] Automatic statistics maintenance hooks
+- [x] Replace simple heuristics with data-driven estimates
 
-**Phase 2: Join Reordering Optimization (Week 2)**  
-- [ ] Dynamic programming join enumeration (≤8 tables)
-- [ ] Greedy join ordering algorithm (>8 tables)
-- [ ] Sort-merge join implementation
+**Phase 2: Join Reordering Optimization (Week 2)** 🚧 IN PROGRESS
+- [x] Dynamic programming join enumeration (≤8 tables)
+- [x] Greedy join ordering algorithm (>8 tables)
+- [ ] Sort-merge join implementation (skeleton added, needs completion)
 - [ ] Semi/anti join support for EXISTS/IN predicates
 
 **Phase 3: Advanced Index Optimization (Week 3)**
@@ -177,6 +177,21 @@ See CONTRIBUTING.md for guidelines. Priority areas:
 - Documentation updates
 
 ## Recent Improvements ✨
+
+### Critical Data Corruption Fix (December 21, 2024)
+- ✅ Fixed slot offset calculations causing test hangs and data corruption
+- ✅ Implemented PageLockManager for thread-safe concurrent page access
+- ✅ Corrected page initialization (FreeSpacePtr = PageSize)
+- ✅ Fixed MVCC visibility to allow transactions to see their own writes
+- ✅ All concurrent insert and transaction tests now pass
+
+### Query Optimization Phase 1 Complete (December 21, 2024)
+- ✅ Column-level statistics with equi-depth histograms
+- ✅ Histogram-based selectivity estimation for accurate cardinality
+- ✅ Automatic statistics maintenance with configurable thresholds
+- ✅ Integration with ANALYZE command for manual statistics updates
+- ✅ Dynamic programming join reordering (optimal for ≤8 tables)
+- ✅ Greedy join ordering for large queries (>8 tables)
 
 ### Repository Cleanup and Organization (December 20, 2024)
 - ✅ Cleaned up build artifacts, log files, and temporary test files
