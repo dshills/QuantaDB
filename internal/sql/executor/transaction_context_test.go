@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"testing"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
@@ -54,7 +55,7 @@ func TestTransactionContextPropagation(t *testing.T) {
 	}
 
 	// Begin a transaction
-	mvccTxn, err := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+	mvccTxn, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 	if err != nil {
 		t.Fatalf("Failed to begin transaction: %v", err)
 	}
@@ -211,7 +212,7 @@ func TestExecContextFields(t *testing.T) {
 	txnManager := txn.NewManager(eng, nil)
 
 	// Create a transaction
-	mvccTxn, err := txnManager.BeginTransaction(nil, txn.RepeatableRead)
+	mvccTxn, err := txnManager.BeginTransaction(context.Background(), txn.RepeatableRead)
 	if err != nil {
 		t.Fatalf("Failed to begin transaction: %v", err)
 	}

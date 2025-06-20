@@ -262,6 +262,13 @@ func (m *Manager) Stats() ManagerStats {
 	}
 }
 
+// GetCurrentTimestamp returns the current timestamp without advancing it.
+// This is useful for non-transactional operations that need a consistent snapshot.
+func (m *Manager) GetCurrentTimestamp() Timestamp {
+	ts := NewTimestampService()
+	return ts.GetCurrentTimestamp()
+}
+
 // ManagerStats contains transaction manager statistics.
 type ManagerStats struct {
 	ActiveTransactions    int

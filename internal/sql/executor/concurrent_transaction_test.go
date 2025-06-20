@@ -23,7 +23,6 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 	defer eng.Close()
 
 	txnManager := txn.NewManager(eng, nil)
-	tsService := txn.NewTimestampService()
 
 	// Create storage backend
 	diskManager, err := storage.NewDiskManager(":memory:")
@@ -71,7 +70,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 			Engine:         eng,
 			TxnManager:     txnManager,
 			Txn:            initTxn,
-			SnapshotTS:     int64(tsService.GetSnapshotTimestamp(initTxn)),
+			SnapshotTS:     int64(initTxn.ReadTimestamp()),
 			IsolationLevel: txn.ReadCommitted,
 			Stats:          &ExecStats{},
 		}
@@ -129,7 +128,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn1,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn1)),
+				SnapshotTS:     int64(txn1.ReadTimestamp()),
 				IsolationLevel: txn.ReadCommitted,
 				Stats:          &ExecStats{},
 			}
@@ -143,7 +142,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 
 			// Second read should see the committed update (non-repeatable read)
 			// For Read Committed, update snapshot timestamp for new statement
-			ctx.SnapshotTS = int64(tsService.GetNextTimestamp())
+			ctx.SnapshotTS = int64(txnManager.GetCurrentTimestamp())
 			balance2 := readAccountBalance(t, ctx, table, storageBackend, 1)
 			results <- balance2
 		}()
@@ -167,7 +166,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn2,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn2)),
+				SnapshotTS:     int64(txn2.ReadTimestamp()),
 				IsolationLevel: txn.ReadCommitted,
 				Stats:          &ExecStats{},
 			}
@@ -234,7 +233,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn1,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn1)),
+				SnapshotTS:     int64(txn1.ReadTimestamp()),
 				IsolationLevel: txn.RepeatableRead,
 				Stats:          &ExecStats{},
 			}
@@ -270,7 +269,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn2,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn2)),
+				SnapshotTS:     int64(txn2.ReadTimestamp()),
 				IsolationLevel: txn.RepeatableRead,
 				Stats:          &ExecStats{},
 			}
@@ -337,7 +336,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn1,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn1)),
+				SnapshotTS:     int64(txn1.ReadTimestamp()),
 				IsolationLevel: txn.ReadCommitted,
 				Stats:          &ExecStats{},
 			}
@@ -376,7 +375,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn2,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn2)),
+				SnapshotTS:     int64(txn2.ReadTimestamp()),
 				IsolationLevel: txn.ReadCommitted,
 				Stats:          &ExecStats{},
 			}
@@ -432,7 +431,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn1,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn1)),
+				SnapshotTS:     int64(txn1.ReadTimestamp()),
 				IsolationLevel: txn.RepeatableRead,
 				Stats:          &ExecStats{},
 			}
@@ -472,7 +471,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 				Engine:         eng,
 				TxnManager:     txnManager,
 				Txn:            txn2,
-				SnapshotTS:     int64(tsService.GetSnapshotTimestamp(txn2)),
+				SnapshotTS:     int64(txn2.ReadTimestamp()),
 				IsolationLevel: txn.ReadCommitted,
 				Stats:          &ExecStats{},
 			}
@@ -812,14 +811,11 @@ func TestConcurrentInsertPerformance(t *testing.T) {
 	t.Logf("  Inserts/second: %.2f", insertsPerSecond)
 
 	// Verify all inserts succeeded
-	// Create timestamp service
-	tsService := txn.NewTimestampService()
-	
 	ctx := &ExecContext{
 		Catalog:    cat,
 		Engine:     eng,
 		TxnManager: txnManager,
-		SnapshotTS: int64(tsService.GetNextTimestamp()),
+		SnapshotTS: int64(txnManager.GetCurrentTimestamp()),
 		Stats:      &ExecStats{},
 	}
 
