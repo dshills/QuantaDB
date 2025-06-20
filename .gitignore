@@ -58,3 +58,23 @@ tmp/
 
 # AWS CDK outputs
 .aws/cdk/cdk.context.json
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+:memory:
+
+# Log files
+*.log
+server*.log
+
+# Test artifacts
+test-data/
+test/drivers/*/node_modules/
+test/drivers/*/venv/
+test/drivers/*/*.log
+
+# Temporary files
+*.tmp
+*.temp

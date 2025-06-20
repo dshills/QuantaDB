@@ -314,14 +314,14 @@ func TestEndToEndQuery(t *testing.T) {
 		// Execute
 		exec := executor.NewBasicExecutor(cat, eng)
 		exec.SetStorageBackend(storageBackend)
-		
+
 		// Create transaction for query execution
 		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
 		defer transaction.Rollback()
-		
+
 		ctx := &executor.ExecContext{
 			Catalog:        cat,
 			Engine:         eng,
