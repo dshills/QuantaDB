@@ -61,6 +61,8 @@ const (
 	RightJoin
 	FullJoin
 	CrossJoin
+	SemiJoin
+	AntiJoin
 )
 
 func (j JoinType) String() string {
@@ -75,6 +77,10 @@ func (j JoinType) String() string {
 		return "FULL"
 	case CrossJoin:
 		return "CROSS"
+	case SemiJoin:
+		return "SEMI"
+	case AntiJoin:
+		return "ANTI"
 	default:
 		return fmt.Sprintf("Unknown(%d)", j)
 	}

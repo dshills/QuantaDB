@@ -96,7 +96,7 @@
 **Phase 2: Join Reordering Optimization (Week 2)** 🚧 IN PROGRESS
 - [x] Dynamic programming join enumeration (≤8 tables)
 - [x] Greedy join ordering algorithm (>8 tables)
-- [ ] Sort-merge join implementation (skeleton added, needs completion)
+- [x] Sort-merge join implementation with external sort and disk spilling
 - [ ] Semi/anti join support for EXISTS/IN predicates
 
 **Phase 3: Advanced Index Optimization (Week 3)**
@@ -177,6 +177,15 @@ See CONTRIBUTING.md for guidelines. Priority areas:
 - Documentation updates
 
 ## Recent Improvements ✨
+
+### Sort-Merge Join Implementation Complete (December 21, 2024)
+- ✅ Implemented MergeJoinOperator with support for all join types (inner, left, right, full)
+- ✅ Added external sort with disk spilling for large datasets
+- ✅ Created buffered iterator for efficient peeking during merge
+- ✅ Support for additional join conditions beyond equality
+- ✅ Proper handling of duplicate join keys with cartesian product generation
+- ✅ Comprehensive test coverage for all join scenarios
+- ✅ Integrated with query optimizer for automatic selection
 
 ### Critical Data Corruption Fix (December 21, 2024)
 - ✅ Fixed slot offset calculations causing test hangs and data corruption

@@ -351,6 +351,7 @@ func (e *BasicExecutor) buildJoinOperator(plan *planner.LogicalJoin, ctx *ExecCo
 
 	// Map planner join type to executor join type
 	var joinType JoinType
+	var isSemiAnti bool
 	switch plan.JoinType {
 	case planner.InnerJoin:
 		joinType = InnerJoin
@@ -362,8 +363,17 @@ func (e *BasicExecutor) buildJoinOperator(plan *planner.LogicalJoin, ctx *ExecCo
 		joinType = FullJoin
 	case planner.CrossJoin:
 		joinType = InnerJoin // Cross join is inner join without predicate
+	case planner.SemiJoin:
+		isSemiAnti = true
+	case planner.AntiJoin:
+		isSemiAnti = true
 	default:
 		return nil, fmt.Errorf("unsupported join type: %v", plan.JoinType)
+	}
+
+	// Handle semi/anti joins separately
+	if isSemiAnti {
+		return e.buildSemiAntiJoin(left, right, plan, predicate)
 	}
 
 	// Choose join algorithm based on join condition and available indexes
@@ -413,6 +423,52 @@ func (e *BasicExecutor) chooseJoinAlgorithm(left, right Operator, plan *planner.
 	
 	// Fall back to nested loop join for non-equi joins or complex conditions
 	return NewNestedLoopJoinOperator(left, right, predicate, joinType), nil
+}
+
+// buildSemiAntiJoin builds a semi or anti join operator
+func (e *BasicExecutor) buildSemiAntiJoin(left, right Operator, plan *planner.LogicalJoin, predicate ExprEvaluator) (Operator, error) {
+	// Map join type
+	var semiJoinType SemiJoinType
+	hasNullHandling := false // TODO: Detect from query pattern
+	
+	switch plan.JoinType {
+	case planner.SemiJoin:
+		semiJoinType = SemiJoinType_Semi
+	case planner.AntiJoin:
+		semiJoinType = SemiJoinType_Anti
+	default:
+		return nil, fmt.Errorf("invalid semi/anti join type: %v", plan.JoinType)
+	}
+	
+	// Extract join keys
+	leftKeys, rightKeys := e.extractJoinKeys(plan.Condition, left.Schema(), right.Schema())
+	
+	// If we have equi-join keys, use hash-based semi/anti join
+	if len(leftKeys) > 0 && len(leftKeys) == len(rightKeys) {
+		leftEvals := make([]ExprEvaluator, len(leftKeys))
+		rightEvals := make([]ExprEvaluator, len(rightKeys))
+		
+		for i, leftKey := range leftKeys {
+			leftExpr := &planner.ColumnRef{ColumnName: leftKey}
+			leftEval, err := buildExprEvaluatorWithSchema(leftExpr, left.Schema())
+			if err != nil {
+				return nil, err
+			}
+			leftEvals[i] = leftEval
+			
+			rightExpr := &planner.ColumnRef{ColumnName: rightKeys[i]}
+			rightEval, err := buildExprEvaluatorWithSchema(rightExpr, right.Schema())
+			if err != nil {
+				return nil, err
+			}
+			rightEvals[i] = rightEval
+		}
+		
+		return NewSemiJoinOperator(left, right, leftEvals, rightEvals, predicate, semiJoinType, hasNullHandling), nil
+	}
+	
+	// Fall back to nested loop for complex conditions
+	return NewNestedLoopSemiJoinOperator(left, right, predicate, semiJoinType, hasNullHandling), nil
 }
 
 // extractJoinKeys extracts equi-join keys from a join condition
