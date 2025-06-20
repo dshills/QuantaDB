@@ -36,8 +36,10 @@ type ExecContext struct {
 	TxnManager *txn.Manager
 	// Current transaction (optional)
 	Txn *txn.MvccTransaction
-	// Legacy transaction for backward compatibility
-	LegacyTxn engine.Transaction
+	// Snapshot timestamp for consistent reads
+	SnapshotTS int64
+	// Isolation level
+	IsolationLevel txn.IsolationLevel
 	// Parameters for prepared statements
 	Params []types.Value
 	// Statistics collector

@@ -42,6 +42,11 @@ func NewStorageScanOperator(table *catalog.Table, storage StorageBackend) *Stora
 func (s *StorageScanOperator) Open(ctx *ExecContext) error {
 	s.ctx = ctx
 
+	// Set transaction ID on storage backend if available
+	if ctx.Txn != nil {
+		s.storage.SetTransactionID(uint64(ctx.Txn.ID()))
+	}
+
 	// Create iterator for table scan
 	var err error
 	s.iterator, err = s.storage.ScanTable(s.table.ID)

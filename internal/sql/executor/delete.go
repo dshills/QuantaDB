@@ -45,6 +45,11 @@ func (d *DeleteOperator) Open(ctx *ExecContext) error {
 	d.ctx = ctx
 	d.rowsDeleted = 0
 
+	// Set transaction ID on storage backend if available
+	if ctx.Txn != nil {
+		d.storage.SetTransactionID(uint64(ctx.Txn.ID()))
+	}
+
 	// Scan the table to find rows to delete
 	iterator, err := d.storage.ScanTable(d.table.ID)
 	if err != nil {

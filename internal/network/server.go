@@ -67,6 +67,20 @@ func NewServer(config Config, cat catalog.Catalog, eng engine.Engine, logger log
 	}
 }
 
+// NewServerWithTxnManager creates a new server instance with a custom transaction manager
+func NewServerWithTxnManager(config Config, cat catalog.Catalog, eng engine.Engine, txnMgr *txn.Manager, logger log.Logger) *Server {
+	return &Server{
+		config:      config,
+		catalog:     cat,
+		engine:      eng,
+		storage:     nil, // Set with SetStorageBackend
+		txnManager:  txnMgr,
+		logger:      logger,
+		connections: make(map[uint32]*Connection),
+		shutdown:    make(chan struct{}),
+	}
+}
+
 // SetStorageBackend sets the storage backend for the server
 func (s *Server) SetStorageBackend(storage executor.StorageBackend) {
 	s.storage = storage

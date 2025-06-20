@@ -21,13 +21,20 @@
 - [x] MVCCStorageBackend with atomic transaction ID handling
 - [x] Timestamp-based visibility checks
 - [x] Raw iterator for MVCC-aware scans
-**Remaining Tasks** (Phases 2-6):
-- [ ] Phase 2: Thread transaction context through operations
+**Completed** (Phase 2):
+- [x] Phase 2: Thread transaction context through operations
+  - Updated ExecContext to use only MVCC transactions
+  - Added SnapshotTS and IsolationLevel fields
+  - Updated network handler to pass transaction context
+  - Modified all DML operators to set transaction ID on storage
+  - Removed legacy transaction usage
+  - Updated server initialization to use MVCCStorageBackend
+**Remaining Tasks** (Phases 3-6):
 - [ ] Phase 3: Add visibility filtering to all scan operators
 - [ ] Phase 4: Implement version chain management
 - [ ] Phase 5: Create vacuum process for old versions
 - [ ] Phase 6: Comprehensive testing and validation
-**Estimated Time**: 10 days remaining
+**Estimated Time**: 8 days remaining
 **Impact**: True ACID compliance with proper isolation
 
 #### 2. Query Optimization Improvements
@@ -90,6 +97,14 @@ See CONTRIBUTING.md for guidelines. Priority areas:
 - Documentation updates
 
 ## Recent Improvements ✨
+
+### Transaction Context Threading (December 20, 2024)
+- ✅ Updated ExecContext to remove LegacyTxn and use only MVCC transactions
+- ✅ Added SnapshotTS and IsolationLevel fields to ExecContext
+- ✅ Modified connection handler to pass transaction context to all queries
+- ✅ Updated all DML operators (INSERT, UPDATE, DELETE, SCAN) to use transaction ID
+- ✅ Modified server initialization to use MVCCStorageBackend with transaction manager
+- ✅ All tests pass with the new transaction-aware architecture
 
 ### MVCC Row Format Implementation (December 20, 2024)
 - ✅ Created MVCCRowHeader with transaction metadata (IDs, timestamps, version pointers)

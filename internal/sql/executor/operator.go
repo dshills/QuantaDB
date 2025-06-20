@@ -78,19 +78,9 @@ func (s *ScanOperator) Open(ctx *ExecContext) error {
 
 	// Create iterator for table scan
 	var err error
-	// Use transaction if available, otherwise use engine directly
-	if ctx.Txn != nil {
-		// For MVCC transactions, we need to implement scan separately
-		// For now, fall back to engine scan with transaction context
-		if ctx.LegacyTxn != nil {
-			// TODO: Implement transactional scan when Transaction interface supports it
-			s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
-		} else {
-			s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
-		}
-	} else {
-		s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
-	}
+	// Use engine scan directly
+	// Note: For transactional scans, use StorageScanOperator with MVCC support instead
+	s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to create scan iterator: %w", err)

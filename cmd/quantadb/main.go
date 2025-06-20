@@ -16,6 +16,8 @@ import (
 	"github.com/dshills/QuantaDB/internal/network"
 	"github.com/dshills/QuantaDB/internal/sql/executor"
 	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/txn"
+	"github.com/dshills/QuantaDB/internal/wal"
 )
 
 var (
@@ -79,12 +81,28 @@ func main() {
 
 	// Create buffer pool (128MB default)
 	bufferPool := storage.NewBufferPool(diskManager, 128*1024*1024/storage.PageSize)
-	// Create storage backend
-	storageBackend := executor.NewDiskStorageBackend(bufferPool, cat)
-
+	
 	// Initialize storage engine (for backward compatibility)
 	eng := engine.NewMemoryEngine()
 	defer eng.Close()
+
+	// Initialize transaction manager
+	txnManager := txn.NewManager(eng, nil)
+
+	// Initialize WAL manager (optional - can be nil)
+	walConfig := wal.DefaultConfig()
+	walConfig.Directory = filepath.Join(*dataDir, "wal")
+	walManager, err := wal.NewManager(walConfig)
+	if err != nil {
+		logger.Warn("Failed to create WAL manager, continuing without WAL", "error", err)
+		walManager = nil
+	}
+	if walManager != nil {
+		defer walManager.Close()
+	}
+
+	// Create MVCC storage backend
+	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, walManager, txnManager)
 
 	// Configure server
 	config := network.DefaultConfig()
@@ -92,7 +110,7 @@ func main() {
 	config.Port = *port
 
 	// Create and start server
-	server := network.NewServer(config, cat, eng, logger)
+	server := network.NewServerWithTxnManager(config, cat, eng, txnManager, logger)
 	server.SetStorageBackend(storageBackend)
 
 	ctx, cancel := context.WithCancel(context.Background())

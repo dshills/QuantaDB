@@ -48,6 +48,11 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 	u.ctx = ctx
 	u.rowsUpdated = 0
 
+	// Set transaction ID on storage backend if available
+	if ctx.Txn != nil {
+		u.storage.SetTransactionID(uint64(ctx.Txn.ID()))
+	}
+
 	// Scan the table to find rows to update
 	iterator, err := u.storage.ScanTable(u.table.ID)
 	if err != nil {

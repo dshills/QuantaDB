@@ -428,6 +428,8 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 		Engine:     c.engine,
 		TxnManager: c.txnManager,
 		Txn:        c.currentTxn,
+		SnapshotTS: c.getSnapshotTimestamp(),
+		IsolationLevel: c.getIsolationLevel(),
 		Stats:      &executor.ExecStats{},
 	}
 
@@ -708,6 +710,24 @@ func (c *Connection) Close() error {
 	}
 
 	return c.conn.Close()
+}
+
+// getSnapshotTimestamp returns the snapshot timestamp for reads
+func (c *Connection) getSnapshotTimestamp() int64 {
+	if c.currentTxn != nil {
+		return int64(c.currentTxn.ReadTimestamp())
+	}
+	// For non-transactional reads, use current timestamp
+	return int64(txn.NextTimestamp())
+}
+
+// getIsolationLevel returns the current isolation level
+func (c *Connection) getIsolationLevel() txn.IsolationLevel {
+	if c.currentTxn != nil {
+		return c.currentTxn.IsolationLevel()
+	}
+	// Default to Read Committed for non-transactional queries
+	return txn.ReadCommitted
 }
 
 // handleParse handles a Parse message

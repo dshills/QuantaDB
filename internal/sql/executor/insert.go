@@ -45,6 +45,11 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 	i.ctx = ctx
 	i.rowsInserted = 0
 
+	// Set transaction ID on storage backend if available
+	if ctx.Txn != nil {
+		i.storage.SetTransactionID(uint64(ctx.Txn.ID()))
+	}
+
 	// Validate that we have values to insert
 	if len(i.values) == 0 {
 		return fmt.Errorf("no values to insert")
