@@ -366,9 +366,145 @@ func (e *BasicExecutor) buildJoinOperator(plan *planner.LogicalJoin, ctx *ExecCo
 		return nil, fmt.Errorf("unsupported join type: %v", plan.JoinType)
 	}
 
-	// For now, use nested loop join
-	// TODO: Analyze join condition to decide between hash join and nested loop
+	// Choose join algorithm based on join condition and available indexes
+	return e.chooseJoinAlgorithm(left, right, plan, predicate, joinType)
+}
+
+// chooseJoinAlgorithm selects the best join algorithm based on the join condition
+func (e *BasicExecutor) chooseJoinAlgorithm(left, right Operator, plan *planner.LogicalJoin, predicate ExprEvaluator, joinType JoinType) (Operator, error) {
+	// Extract join keys from the condition
+	leftKeys, rightKeys := e.extractJoinKeys(plan.Condition, left.Schema(), right.Schema())
+	
+	// If we have equi-join keys, we can use hash join or merge join
+	if len(leftKeys) > 0 && len(leftKeys) == len(rightKeys) {
+		// Check if inputs are already sorted
+		leftSorted := e.isSorted(plan.Children()[0], leftKeys)
+		rightSorted := e.isSorted(plan.Children()[1], rightKeys)
+		
+		// Use merge join if both inputs are sorted or if we have large inputs
+		if leftSorted && rightSorted {
+			// Convert column names to indices
+			leftIndices := e.namesToIndices(leftKeys, left.Schema())
+			rightIndices := e.namesToIndices(rightKeys, right.Schema())
+			
+			return NewMergeJoinOperator(left, right, joinType, predicate, leftIndices, rightIndices), nil
+		}
+		
+		// Otherwise use hash join for equi-joins
+		// For now, just use the first join key
+		// TODO: Support multi-column hash joins
+		if len(leftKeys) == 1 {
+			leftExpr := &planner.ColumnRef{ColumnName: leftKeys[0]}
+			rightExpr := &planner.ColumnRef{ColumnName: rightKeys[0]}
+			
+			leftEval, err := buildExprEvaluatorWithSchema(leftExpr, left.Schema())
+			if err != nil {
+				return nil, err
+			}
+			
+			rightEval, err := buildExprEvaluatorWithSchema(rightExpr, right.Schema())
+			if err != nil {
+				return nil, err
+			}
+			
+			return NewHashJoinOperator(left, right, []ExprEvaluator{leftEval}, []ExprEvaluator{rightEval}, predicate, joinType), nil
+		}
+	}
+	
+	// Fall back to nested loop join for non-equi joins or complex conditions
 	return NewNestedLoopJoinOperator(left, right, predicate, joinType), nil
+}
+
+// extractJoinKeys extracts equi-join keys from a join condition
+func (e *BasicExecutor) extractJoinKeys(condition planner.Expression, leftSchema, rightSchema *Schema) ([]string, []string) {
+	if condition == nil {
+		return nil, nil
+	}
+	
+	// Look for equality conditions
+	switch expr := condition.(type) {
+	case *planner.BinaryOp:
+		if expr.Operator == planner.OpEqual {
+			// Check if it's a column = column comparison
+			leftCol, leftOk := expr.Left.(*planner.ColumnRef)
+			rightCol, rightOk := expr.Right.(*planner.ColumnRef)
+			
+			if leftOk && rightOk {
+				// Determine which column belongs to which side
+				if e.columnBelongsTo(leftCol.ColumnName, leftSchema) && e.columnBelongsTo(rightCol.ColumnName, rightSchema) {
+					return []string{leftCol.ColumnName}, []string{rightCol.ColumnName}
+				} else if e.columnBelongsTo(rightCol.ColumnName, leftSchema) && e.columnBelongsTo(leftCol.ColumnName, rightSchema) {
+					return []string{rightCol.ColumnName}, []string{leftCol.ColumnName}
+				}
+			}
+		} else if expr.Operator == planner.OpAnd {
+			// Recursively extract from AND conditions
+			leftKeys1, rightKeys1 := e.extractJoinKeys(expr.Left, leftSchema, rightSchema)
+			leftKeys2, rightKeys2 := e.extractJoinKeys(expr.Right, leftSchema, rightSchema)
+			
+			if leftKeys1 != nil && leftKeys2 != nil {
+				return append(leftKeys1, leftKeys2...), append(rightKeys1, rightKeys2...)
+			}
+		}
+	}
+	
+	return nil, nil
+}
+
+// columnBelongsTo checks if a column name belongs to a schema
+func (e *BasicExecutor) columnBelongsTo(columnName string, schema *Schema) bool {
+	for _, col := range schema.Columns {
+		if col.Name == columnName {
+			return true
+		}
+	}
+	return false
+}
+
+// isSorted checks if a plan node produces sorted output
+func (e *BasicExecutor) isSorted(plan planner.Plan, columns []string) bool {
+	switch p := plan.(type) {
+	case *planner.LogicalSort:
+		// Check if sort keys match the required columns
+		if len(p.OrderBy) >= len(columns) {
+			for i, col := range columns {
+				if colRef, ok := p.OrderBy[i].Expr.(*planner.ColumnRef); ok {
+					if colRef.ColumnName != col {
+						return false
+					}
+				} else {
+					return false
+				}
+			}
+			return true
+		}
+	case *planner.LogicalScan:
+		// TODO: Check if we're scanning an index that provides the required order
+		return false
+	}
+	
+	// Check children
+	for _, child := range plan.Children() {
+		if e.isSorted(child, columns) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// namesToIndices converts column names to indices in a schema
+func (e *BasicExecutor) namesToIndices(names []string, schema *Schema) []int {
+	indices := make([]int, len(names))
+	for i, name := range names {
+		for j, col := range schema.Columns {
+			if col.Name == name {
+				indices[i] = j
+				break
+			}
+		}
+	}
+	return indices
 }
 
 // buildAggregateOperator builds an aggregate operator.

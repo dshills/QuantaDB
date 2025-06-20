@@ -70,6 +70,55 @@ func (v Value) AsBool() (bool, error) {
 	return false, fmt.Errorf("cannot convert %T to bool", v.Data)
 }
 
+// AsInt returns the value as an int32
+func (v Value) AsInt() (int32, error) {
+	if v.Null {
+		return 0, fmt.Errorf("cannot convert NULL to int")
+	}
+	switch val := v.Data.(type) {
+	case int32:
+		return val, nil
+	case int64:
+		return int32(val), nil
+	case int:
+		return int32(val), nil
+	default:
+		return 0, fmt.Errorf("cannot convert %T to int", v.Data)
+	}
+}
+
+// AsString returns the value as a string
+func (v Value) AsString() (string, error) {
+	if v.Null {
+		return "", fmt.Errorf("cannot convert NULL to string")
+	}
+	if s, ok := v.Data.(string); ok {
+		return s, nil
+	}
+	return "", fmt.Errorf("cannot convert %T to string", v.Data)
+}
+
+// Type returns the DataType of the value based on its underlying type
+func (v Value) Type() DataType {
+	if v.Null {
+		return Unknown
+	}
+	switch v.Data.(type) {
+	case int32:
+		return Integer
+	case int64:
+		return BigInt
+	case int16:
+		return SmallInt
+	case string:
+		return Text
+	case bool:
+		return Boolean
+	default:
+		return Unknown
+	}
+}
+
 // CompareValues compares two values, handling NULLs
 // NULL is considered less than any non-NULL value
 func CompareValues(a, b Value) int {
