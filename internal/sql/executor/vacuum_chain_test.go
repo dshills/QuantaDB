@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"testing"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
@@ -201,8 +202,17 @@ func TestVacuumWithConcurrentReads(t *testing.T) {
 
 	tableID := table.ID
 
-	// Insert and delete some rows to create dead versions
+	// Insert rows - they'll get auto-incrementing timestamps
 	var deletedRowIDs []RowID
+	var allRowIDs []RowID
+
+	// Create a transaction for inserts
+	insertTxn, err := txnMgr.BeginTransaction(context.Background(), txn.ReadCommitted)
+	if err != nil {
+		t.Fatalf("failed to begin insert transaction: %v", err)
+	}
+	mvccStorage.SetCurrentTransaction(insertTxn.ID(), int64(insertTxn.ReadTimestamp()))
+
 	for i := 1; i <= 5; i++ {
 		row := &Row{
 			Values: []types.Value{
@@ -214,20 +224,47 @@ func TestVacuumWithConcurrentReads(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to insert row %d: %v", i, err)
 		}
+		allRowIDs = append(allRowIDs, rowID)
+	}
 
-		// Delete even numbered rows
-		if i%2 == 0 {
-			mvccStorage.SetCurrentTransaction(txn.TransactionID(1000+i), int64(10+i))
-			err = mvccStorage.DeleteRow(tableID, rowID)
-			if err != nil {
-				t.Fatalf("failed to delete row %d: %v", i, err)
-			}
-			deletedRowIDs = append(deletedRowIDs, rowID)
+	// Commit insert transaction
+	err = txnMgr.CommitTransaction(insertTxn)
+	if err != nil {
+		t.Fatalf("failed to commit insert transaction: %v", err)
+	}
+
+	// Save snapshot timestamp after inserts
+	readSnapshot := int64(txn.NextTimestamp())
+
+	// Start a read transaction that will protect rows visible at readSnapshot
+	readTxn, err := txnMgr.BeginTransaction(context.Background(), txn.RepeatableRead)
+	if err != nil {
+		t.Fatalf("failed to begin read transaction: %v", err)
+	}
+
+	// Now delete even-numbered rows in a new transaction
+	deleteTxn, err := txnMgr.BeginTransaction(context.Background(), txn.ReadCommitted)
+	if err != nil {
+		t.Fatalf("failed to begin delete transaction: %v", err)
+	}
+	mvccStorage.SetCurrentTransaction(deleteTxn.ID(), int64(deleteTxn.ReadTimestamp()))
+
+	// Delete rows 2 and 4
+	deletedRowIDs = append(deletedRowIDs, allRowIDs[1]) // Row 2 (index 1)
+	deletedRowIDs = append(deletedRowIDs, allRowIDs[3]) // Row 4 (index 3)
+
+	for _, rowID := range deletedRowIDs {
+		err = mvccStorage.DeleteRow(tableID, rowID)
+		if err != nil {
+			t.Fatalf("failed to delete row: %v", err)
 		}
 	}
 
-	// Start a read transaction with a snapshot before deletions
-	readSnapshot := int64(5) // Before any deletions
+	// Commit delete transaction
+	err = txnMgr.CommitTransaction(deleteTxn)
+	if err != nil {
+		t.Fatalf("failed to commit delete transaction: %v", err)
+	}
 
 	// Create vacuum executor
 	executor := NewVacuumExecutor(mvccStorage, txnMgr.GetHorizonTracker())
@@ -275,17 +312,22 @@ func TestVacuumWithConcurrentReads(t *testing.T) {
 	for {
 		row, _, err := iterator.Next()
 		if err != nil {
-			break
+			t.Fatalf("iterator error: %v", err)
 		}
-		if row != nil {
-			count++
+		if row == nil {
+			break // No more rows
 		}
+		count++
 	}
 
 	// With snapshot before deletions, should see all 5 rows
-	t.Logf("Rows visible with old snapshot: %d", count)
 	if count != 5 {
 		t.Errorf("expected 5 rows visible with old snapshot, got %d", count)
 	}
-}
 
+	// Clean up - commit the read transaction
+	err = txnMgr.CommitTransaction(readTxn)
+	if err != nil {
+		t.Fatalf("failed to commit read transaction: %v", err)
+	}
+}
