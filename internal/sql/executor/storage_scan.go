@@ -48,8 +48,9 @@ func (s *StorageScanOperator) Open(ctx *ExecContext) error {
 	}
 
 	// Create iterator for table scan
+	// Pass the snapshot timestamp from the execution context
 	var err error
-	s.iterator, err = s.storage.ScanTable(s.table.ID)
+	s.iterator, err = s.storage.ScanTable(s.table.ID, ctx.SnapshotTS)
 	if err != nil {
 		return fmt.Errorf("failed to create scan iterator: %w", err)
 	}

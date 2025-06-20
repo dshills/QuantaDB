@@ -365,9 +365,10 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	upperQuery := strings.ToUpper(query)
 
 	// Transaction control
+	if strings.HasPrefix(upperQuery, "BEGIN") {
+		return c.handleBegin(ctx, query)
+	}
 	switch upperQuery {
-	case "BEGIN":
-		return c.handleBegin(ctx)
 	case "COMMIT":
 		return c.handleCommit(ctx)
 	case "ROLLBACK":
@@ -476,12 +477,15 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 }
 
 // handleBegin starts a new transaction
-func (c *Connection) handleBegin(ctx context.Context) error {
+func (c *Connection) handleBegin(ctx context.Context, query string) error {
 	if c.currentTxn != nil {
 		return errors.TransactionAlreadyActiveError()
 	}
 
-	txn, err := c.txnManager.BeginTransaction(ctx, txn.ReadCommitted)
+	// Parse isolation level from query
+	isolationLevel := c.parseIsolationLevel(query)
+
+	txn, err := c.txnManager.BeginTransaction(ctx, isolationLevel)
 	if err != nil {
 		return err
 	}
@@ -715,7 +719,11 @@ func (c *Connection) Close() error {
 
 // getSnapshotTimestamp returns the snapshot timestamp for reads
 func (c *Connection) getSnapshotTimestamp() int64 {
-	// Use shared timestamp service to avoid advancing counter unnecessarily
+	// For Read Committed isolation, get a new snapshot for each statement
+	if c.currentTxn != nil && c.currentTxn.IsolationLevel() == txn.ReadCommitted {
+		return int64(c.tsService.GetNextTimestamp())
+	}
+	// For other isolation levels, use the transaction's snapshot
 	return int64(c.tsService.GetSnapshotTimestamp(c.currentTxn))
 }
 
@@ -725,6 +733,28 @@ func (c *Connection) getIsolationLevel() txn.IsolationLevel {
 		return c.currentTxn.IsolationLevel()
 	}
 	// Default to Read Committed for non-transactional queries
+	return txn.ReadCommitted
+}
+
+// parseIsolationLevel parses the isolation level from a BEGIN statement
+func (c *Connection) parseIsolationLevel(query string) txn.IsolationLevel {
+	upperQuery := strings.ToUpper(query)
+	
+	// Check for isolation level in the query
+	if strings.Contains(upperQuery, "SERIALIZABLE") {
+		return txn.Serializable
+	}
+	if strings.Contains(upperQuery, "REPEATABLE READ") {
+		return txn.RepeatableRead
+	}
+	if strings.Contains(upperQuery, "READ COMMITTED") {
+		return txn.ReadCommitted
+	}
+	if strings.Contains(upperQuery, "READ UNCOMMITTED") {
+		return txn.ReadUncommitted
+	}
+	
+	// Default to Read Committed
 	return txn.ReadCommitted
 }
 
@@ -932,12 +962,14 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 		exec.SetStorageBackend(c.storage)
 	}
 	execCtx := &executor.ExecContext{
-		Catalog:    c.catalog,
-		Engine:     c.engine,
-		TxnManager: c.txnManager,
-		Txn:        c.currentTxn,
-		Params:     portal.ParamValues,
-		Stats:      &executor.ExecStats{},
+		Catalog:        c.catalog,
+		Engine:         c.engine,
+		TxnManager:     c.txnManager,
+		Txn:            c.currentTxn,
+		SnapshotTS:     c.getSnapshotTimestamp(),
+		IsolationLevel: c.getIsolationLevel(),
+		Params:         portal.ParamValues,
+		Stats:          &executor.ExecStats{},
 	}
 
 	result, err := exec.Execute(plan, execCtx)

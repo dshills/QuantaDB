@@ -44,7 +44,7 @@ func (m *mockStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 	return nil
 }
 
-func (m *mockStorageBackend) ScanTable(tableID int64) (RowIterator, error) {
+func (m *mockStorageBackend) ScanTable(tableID int64, snapshotTS int64) (RowIterator, error) {
 	rows, ok := m.tables[tableID]
 	if !ok {
 		return nil, nil //nolint:nilnil // No table found
@@ -52,7 +52,7 @@ func (m *mockStorageBackend) ScanTable(tableID int64) (RowIterator, error) {
 	return &mockRowIterator{rows: rows, pos: 0}, nil
 }
 
-func (m *mockStorageBackend) GetRow(tableID int64, rowID RowID) (*Row, error) {
+func (m *mockStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS int64) (*Row, error) {
 	// Not implemented for this test
 	return nil, nil //nolint:nilnil // Not implemented for test
 }

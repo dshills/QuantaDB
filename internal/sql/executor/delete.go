@@ -51,7 +51,7 @@ func (d *DeleteOperator) Open(ctx *ExecContext) error {
 	}
 
 	// Scan the table to find rows to delete
-	iterator, err := d.storage.ScanTable(d.table.ID)
+	iterator, err := d.storage.ScanTable(d.table.ID, ctx.SnapshotTS)
 	if err != nil {
 		return fmt.Errorf("failed to scan table: %w", err)
 	}

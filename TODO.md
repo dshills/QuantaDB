@@ -29,15 +29,20 @@
   - Modified all DML operators to set transaction ID on storage
   - Removed legacy transaction usage
   - Updated server initialization to use MVCCStorageBackend
-**Remaining Tasks** (Phases 3-6):
-- [ ] Phase 3: Add visibility filtering to all scan operators
+**Completed** (Phase 3):
+- [x] Phase 3: Add visibility filtering to all scan operators
+  - Updated StorageBackend interface to accept snapshot timestamps
+  - Modified MVCCStorageBackend to use snapshot timestamps for visibility
+  - Updated all scan operators to pass snapshot timestamp from context
+  - Fixed timestamp generation to use logical timestamps consistently
+  - Fixed isolation level handling for Read Committed vs Repeatable Read
+  - All MVCC isolation tests now pass
+**Remaining Tasks** (Phases 4-6):
 - [ ] Phase 4: Implement version chain management
 - [ ] Phase 5: Create vacuum process for old versions
 - [ ] Phase 6: Comprehensive testing and validation
-**Critical Issues Found**:
-- [ ] Fix MVCC isolation level implementation - tests show improper isolation
-  - Repeatable Read not maintaining snapshot isolation
-  - Phantom reads occurring in Repeatable Read level
+**New Issues Found**:
+- [ ] Fix concurrent insert performance test - slice bounds error in raw iterator
 - [ ] Remove or deprecate non-MVCC ScanOperator that bypasses visibility checks
 - [ ] Extract timestamp helpers to shared utility package (low priority)
 **Estimated Time**: 10 days remaining (added 2 days for isolation fixes)

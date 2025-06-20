@@ -3,7 +3,6 @@ package executor
 import (
 	"fmt"
 	"sync/atomic"
-	"time"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/storage"
@@ -49,15 +48,16 @@ func (m *MVCCStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 	schema := meta.RowFormat.Schema
 	m.mu.RUnlock()
 
-	// For now, just use the transaction ID and current timestamp
-	// In a full implementation, we'd get this from the transaction manager
+	// Get the next logical timestamp
+	// This ensures consistency with the transaction system's timestamps
+	currentTimestamp := int64(txn.NextTimestamp())
 
 	// Create MVCC row with transaction metadata
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
 	mvccRow := &MVCCRow{
 		Header: MVCCRowHeader{
 			CreatedByTxn: int64(currentTxnID), //nolint:gosec // Transaction IDs are controlled internally
-			CreatedAt:    time.Now().Unix(),
+			CreatedAt:    currentTimestamp,
 			DeletedByTxn: 0,
 			DeletedAt:    0,
 			NextVersion:  0,
@@ -147,7 +147,7 @@ func (m *MVCCStorageBackend) UpdateRow(tableID int64, rowID RowID, row *Row) err
 	// Mark old version as logically deleted
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
 	oldRow.Header.DeletedByTxn = int64(currentTxnID) //nolint:gosec // Transaction IDs are controlled internally
-	oldRow.Header.DeletedAt = time.Now().Unix()
+	oldRow.Header.DeletedAt = int64(txn.NextTimestamp())
 	if err := m.updateRowInPlace(tableID, rowID, oldRow); err != nil {
 		return fmt.Errorf("failed to mark old version as deleted: %w", err)
 	}
@@ -166,14 +166,14 @@ func (m *MVCCStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 	// Mark as deleted
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
 	mvccRow.Header.DeletedByTxn = int64(currentTxnID) //nolint:gosec // Transaction IDs are controlled internally
-	mvccRow.Header.DeletedAt = time.Now().Unix()
+	mvccRow.Header.DeletedAt = int64(txn.NextTimestamp())
 
 	// Update the row in place
 	return m.updateRowInPlace(tableID, rowID, mvccRow)
 }
 
 // ScanTable returns an MVCC-aware iterator
-func (m *MVCCStorageBackend) ScanTable(tableID int64) (RowIterator, error) {
+func (m *MVCCStorageBackend) ScanTable(tableID int64, snapshotTS int64) (RowIterator, error) {
 	// Get table metadata - copy needed data while holding lock
 	m.mu.RLock()
 	meta, exists := m.tableMeta[tableID]
@@ -196,25 +196,22 @@ func (m *MVCCStorageBackend) ScanTable(tableID int64) (RowIterator, error) {
 	// Use atomic read for transaction ID
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
 
-	// For now, use current timestamp for visibility checks
-	// In a full implementation, we'd get this from the transaction manager
-	currentTimestamp := time.Now().Unix()
-
+	// Use the provided snapshot timestamp for visibility checks
+	// This is the key fix for MVCC isolation levels
 	// Wrap with MVCC iterator
-	return NewMVCCRawRowIterator(rawIterator, int64(currentTxnID), currentTimestamp, schemaCopy), nil //nolint:gosec // Transaction IDs are controlled internally
+	return NewMVCCRawRowIterator(rawIterator, int64(currentTxnID), snapshotTS, schemaCopy), nil //nolint:gosec // Transaction IDs are controlled internally
 }
 
 // GetRow retrieves a specific row with MVCC visibility check
-func (m *MVCCStorageBackend) GetRow(tableID int64, rowID RowID) (*Row, error) {
+func (m *MVCCStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS int64) (*Row, error) {
 	mvccRow, err := m.GetMVCCRow(tableID, rowID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check visibility
+	// Check visibility using provided snapshot timestamp
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
-	currentTimestamp := time.Now().Unix()
-	if !m.isVisible(mvccRow, int64(currentTxnID), currentTimestamp) { //nolint:gosec // Transaction IDs are controlled internally
+	if !m.isVisible(mvccRow, int64(currentTxnID), snapshotTS) { //nolint:gosec // Transaction IDs are controlled internally
 		return nil, ErrRowNotVisible
 	}
 

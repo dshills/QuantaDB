@@ -86,7 +86,7 @@ func TestUpdateOperator(t *testing.T) {
 		updateOp.Close()
 
 		// Verify that all rows now have age = 40
-		iter, err := storageBackend.ScanTable(table.ID)
+		iter, err := storageBackend.ScanTable(table.ID, ctx.SnapshotTS)
 		if err != nil {
 			t.Fatalf("failed to scan table: %v", err)
 		}
@@ -180,7 +180,7 @@ func TestUpdateOperator(t *testing.T) {
 		updateOp.Close()
 
 		// Verify that only the row with id=2 was updated
-		iter, err := storageBackend2.ScanTable(table2.ID)
+		iter, err := storageBackend2.ScanTable(table2.ID, ctx.SnapshotTS)
 		if err != nil {
 			t.Fatalf("failed to scan table: %v", err)
 		}

@@ -54,7 +54,7 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 	}
 
 	// Scan the table to find rows to update
-	iterator, err := u.storage.ScanTable(u.table.ID)
+	iterator, err := u.storage.ScanTable(u.table.ID, ctx.SnapshotTS)
 	if err != nil {
 		return fmt.Errorf("failed to scan table: %w", err)
 	}

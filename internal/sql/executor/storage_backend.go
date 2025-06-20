@@ -28,10 +28,10 @@ type StorageBackend interface {
 	DeleteRow(tableID int64, rowID RowID) error
 
 	// ScanTable returns an iterator for scanning a table
-	ScanTable(tableID int64) (RowIterator, error)
+	ScanTable(tableID int64, snapshotTS int64) (RowIterator, error)
 
 	// GetRow retrieves a specific row by ID
-	GetRow(tableID int64, rowID RowID) (*Row, error)
+	GetRow(tableID int64, rowID RowID, snapshotTS int64) (*Row, error)
 
 	// SetTransactionID sets the current transaction ID for operations
 	SetTransactionID(txnID uint64)
@@ -289,7 +289,7 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 }
 
 // ScanTable returns an iterator for scanning a table
-func (d *DiskStorageBackend) ScanTable(tableID int64) (RowIterator, error) {
+func (d *DiskStorageBackend) ScanTable(tableID int64, snapshotTS int64) (RowIterator, error) {
 	d.mu.RLock()
 	meta, exists := d.tableMeta[tableID]
 	if !exists {
@@ -465,7 +465,7 @@ func (d *DiskStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 }
 
 // GetRow retrieves a specific row by ID
-func (d *DiskStorageBackend) GetRow(tableID int64, rowID RowID) (*Row, error) {
+func (d *DiskStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS int64) (*Row, error) {
 	d.mu.RLock()
 	meta, exists := d.tableMeta[tableID]
 	if !exists {

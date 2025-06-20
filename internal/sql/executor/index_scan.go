@@ -157,7 +157,7 @@ func (op *IndexScanOperator) Next() (*Row, error) {
 	}
 
 	// Fetch the actual row from storage
-	row, err := op.storage.GetRow(op.table.ID, rowID)
+	row, err := op.storage.GetRow(op.table.ID, rowID, op.ctx.SnapshotTS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch row from storage: %w", err)
 	}

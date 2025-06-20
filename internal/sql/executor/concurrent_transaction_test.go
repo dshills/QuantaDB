@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -58,11 +59,21 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 
 	// Insert initial data
 	insertInitialData := func() {
+		// Create a transaction for the initial data insert
+		initTxn, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		if err != nil {
+			t.Fatalf("Failed to begin init transaction: %v", err)
+		}
+		defer initTxn.Commit()
+
 		ctx := &ExecContext{
-			Catalog:    cat,
-			Engine:     eng,
-			TxnManager: txnManager,
-			Stats:      &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            initTxn,
+			SnapshotTS:     int64(tsService.GetSnapshotTimestamp(initTxn)),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 
 		insertOp := NewInsertOperator(table, storageBackend, nil)
@@ -80,6 +91,18 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		if err := insertOp.Open(ctx); err != nil {
 			t.Fatalf("Failed to insert initial data: %v", err)
 		}
+		
+		// Execute the insert
+		for {
+			row, err := insertOp.Next()
+			if err != nil {
+				t.Fatalf("Insert error: %v", err)
+			}
+			if row == nil {
+				break
+			}
+		}
+		
 		insertOp.Close()
 	}
 	insertInitialData()
@@ -94,7 +117,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			txn1, err := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+			txn1, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 			if err != nil {
 				t.Errorf("Failed to begin txn1: %v", err)
 				return
@@ -119,6 +142,8 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 
 			// Second read should see the committed update (non-repeatable read)
+			// For Read Committed, update snapshot timestamp for new statement
+			ctx.SnapshotTS = int64(tsService.GetNextTimestamp())
 			balance2 := readAccountBalance(t, ctx, table, storageBackend, 1)
 			results <- balance2
 		}()
@@ -131,7 +156,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 			// Wait a bit to ensure txn1 has done its first read
 			time.Sleep(50 * time.Millisecond)
 
-			txn2, err := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+			txn2, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 			if err != nil {
 				t.Errorf("Failed to begin txn2: %v", err)
 				return
@@ -178,10 +203,16 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		}
 	})
 
-	t.Run("RepeatableReadIsolation", func(t *testing.T) {
-		// Reset data
-		insertInitialData()
+	// Reset data for next test
+	if err := storageBackend.DropTable(table.ID); err != nil {
+		t.Fatalf("Failed to drop table: %v", err)
+	}
+	if err := storageBackend.CreateTable(table); err != nil {
+		t.Fatalf("Failed to recreate table: %v", err)
+	}
+	insertInitialData()
 
+	t.Run("RepeatableReadIsolation", func(t *testing.T) {
 		// Test that Repeatable Read prevents non-repeatable reads
 		var wg sync.WaitGroup
 		results := make(chan int32, 2)
@@ -191,7 +222,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			txn1, err := txnManager.BeginTransaction(nil, txn.RepeatableRead)
+			txn1, err := txnManager.BeginTransaction(context.Background(), txn.RepeatableRead)
 			if err != nil {
 				t.Errorf("Failed to begin txn1: %v", err)
 				return
@@ -228,7 +259,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 			// Wait a bit to ensure txn1 has done its first read
 			time.Sleep(50 * time.Millisecond)
 
-			txn2, err := txnManager.BeginTransaction(nil, txn.RepeatableRead)
+			txn2, err := txnManager.BeginTransaction(context.Background(), txn.RepeatableRead)
 			if err != nil {
 				t.Errorf("Failed to begin txn2: %v", err)
 				return
@@ -275,6 +306,15 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		}
 	})
 
+	// Reset data for next test
+	if err := storageBackend.DropTable(table.ID); err != nil {
+		t.Fatalf("Failed to drop table: %v", err)
+	}
+	if err := storageBackend.CreateTable(table); err != nil {
+		t.Fatalf("Failed to recreate table: %v", err)
+	}
+	insertInitialData()
+
 	t.Run("WriteWriteConflict", func(t *testing.T) {
 		// Test concurrent updates to the same row
 		var wg sync.WaitGroup
@@ -285,7 +325,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			txn1, err := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+			txn1, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 			if err != nil {
 				errors <- err
 				return
@@ -324,7 +364,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 			// Start slightly after txn1
 			time.Sleep(10 * time.Millisecond)
 
-			txn2, err := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+			txn2, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 			if err != nil {
 				errors <- err
 				return
@@ -380,7 +420,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			txn1, err := txnManager.BeginTransaction(nil, txn.RepeatableRead)
+			txn1, err := txnManager.BeginTransaction(context.Background(), txn.RepeatableRead)
 			if err != nil {
 				t.Errorf("Failed to begin txn1: %v", err)
 				return
@@ -421,7 +461,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 			// Wait a bit
 			time.Sleep(50 * time.Millisecond)
 
-			txn2, err := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+			txn2, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 			if err != nil {
 				t.Errorf("Failed to begin txn2: %v", err)
 				return
@@ -471,6 +511,7 @@ func readAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, st
 	}
 	defer scanOp.Close()
 
+	rowCount := 0
 	for {
 		row, err := scanOp.Next()
 		if err != nil {
@@ -479,13 +520,14 @@ func readAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, st
 		if row == nil {
 			break
 		}
+		rowCount++
 
 		if row.Values[0].Data.(int32) == accountID {
 			return row.Values[1].Data.(int32)
 		}
 	}
 
-	t.Fatalf("Account %d not found", accountID)
+	t.Fatalf("Account %d not found (scanned %d rows)", accountID, rowCount)
 	return 0
 }
 
@@ -582,7 +624,7 @@ func TestMVCCVersionChaining(t *testing.T) {
 	// Test creating multiple versions of the same row
 	t.Run("VersionChainCreation", func(t *testing.T) {
 		// Insert initial version
-		txn1, _ := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+		txn1, _ := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		ctx1 := &ExecContext{
 			Catalog:        cat,
 			Engine:         eng,
@@ -605,7 +647,7 @@ func TestMVCCVersionChaining(t *testing.T) {
 		txn1.Commit()
 
 		// Update to create version 2
-		txn2, _ := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+		txn2, _ := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		ctx2 := &ExecContext{
 			Catalog:        cat,
 			Engine:         eng,
@@ -640,7 +682,7 @@ func TestMVCCVersionChaining(t *testing.T) {
 		t.Logf("Note: Version chain testing is limited in current implementation")
 
 		// New transaction should see version 2
-		newTxn, _ := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+		newTxn, _ := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		newCtx := &ExecContext{
 			Catalog:        cat,
 			Engine:         eng,
@@ -720,7 +762,7 @@ func TestConcurrentInsertPerformance(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < insertsPerGoroutine; j++ {
-				txnInst, err := txnManager.BeginTransaction(nil, txn.ReadCommitted)
+				txnInst, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 				if err != nil {
 					t.Errorf("Worker %d: Failed to begin transaction: %v", workerID, err)
 					return
@@ -770,10 +812,14 @@ func TestConcurrentInsertPerformance(t *testing.T) {
 	t.Logf("  Inserts/second: %.2f", insertsPerSecond)
 
 	// Verify all inserts succeeded
+	// Create timestamp service
+	tsService := txn.NewTimestampService()
+	
 	ctx := &ExecContext{
 		Catalog:    cat,
 		Engine:     eng,
 		TxnManager: txnManager,
+		SnapshotTS: int64(tsService.GetNextTimestamp()),
 		Stats:      &ExecStats{},
 	}
 

@@ -82,7 +82,7 @@ func TestDeleteOperator(t *testing.T) {
 		deleteOp.Close()
 
 		// Verify rows are marked as deleted by scanning
-		iterator, err := storageBackend.ScanTable(table.ID)
+		iterator, err := storageBackend.ScanTable(table.ID, ctx.SnapshotTS)
 		if err != nil {
 			t.Fatalf("failed to scan table: %v", err)
 		}
@@ -174,7 +174,7 @@ func TestDeleteOperator(t *testing.T) {
 		deleteOp.Close()
 
 		// Verify correct rows remain by scanning
-		iterator, err := storageBackend2.ScanTable(table2.ID)
+		iterator, err := storageBackend2.ScanTable(table2.ID, ctx.SnapshotTS)
 		if err != nil {
 			t.Fatalf("failed to scan table: %v", err)
 		}

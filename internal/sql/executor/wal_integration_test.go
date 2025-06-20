@@ -142,7 +142,7 @@ func TestStorageWithWAL(t *testing.T) {
 	verifyWALRecords(t, walDir)
 
 	// Scan table to verify final state
-	iter, err := storageBackend.ScanTable(table.ID)
+	iter, err := storageBackend.ScanTable(table.ID, 0)
 	if err != nil {
 		t.Fatalf("failed to scan table: %v", err)
 	}
@@ -372,7 +372,7 @@ func TestWALRecoveryAfterCrash(t *testing.T) {
 		storageBackend.mu.Unlock()
 
 		// Scan table to verify data was recovered
-		iter, err := storageBackend.ScanTable(table.ID)
+		iter, err := storageBackend.ScanTable(table.ID, 0)
 		if err != nil {
 			t.Fatalf("failed to scan table after recovery: %v", err)
 		}
