@@ -250,4 +250,3 @@ func (vs *VacuumScanner) ScanDatabase() (*VacuumScanStats, error) {
 
 	return stats, nil
 }
-

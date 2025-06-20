@@ -340,4 +340,3 @@ func (vci *VersionChainIterator) GetTableVersionChainStats() (*VersionChainStats
 	// This would require scanning all rows in a table and analyzing their version chains
 	return &VersionChainStats{}, fmt.Errorf("table-wide version chain statistics not yet implemented")
 }
-

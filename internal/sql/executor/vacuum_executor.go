@@ -323,4 +323,3 @@ func (ve *VacuumExecutor) CompactPage(pageID storage.PageID) error {
 	// 5. Updating free space pointers
 	return nil
 }
-

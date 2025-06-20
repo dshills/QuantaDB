@@ -80,4 +80,3 @@ func TestTimestampServiceConcurrency(t *testing.T) {
 		wg.Wait()
 	})
 }
-

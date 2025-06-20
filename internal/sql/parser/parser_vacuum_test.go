@@ -93,4 +93,3 @@ func TestParseVacuum(t *testing.T) {
 		})
 	}
 }
-

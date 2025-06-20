@@ -99,7 +99,7 @@ func TestVersionChainCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get row directly: %v", err)
 	}
-	t.Logf("Direct row: CreatedAt=%d, DeletedAt=%d, DeletedByTxn=%d", 
+	t.Logf("Direct row: CreatedAt=%d, DeletedAt=%d, DeletedByTxn=%d",
 		directRow.Header.CreatedAt, directRow.Header.DeletedAt, directRow.Header.DeletedByTxn)
 	t.Logf("Current timestamp: %d", currentTS)
 
@@ -384,7 +384,7 @@ func TestVersionChainMultipleUpdates(t *testing.T) {
 
 	t.Logf("Total versions in chain: %d", len(allVersions))
 	for i, version := range allVersions {
-		t.Logf("Version %d (RowID %v): counter=%v, deleted=%v", 
+		t.Logf("Version %d (RowID %v): counter=%v, deleted=%v",
 			i, allRowIDs[i], version.Data.Values[1].Data, version.IsDeleted())
 	}
 }

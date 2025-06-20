@@ -1344,4 +1344,3 @@ func statementReturnsData(stmt parser.Statement) bool {
 		return false
 	}
 }
-

@@ -192,4 +192,3 @@ func TestVacuumParserIntegration(t *testing.T) {
 		})
 	}
 }
-

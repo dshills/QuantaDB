@@ -215,4 +215,3 @@ func (op *VacuumAnalyzeOperator) Close() error {
 	}
 	return analyzeErr
 }
-

@@ -155,4 +155,3 @@ func (ht *HorizonTracker) CanVacuumVersion(deletedAt int64, config VacuumSafetyC
 	safeHorizon := ht.GetSafeHorizon(config)
 	return deletedAt < safeHorizon
 }
-
