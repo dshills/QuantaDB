@@ -32,6 +32,8 @@ func (o *baseOperator) Schema() *Schema {
 }
 
 // ScanOperator reads rows from a table.
+// DEPRECATED: This operator uses the key-value engine directly and does not support MVCC.
+// Use StorageScanOperator for MVCC-aware table scans.
 type ScanOperator struct {
 	baseOperator
 	table     *catalog.Table
@@ -42,6 +44,7 @@ type ScanOperator struct {
 }
 
 // NewScanOperator creates a new scan operator.
+// DEPRECATED: Use NewStorageScanOperator for MVCC support.
 func NewScanOperator(table *catalog.Table, ctx *ExecContext) *ScanOperator {
 	// Build schema from table columns
 	schema := &Schema{
