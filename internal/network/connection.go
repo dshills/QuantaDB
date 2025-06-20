@@ -721,10 +721,18 @@ func (c *Connection) Close() error {
 func (c *Connection) getSnapshotTimestamp() int64 {
 	// For Read Committed isolation, get a new snapshot for each statement
 	if c.currentTxn != nil && c.currentTxn.IsolationLevel() == txn.ReadCommitted {
-		return int64(c.tsService.GetNextTimestamp())
+		ts := c.tsService.GetNextTimestamp()
+		if ts > txn.Timestamp(1<<63-1) {
+			return 1<<63 - 1 // Max int64 value
+		}
+		return int64(ts) //nolint:gosec // Safe conversion after bounds check
 	}
 	// For other isolation levels, use the transaction's snapshot
-	return int64(c.tsService.GetSnapshotTimestamp(c.currentTxn))
+	ts := c.tsService.GetSnapshotTimestamp(c.currentTxn)
+	if ts > txn.Timestamp(1<<63-1) {
+		return 1<<63 - 1 // Max int64 value
+	}
+	return int64(ts) //nolint:gosec // Safe conversion after bounds check
 }
 
 // getIsolationLevel returns the current isolation level

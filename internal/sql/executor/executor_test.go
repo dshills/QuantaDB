@@ -8,6 +8,8 @@ import (
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/txn"
 )
 
 // Helper function to create int pointer.
@@ -19,6 +21,18 @@ func TestBasicExecutor(t *testing.T) {
 	// Create test catalog and engine
 	cat := catalog.NewMemoryCatalog()
 	eng := engine.NewMemoryEngine()
+	defer eng.Close()
+
+	// Create transaction manager and storage backend
+	txnManager := txn.NewManager(eng, nil)
+	diskManager, err := storage.NewDiskManager(":memory:")
+	if err != nil {
+		t.Fatalf("Failed to create disk manager: %v", err)
+	}
+	defer diskManager.Close()
+
+	bufferPool := storage.NewBufferPool(diskManager, 10)
+	storageBackend := NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
 
 	// Create a test table
 	tableSchema := &catalog.TableSchema{
@@ -31,25 +45,18 @@ func TestBasicExecutor(t *testing.T) {
 		},
 	}
 
-	_, err := cat.CreateTable(tableSchema)
+	table, err := cat.CreateTable(tableSchema)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
 
-	// Insert some test data using proper row serialization
-	rowSchema := &Schema{
-		Columns: []Column{
-			{Name: "id", Type: types.Integer, Nullable: false},
-			{Name: "name", Type: types.Text, Nullable: false},
-			{Name: "age", Type: types.Integer, Nullable: true},
-		},
-	}
-	rowFormat := NewRowFormat(rowSchema)
-	keyFormat := &RowKeyFormat{
-		TableName:  "users",
-		SchemaName: "public",
+	// Create table in storage backend
+	err = storageBackend.CreateTable(table)
+	if err != nil {
+		t.Fatalf("Failed to create table in storage: %v", err)
 	}
 
+	// Insert test data using storage backend
 	testUsers := []struct {
 		id   int
 		name string
@@ -75,18 +82,14 @@ func TestBasicExecutor(t *testing.T) {
 			row.Values = append(row.Values, types.NewNullValue())
 		}
 
-		value, err := rowFormat.Serialize(row)
+		_, err := storageBackend.InsertRow(table.ID, row)
 		if err != nil {
-			t.Fatalf("Failed to serialize row: %v", err)
-		}
-
-		key := keyFormat.GenerateRowKey(user.id)
-		if err := eng.Put(context.Background(), key, value); err != nil {
 			t.Fatalf("Failed to insert test data: %v", err)
 		}
 	}
 
 	executor := NewBasicExecutor(cat, eng)
+	executor.SetStorageBackend(storageBackend)
 
 	t.Run("Simple scan", func(t *testing.T) {
 		// Create a simple scan plan
@@ -100,10 +103,21 @@ func TestBasicExecutor(t *testing.T) {
 
 		plan := planner.NewLogicalScan("users", "users", schema)
 
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		if err != nil {
+			t.Fatalf("Failed to begin transaction: %v", err)
+		}
+		defer transaction.Rollback()
+
 		ctx := &ExecContext{
-			Catalog: cat,
-			Engine:  eng,
-			Stats:   &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 
 		result, err := executor.Execute(plan, ctx)
@@ -148,10 +162,21 @@ func TestBasicExecutor(t *testing.T) {
 		scan := planner.NewLogicalScan("users", "users", schema)
 		plan := planner.NewLogicalLimit(scan, 3, 0)
 
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		if err != nil {
+			t.Fatalf("Failed to begin transaction: %v", err)
+		}
+		defer transaction.Rollback()
+
 		ctx := &ExecContext{
-			Catalog: cat,
-			Engine:  eng,
-			Stats:   &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 
 		result, err := executor.Execute(plan, ctx)
@@ -189,10 +214,21 @@ func TestBasicExecutor(t *testing.T) {
 		scan := planner.NewLogicalScan("users", "users", schema)
 		plan := planner.NewLogicalLimit(scan, -1, 2) // Skip first 2 rows
 
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		if err != nil {
+			t.Fatalf("Failed to begin transaction: %v", err)
+		}
+		defer transaction.Rollback()
+
 		ctx := &ExecContext{
-			Catalog: cat,
-			Engine:  eng,
-			Stats:   &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 
 		result, err := executor.Execute(plan, ctx)

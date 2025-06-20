@@ -502,7 +502,7 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 }
 
 // Helper function to read account balance
-func readAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, storage StorageBackend, accountID int32) int32 {
+func readAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, storage StorageBackend, accountID int32) int32 { //nolint:unparam // Test helper uses fixed value
 	scanOp := NewStorageScanOperator(table, storage)
 
 	if err := scanOp.Open(ctx); err != nil {
@@ -531,7 +531,7 @@ func readAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, st
 }
 
 // Helper function to update account balance
-func updateAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, storage StorageBackend, accountID int32, newBalance int32) {
+func updateAccountBalance(t *testing.T, ctx *ExecContext, table *catalog.Table, storage StorageBackend, accountID int32, newBalance int32) { //nolint:unparam // Test helper uses fixed value
 	// Create update operator with SET balance = newBalance WHERE id = accountID
 	assignments := []parser.Assignment{
 		{

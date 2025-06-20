@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -8,6 +9,8 @@ import (
 	"github.com/dshills/QuantaDB/internal/storage"
 	"github.com/dshills/QuantaDB/internal/txn"
 )
+
+var ErrNoPredecessorFound = errors.New("no predecessor found")
 
 // VacuumStats contains statistics from a vacuum operation
 type VacuumStats struct {
@@ -100,12 +103,14 @@ func (ve *VacuumExecutor) processBatch(deadVersions []DeadVersion) error {
 	// Group dead versions by their predecessor in the chain for efficient relinking
 	chainUpdates := make(map[RowID][]DeadVersion)
 	standaloneDeadVersions := []DeadVersion{} // Dead versions with no predecessors
+	var lastError error
 
 	for _, dv := range deadVersions {
 		// Find the version that points to this dead version
 		predecessor, err := ve.findPredecessor(dv.TableID, dv.RowID)
 		if err != nil {
-			ve.addError(fmt.Errorf("failed to find predecessor for %v: %w", dv.RowID, err))
+			lastError = fmt.Errorf("failed to find predecessor for %v: %w", dv.RowID, err)
+			ve.addError(lastError)
 			continue
 		}
 
@@ -123,7 +128,8 @@ func (ve *VacuumExecutor) processBatch(deadVersions []DeadVersion) error {
 	// Process chain updates (relink chains where needed)
 	for predRowID, deadVersions := range chainUpdates {
 		if err := ve.relinkChain(deadVersions[0].TableID, predRowID, deadVersions); err != nil {
-			ve.addError(fmt.Errorf("failed to relink chain at %v: %w", predRowID, err))
+			lastError = fmt.Errorf("failed to relink chain at %v: %w", predRowID, err)
+			ve.addError(lastError)
 			continue
 		}
 
@@ -134,9 +140,17 @@ func (ve *VacuumExecutor) processBatch(deadVersions []DeadVersion) error {
 
 	// Remove all dead versions (both chained and standalone)
 	allDeadVersions := append([]DeadVersion{}, deadVersions...)
+	// Log standalone dead versions for debugging
+	if len(standaloneDeadVersions) > 0 {
+		ve.mu.Lock()
+		ve.stats.VersionsRemoved += len(standaloneDeadVersions)
+		ve.mu.Unlock()
+	}
+
 	for _, dv := range allDeadVersions {
 		if err := ve.removeDeadVersion(dv); err != nil {
-			ve.addError(fmt.Errorf("failed to remove dead version %v: %w", dv.RowID, err))
+			lastError = fmt.Errorf("failed to remove dead version %v: %w", dv.RowID, err)
+			ve.addError(lastError)
 			continue
 		}
 
@@ -146,7 +160,7 @@ func (ve *VacuumExecutor) processBatch(deadVersions []DeadVersion) error {
 		ve.mu.Unlock()
 	}
 
-	return nil
+	return lastError
 }
 
 // removeDeadVersion physically removes a dead version from storage
@@ -259,7 +273,7 @@ func (ve *VacuumExecutor) findPredecessor(tableID int64, targetRowID RowID) (*Ro
 		currentPageID = nextPageID
 	}
 
-	return nil, nil // No predecessor found
+	return nil, ErrNoPredecessorFound
 }
 
 // VacuumDatabase vacuums all tables in the database

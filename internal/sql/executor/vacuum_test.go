@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -396,8 +397,8 @@ func TestVacuumOperator(t *testing.T) {
 
 	// Next call should return EOF
 	row, err = vacuumOp.Next()
-	if err != nil {
-		t.Errorf("expected nil error for EOF, got %v", err)
+	if err != io.EOF {
+		t.Errorf("expected io.EOF for EOF, got %v", err)
 	}
 	if row != nil {
 		t.Error("expected nil row for EOF")

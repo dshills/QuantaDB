@@ -99,3 +99,8 @@ QuantaDB/
 
 - Use files in docs directory for planning and task mgmt
 - When starting a new task review ./TODO.md and planning documents in docs/
+
+## Development Tools
+
+- Use ripgrep (rg) instead of grep if available. Run rg -help to understand usage
+- Use Fuzzy Find (fzf) instead of find if available. Run fzf -h to understand usage

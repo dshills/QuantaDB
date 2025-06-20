@@ -52,7 +52,7 @@ func (m *MVCCStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 
 	// Get the next logical timestamp
 	// This ensures consistency with the transaction system's timestamps
-	currentTimestamp := int64(txn.NextTimestamp())
+	currentTimestamp := int64(txn.NextTimestamp()) //nolint:gosec // txn.NextTimestamp() returns sequential safe values
 
 	// Create MVCC row with transaction metadata
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
@@ -138,7 +138,7 @@ func (m *MVCCStorageBackend) UpdateRow(tableID int64, rowID RowID, row *Row) err
 	}
 
 	// Get current timestamp and transaction ID
-	currentTimestamp := int64(txn.NextTimestamp())
+	currentTimestamp := int64(txn.NextTimestamp()) //nolint:gosec // txn.NextTimestamp() returns sequential safe values
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
 
 	// First, create a backup of the old version if there isn't one already
@@ -200,8 +200,8 @@ func (m *MVCCStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 
 	// Mark as deleted
 	currentTxnID := atomic.LoadUint64(&m.currentTxnID)
-	mvccRow.Header.DeletedByTxn = int64(currentTxnID) //nolint:gosec // Transaction IDs are controlled internally
-	mvccRow.Header.DeletedAt = int64(txn.NextTimestamp())
+	mvccRow.Header.DeletedByTxn = int64(currentTxnID)     //nolint:gosec // Transaction IDs are controlled internally
+	mvccRow.Header.DeletedAt = int64(txn.NextTimestamp()) //nolint:gosec // txn.NextTimestamp() returns sequential safe values
 
 	// Update the row in place
 	return m.updateRowInPlace(tableID, rowID, mvccRow)
@@ -333,13 +333,17 @@ func (m *MVCCStorageBackend) updateRowInPlace(tableID int64, rowID RowID, mvccRo
 
 	// Update the data
 	dataOffset := pageDataOffset - storage.PageHeaderSize
-	copy(page.Data[dataOffset:dataOffset+uint16(dataLen)], rowData)
+	if dataLen < 0 || dataLen > 65535 {
+		return fmt.Errorf("invalid data length: %d", dataLen)
+	}
+	dataLenU16 := uint16(dataLen)
+	copy(page.Data[dataOffset:dataOffset+dataLenU16], rowData)
 
 	// Update slot size if new data is smaller
-	if uint16(dataLen) < currentSize {
+	if dataLenU16 < currentSize {
 		// Update the slot entry with new size
-		slotData[2] = byte(uint16(dataLen) >> 8)
-		slotData[3] = byte(uint16(dataLen) & 0xFF)
+		slotData[2] = byte(dataLenU16 >> 8)
+		slotData[3] = byte(dataLenU16 & 0xFF)
 	}
 
 	// Log the update if WAL is enabled
@@ -366,24 +370,6 @@ func (m *MVCCStorageBackend) SetCurrentTransaction(txnID txn.TransactionID, time
 // physicalDeleteRow physically removes a row (used for cleanup)
 func (m *MVCCStorageBackend) physicalDeleteRow(tableID int64, rowID RowID) error {
 	return m.DiskStorageBackend.DeleteRow(tableID, rowID)
-}
-
-// isVisible checks if a row version is visible to a transaction
-func (m *MVCCStorageBackend) isVisible(row *MVCCRow, _ int64, snapshot int64) bool {
-	// Row is visible if:
-	// 1. It was created before our snapshot timestamp
-	// 2. It hasn't been deleted, or was deleted after our snapshot
-
-	// Use timestamp-based visibility for MVCC correctness
-	if row.Header.CreatedAt > snapshot {
-		return false // Created after our snapshot
-	}
-
-	if row.Header.DeletedAt > 0 && row.Header.DeletedAt <= snapshot {
-		return false // Deleted before or at our snapshot
-	}
-
-	return true
 }
 
 // allocateNewDataPage allocates a new data page and links it to the current page

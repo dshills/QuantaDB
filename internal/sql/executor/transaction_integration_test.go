@@ -8,6 +8,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
 	"github.com/dshills/QuantaDB/internal/txn"
 )
 
@@ -17,8 +18,16 @@ func TestExecutorWithTransactions(t *testing.T) {
 	eng := engine.NewMemoryEngine()
 	defer eng.Close()
 
-	// Create transaction manager
+	// Create transaction manager and storage backend
 	txnManager := txn.NewManager(eng, nil)
+	diskManager, err := storage.NewDiskManager(":memory:")
+	if err != nil {
+		t.Fatalf("Failed to create disk manager: %v", err)
+	}
+	defer diskManager.Close()
+
+	bufferPool := storage.NewBufferPool(diskManager, 10)
+	storageBackend := NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
 
 	// Create test table
 	tableSchema := &catalog.TableSchema{
@@ -31,12 +40,19 @@ func TestExecutorWithTransactions(t *testing.T) {
 		},
 	}
 
-	_, err := cat.CreateTable(tableSchema)
+	table, err := cat.CreateTable(tableSchema)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
 
+	// Create table in storage backend
+	err = storageBackend.CreateTable(table)
+	if err != nil {
+		t.Fatalf("Failed to create table in storage: %v", err)
+	}
+
 	executor := NewBasicExecutor(cat, eng)
+	executor.SetStorageBackend(storageBackend)
 
 	t.Run("Transactional INSERT and SELECT", func(t *testing.T) {
 		// Begin transaction
@@ -47,11 +63,13 @@ func TestExecutorWithTransactions(t *testing.T) {
 
 		// Create execution context with transaction
 		ctx := &ExecContext{
-			Catalog:    cat,
-			Engine:     eng,
-			TxnManager: txnManager,
-			Txn:        mvccTxn,
-			Stats:      &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            mvccTxn,
+			SnapshotTS:     int64(mvccTxn.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 
 		// Insert test data within transaction
@@ -66,8 +84,7 @@ func TestExecutorWithTransactions(t *testing.T) {
 		}
 
 		for _, row := range insertRows {
-			// For this test, we'll directly insert into storage
-			// In a real implementation, we'd use INSERT statements
+			// Use storage backend to insert data
 			rowData := &Row{
 				Values: []types.Value{
 					types.NewIntegerValue(int32(row.id)),
@@ -76,29 +93,9 @@ func TestExecutorWithTransactions(t *testing.T) {
 				},
 			}
 
-			// Serialize and store row
-			rowFormat := NewRowFormat(&Schema{
-				Columns: []Column{
-					{Name: "id", Type: types.Integer, Nullable: false},
-					{Name: "name", Type: types.Text, Nullable: false},
-					{Name: "balance", Type: types.Integer, Nullable: false},
-				},
-			})
-
-			keyFormat := &RowKeyFormat{
-				TableName:  "accounts",
-				SchemaName: "public",
-			}
-
-			serialized, err := rowFormat.Serialize(rowData)
+			_, err := storageBackend.InsertRow(table.ID, rowData)
 			if err != nil {
-				t.Fatalf("Failed to serialize row: %v", err)
-			}
-
-			key := keyFormat.GenerateRowKey(row.id)
-			err = mvccTxn.Put(key, serialized)
-			if err != nil {
-				t.Fatalf("Failed to put row in transaction: %v", err)
+				t.Fatalf("Failed to insert row: %v", err)
 			}
 		}
 

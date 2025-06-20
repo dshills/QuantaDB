@@ -8,14 +8,14 @@ import (
 
 // VersionChainIterator provides methods to traverse MVCC version chains
 type VersionChainIterator struct {
-	storage MVCCStorageBackend
+	storage *MVCCStorageBackend
 	tableID int64
 }
 
 // NewVersionChainIterator creates a new version chain iterator
 func NewVersionChainIterator(storage *MVCCStorageBackend, tableID int64) *VersionChainIterator {
 	return &VersionChainIterator{
-		storage: *storage,
+		storage: storage,
 		tableID: tableID,
 	}
 }

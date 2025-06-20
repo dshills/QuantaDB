@@ -49,7 +49,14 @@ func UnixNanoToTime(nano int64) time.Time {
 // TimeToBytes serializes a time.Time to a byte slice using big-endian encoding
 func TimeToBytes(t time.Time) []byte {
 	buf := make([]byte, TimestampSize)
-	binary.BigEndian.PutUint64(buf, uint64(t.UnixNano()))
+	nano := t.UnixNano()
+	var nanoU64 uint64
+	if nano < 0 {
+		nanoU64 = 0 // Handle negative timestamps
+	} else {
+		nanoU64 = uint64(nano)
+	}
+	binary.BigEndian.PutUint64(buf, nanoU64)
 	return buf
 }
 
@@ -58,7 +65,13 @@ func BytesToTime(data []byte) (time.Time, error) {
 	if len(data) < TimestampSize {
 		return time.Time{}, fmt.Errorf("insufficient data for timestamp: got %d bytes, need %d", len(data), TimestampSize)
 	}
-	nano := int64(binary.BigEndian.Uint64(data[:TimestampSize]))
+	nanoU64 := binary.BigEndian.Uint64(data[:TimestampSize])
+	var nano int64
+	if nanoU64 > uint64(1<<63-1) {
+		nano = 1<<63 - 1 // Cap at max int64
+	} else {
+		nano = int64(nanoU64)
+	}
 	return time.Unix(0, nano), nil
 }
 
@@ -67,7 +80,14 @@ func WriteTimestampToBuf(buf []byte, offset int, t time.Time) error {
 	if len(buf) < offset+TimestampSize {
 		return fmt.Errorf("buffer too small: need %d bytes, got %d", offset+TimestampSize, len(buf))
 	}
-	binary.BigEndian.PutUint64(buf[offset:], uint64(t.UnixNano()))
+	nano := t.UnixNano()
+	var nanoU64 uint64
+	if nano < 0 {
+		nanoU64 = 0 // Handle negative timestamps
+	} else {
+		nanoU64 = uint64(nano)
+	}
+	binary.BigEndian.PutUint64(buf[offset:], nanoU64)
 	return nil
 }
 
@@ -76,7 +96,13 @@ func ReadTimestampFromBuf(buf []byte, offset int) (time.Time, error) {
 	if len(buf) < offset+TimestampSize {
 		return time.Time{}, fmt.Errorf("buffer too small: need %d bytes, got %d", offset+TimestampSize, len(buf))
 	}
-	nano := int64(binary.BigEndian.Uint64(buf[offset:]))
+	nanoU64 := binary.BigEndian.Uint64(buf[offset:])
+	var nano int64
+	if nanoU64 > uint64(1<<63-1) {
+		nano = 1<<63 - 1 // Cap at max int64
+	} else {
+		nano = int64(nanoU64)
+	}
 	return time.Unix(0, nano), nil
 }
 

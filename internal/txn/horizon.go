@@ -35,7 +35,11 @@ func (ht *HorizonTracker) OnTransactionStart(txn *Transaction) {
 
 	// Only track read transactions (they have snapshots)
 	if txn.readTimestamp > 0 {
-		ht.activeSnapshots[txn.id] = int64(txn.readTimestamp)
+		ts := txn.readTimestamp
+		if ts > Timestamp(1<<63-1) {
+			ts = Timestamp(1<<63 - 1) // Cap at max int64
+		}
+		ht.activeSnapshots[txn.id] = int64(ts) //nolint:gosec // Safe conversion after bounds check
 		ht.updateMinSnapshot()
 	}
 }
@@ -59,7 +63,11 @@ func (ht *HorizonTracker) GetHorizon() int64 {
 	if ht.minSnapshot == 0 {
 		// Use the timestamp service to get current logical timestamp
 		ts := NewTimestampService()
-		return int64(ts.GetCurrentTimestamp())
+		currentTS := ts.GetCurrentTimestamp()
+		if currentTS > Timestamp(1<<63-1) {
+			return 1<<63 - 1 // Max int64 value
+		}
+		return int64(currentTS) //nolint:gosec // Safe conversion after bounds check
 	}
 
 	return ht.minSnapshot

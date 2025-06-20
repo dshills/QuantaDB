@@ -10,6 +10,8 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/txn"
 )
 
 // TestSQLIntegration tests the full SQL pipeline: parse -> plan -> execute.
@@ -17,6 +19,18 @@ func TestSQLIntegration(t *testing.T) {
 	// Set up catalog and storage
 	cat := catalog.NewMemoryCatalog()
 	eng := engine.NewMemoryEngine()
+	defer eng.Close()
+
+	// Create transaction manager and storage backend
+	txnManager := txn.NewManager(eng, nil)
+	diskManager, err := storage.NewDiskManager(":memory:")
+	if err != nil {
+		t.Fatalf("Failed to create disk manager: %v", err)
+	}
+	defer diskManager.Close()
+
+	bufferPool := storage.NewBufferPool(diskManager, 10)
+	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
 
 	// Create a test table
 	tableSchema := &catalog.TableSchema{
@@ -46,9 +60,15 @@ func TestSQLIntegration(t *testing.T) {
 		},
 	}
 
-	_, err := cat.CreateTable(tableSchema)
+	table, err := cat.CreateTable(tableSchema)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// Create table in storage backend
+	err = storageBackend.CreateTable(table)
+	if err != nil {
+		t.Fatalf("Failed to create table in storage: %v", err)
 	}
 
 	// Insert test data using proper row serialization
@@ -65,23 +85,9 @@ func TestSQLIntegration(t *testing.T) {
 		{5, "Eve", "Sales", 90000},
 	}
 
-	// Create row formatter
-	rowSchema := &executor.Schema{
-		Columns: []executor.Column{
-			{Name: "id", Type: types.Integer, Nullable: false},
-			{Name: "name", Type: types.Varchar(100), Nullable: false},
-			{Name: "department", Type: types.Varchar(50), Nullable: true},
-			{Name: "salary", Type: types.Integer, Nullable: false},
-		},
-	}
-	rowFormat := executor.NewRowFormat(rowSchema)
-	keyFormat := &executor.RowKeyFormat{
-		TableName:  "employees",
-		SchemaName: "public",
-	}
-
+	// Insert test data using the storage backend
 	for _, testRow := range testData {
-		// Create row
+		// Create row for storage backend
 		row := &executor.Row{
 			Values: []types.Value{
 				types.NewIntegerValue(int32(testRow.id)),
@@ -91,17 +97,9 @@ func TestSQLIntegration(t *testing.T) {
 			},
 		}
 
-		// Serialize row
-		value, err := rowFormat.Serialize(row)
+		// Insert into storage backend
+		_, err := storageBackend.InsertRow(table.ID, row)
 		if err != nil {
-			t.Fatalf("Failed to serialize row: %v", err)
-		}
-
-		// Generate key
-		key := keyFormat.GenerateRowKey(testRow.id)
-
-		// Store in engine
-		if err := eng.Put(context.Background(), key, value); err != nil {
 			t.Fatalf("Failed to insert test data: %v", err)
 		}
 	}
@@ -109,6 +107,7 @@ func TestSQLIntegration(t *testing.T) {
 	// Create planner and executor
 	plan := planner.NewBasicPlannerWithCatalog(cat)
 	exec := executor.NewBasicExecutor(cat, eng)
+	exec.SetStorageBackend(storageBackend)
 
 	tests := []struct {
 		name     string
@@ -162,11 +161,22 @@ func TestSQLIntegration(t *testing.T) {
 				t.Fatalf("Failed to plan query: %v", err)
 			}
 
+			// Create transaction for query execution
+			transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+			if err != nil {
+				t.Fatalf("Failed to begin transaction: %v", err)
+			}
+			defer transaction.Rollback()
+
 			// Execute query
 			ctx := &executor.ExecContext{
-				Catalog: cat,
-				Engine:  eng,
-				Stats:   &executor.ExecStats{},
+				Catalog:        cat,
+				Engine:         eng,
+				TxnManager:     txnManager,
+				Txn:            transaction,
+				SnapshotTS:     int64(transaction.ReadTimestamp()),
+				IsolationLevel: txn.ReadCommitted,
+				Stats:          &executor.ExecStats{},
 			}
 
 			result, err := exec.Execute(queryPlan, ctx)
@@ -210,6 +220,18 @@ func TestEndToEndQuery(t *testing.T) {
 	t.Run("Full query execution", func(t *testing.T) {
 		cat := catalog.NewMemoryCatalog()
 		eng := engine.NewMemoryEngine()
+		defer eng.Close()
+
+		// Create transaction manager and storage backend
+		txnManager := txn.NewManager(eng, nil)
+		diskManager, err := storage.NewDiskManager(":memory:")
+		if err != nil {
+			t.Fatalf("Failed to create disk manager: %v", err)
+		}
+		defer diskManager.Close()
+
+		bufferPool := storage.NewBufferPool(diskManager, 10)
+		storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
 
 		// Create table
 		tableSchema := &catalog.TableSchema{
@@ -222,26 +244,18 @@ func TestEndToEndQuery(t *testing.T) {
 			},
 		}
 
-		_, err := cat.CreateTable(tableSchema)
+		table, err := cat.CreateTable(tableSchema)
 		if err != nil {
 			t.Fatalf("Failed to create table: %v", err)
 		}
 
-		// Insert some test data
-		rowSchema := &executor.Schema{
-			Columns: []executor.Column{
-				{Name: "id", Type: types.Integer, Nullable: false},
-				{Name: "name", Type: types.Text, Nullable: false},
-				{Name: "age", Type: types.Integer, Nullable: false},
-			},
-		}
-		rowFormat := executor.NewRowFormat(rowSchema)
-		keyFormat := &executor.RowKeyFormat{
-			TableName:  "users",
-			SchemaName: "public",
+		// Create table in storage backend
+		err = storageBackend.CreateTable(table)
+		if err != nil {
+			t.Fatalf("Failed to create table in storage: %v", err)
 		}
 
-		// Insert test users
+		// Insert test users using storage backend
 		testUsers := []struct {
 			id   int
 			name string
@@ -263,13 +277,8 @@ func TestEndToEndQuery(t *testing.T) {
 				},
 			}
 
-			value, err := rowFormat.Serialize(row)
+			_, err := storageBackend.InsertRow(table.ID, row)
 			if err != nil {
-				t.Fatalf("Failed to serialize row: %v", err)
-			}
-
-			key := keyFormat.GenerateRowKey(user.id)
-			if err := eng.Put(context.Background(), key, value); err != nil {
 				t.Fatalf("Failed to insert user: %v", err)
 			}
 		}
@@ -304,10 +313,23 @@ func TestEndToEndQuery(t *testing.T) {
 
 		// Execute
 		exec := executor.NewBasicExecutor(cat, eng)
+		exec.SetStorageBackend(storageBackend)
+		
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		if err != nil {
+			t.Fatalf("Failed to begin transaction: %v", err)
+		}
+		defer transaction.Rollback()
+		
 		ctx := &executor.ExecContext{
-			Catalog: cat,
-			Engine:  eng,
-			Stats:   &executor.ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &executor.ExecStats{},
 		}
 
 		// Note: This will fail with sort operator not implemented

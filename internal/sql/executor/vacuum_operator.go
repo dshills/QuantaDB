@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
@@ -91,7 +92,7 @@ func (op *VacuumOperator) Next() (*Row, error) {
 
 	// Return results only once
 	if op.stats == nil {
-		return nil, nil // EOF
+		return nil, io.EOF
 	}
 
 	// Create result row
@@ -100,14 +101,42 @@ func (op *VacuumOperator) Next() (*Row, error) {
 		operation = fmt.Sprintf("VACUUM %s.%s", op.table.SchemaName, op.table.TableName)
 	}
 
+	// Safe conversion to int32 with bounds checking
+	const maxInt32 = int32(^uint32(0) >> 1) // 2147483647
+
+	tablesProcessed := maxInt32
+	if op.stats.TablesProcessed <= int(maxInt32) {
+		tablesProcessed = int32(op.stats.TablesProcessed) //nolint:gosec // Safe conversion after bounds check
+	}
+
+	versionsScanned := maxInt32
+	if op.stats.VersionsScanned <= int(maxInt32) {
+		versionsScanned = int32(op.stats.VersionsScanned) //nolint:gosec // Safe conversion after bounds check
+	}
+
+	versionsRemoved := maxInt32
+	if op.stats.VersionsRemoved <= int(maxInt32) {
+		versionsRemoved = int32(op.stats.VersionsRemoved) //nolint:gosec // Safe conversion after bounds check
+	}
+
+	spaceReclaimed := maxInt32
+	if op.stats.SpaceReclaimed <= int64(maxInt32) {
+		spaceReclaimed = int32(op.stats.SpaceReclaimed) //nolint:gosec // Safe conversion after bounds check
+	}
+
+	durationMs := maxInt32
+	if op.stats.Duration.Milliseconds() <= int64(maxInt32) {
+		durationMs = int32(op.stats.Duration.Milliseconds()) //nolint:gosec // Safe conversion after bounds check
+	}
+
 	row := &Row{
 		Values: []types.Value{
 			types.NewValue(operation),
-			types.NewValue(int32(op.stats.TablesProcessed)),
-			types.NewValue(int32(op.stats.VersionsScanned)),
-			types.NewValue(int32(op.stats.VersionsRemoved)),
-			types.NewValue(int32(op.stats.SpaceReclaimed)),
-			types.NewValue(int32(op.stats.Duration.Milliseconds())),
+			types.NewValue(tablesProcessed),
+			types.NewValue(versionsScanned),
+			types.NewValue(versionsRemoved),
+			types.NewValue(spaceReclaimed),
+			types.NewValue(durationMs),
 		},
 	}
 

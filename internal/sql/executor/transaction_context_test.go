@@ -133,6 +133,7 @@ func TestTransactionContextPropagation(t *testing.T) {
 		if err := updateOp.Open(ctx); err != nil {
 			// Update will fail because no rows exist, but that's ok
 			// We're just testing that SetTransactionID was called
+			_ = err // Explicitly ignore error
 		}
 
 		// Verify transaction ID was set
@@ -155,6 +156,7 @@ func TestTransactionContextPropagation(t *testing.T) {
 		if err := deleteOp.Open(ctx); err != nil {
 			// Delete will fail because no rows exist, but that's ok
 			// We're just testing that SetTransactionID was called
+			_ = err // Explicitly ignore error
 		}
 
 		// Verify transaction ID was set
@@ -230,6 +232,15 @@ func TestExecContextFields(t *testing.T) {
 	}
 
 	// Verify fields
+	if ctx.Catalog == nil {
+		t.Error("Catalog not properly stored in ExecContext")
+	}
+	if ctx.Engine == nil {
+		t.Error("Engine not properly stored in ExecContext")
+	}
+	if ctx.TxnManager == nil {
+		t.Error("TxnManager not properly stored in ExecContext")
+	}
 	if ctx.Txn != mvccTxn {
 		t.Error("Transaction not properly stored in ExecContext")
 	}
@@ -238,5 +249,8 @@ func TestExecContextFields(t *testing.T) {
 	}
 	if ctx.IsolationLevel != txn.RepeatableRead {
 		t.Errorf("IsolationLevel mismatch: expected RepeatableRead, got %v", ctx.IsolationLevel)
+	}
+	if ctx.Stats == nil {
+		t.Error("Stats not properly stored in ExecContext")
 	}
 }
