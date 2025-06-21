@@ -1,0 +1,27 @@
+{
+  "host": "0.0.0.0",
+  "port": 5432,
+  "data_dir": "./data",
+  "log_level": "info",
+  "network": {
+    "max_connections": 100,
+    "connection_timeout": 30,
+    "read_buffer_size": 8192,
+    "write_buffer_size": 8192
+  },
+  "storage": {
+    "buffer_pool_size": 128,
+    "page_size": 8192,
+    "database_file": "quantadb.db"
+  },
+  "wal": {
+    "enabled": true,
+    "directory": "wal",
+    "segment_size": 16777216,
+    "retention_duration": "24h"
+  },
+  "transaction": {
+    "isolation_level": "read_committed",
+    "default_timeout": 300
+  }
+}

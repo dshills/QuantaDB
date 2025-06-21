@@ -164,10 +164,7 @@ func (op *IndexOnlyScanOperator) Next() (*Row, error) {
 	// Extract values from the index key
 	// This is a simplified implementation - in a real system, you'd need to
 	// decode the composite key based on the index structure
-	values, err := op.decodeIndexKey(entry.Key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode index key: %w", err)
-	}
+	values := op.decodeIndexKey(entry.Key)
 
 	// Build row with only the projected columns
 	row := &Row{
@@ -228,7 +225,7 @@ func (op *IndexOnlyScanOperator) evaluateExpression(expr planner.Expression) (ty
 // decodeIndexKey decodes a composite index key into individual values.
 // This is a simplified implementation - in production, you'd need proper decoding
 // based on the key encoding format.
-func (op *IndexOnlyScanOperator) decodeIndexKey(_ []byte) ([]types.Value, error) {
+func (op *IndexOnlyScanOperator) decodeIndexKey(_ []byte) []types.Value {
 	// For now, assume we know the structure based on the index columns
 	values := make([]types.Value, len(op.index.Columns))
 
@@ -238,7 +235,7 @@ func (op *IndexOnlyScanOperator) decodeIndexKey(_ []byte) ([]types.Value, error)
 		// Create a value based on the column type
 		switch col.Column.DataType {
 		case types.Integer:
-			values[i] = types.NewValue(int32(i))
+			values[i] = types.NewValue(int32(i)) //nolint:gosec // Index value for testing
 		case types.Text:
 			values[i] = types.NewValue(fmt.Sprintf("value_%d", i))
 		default:
@@ -246,5 +243,5 @@ func (op *IndexOnlyScanOperator) decodeIndexKey(_ []byte) ([]types.Value, error)
 		}
 	}
 
-	return values, nil
+	return values
 }

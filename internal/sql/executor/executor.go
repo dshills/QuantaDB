@@ -935,7 +935,7 @@ func (e *BasicExecutor) buildBitmapIndexScanOperator(plan *planner.BitmapIndexSc
 
 // buildBitmapAndOperator builds a bitmap AND operator.
 func (e *BasicExecutor) buildBitmapAndOperator(plan *planner.BitmapAnd, ctx *ExecContext) (Operator, error) {
-	var children []Operator
+	children := make([]Operator, 0, len(plan.BitmapChildren))
 	for _, child := range plan.BitmapChildren {
 		op, err := e.buildOperator(child, ctx)
 		if err != nil {
@@ -948,7 +948,7 @@ func (e *BasicExecutor) buildBitmapAndOperator(plan *planner.BitmapAnd, ctx *Exe
 
 // buildBitmapOrOperator builds a bitmap OR operator.
 func (e *BasicExecutor) buildBitmapOrOperator(plan *planner.BitmapOr, ctx *ExecContext) (Operator, error) {
-	var children []Operator
+	children := make([]Operator, 0, len(plan.BitmapChildren))
 	for _, child := range plan.BitmapChildren {
 		op, err := e.buildOperator(child, ctx)
 		if err != nil {

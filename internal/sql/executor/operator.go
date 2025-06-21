@@ -84,7 +84,8 @@ func (s *ScanOperator) Open(ctx *ExecContext) error {
 	var err error
 	// Use engine scan directly
 	// Note: For transactional scans, use StorageScanOperator with MVCC support instead
-	s.iterator, err = ctx.Engine.Scan(context.Background(), []byte(tableKey), nil)
+	// TODO: Pass proper context through - using TODO for now as ExecContext doesn't have request context
+	s.iterator, err = ctx.Engine.Scan(context.TODO(), []byte(tableKey), nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to create scan iterator: %w", err)

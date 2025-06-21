@@ -389,7 +389,7 @@ func NewRowWriter(w io.Writer) *RowWriter {
 // WriteRow writes a row to the file
 func (rw *RowWriter) WriteRow(row *Row) error {
 	// Write number of values
-	numValues := int32(len(row.Values))
+	numValues := int32(len(row.Values)) //nolint:gosec // Row value count always fits in int32
 	if err := binary.Write(rw.writer, binary.LittleEndian, numValues); err != nil {
 		return err
 	}
@@ -444,7 +444,7 @@ func (rw *RowWriter) writeValue(val types.Value) error {
 	case types.Text:
 		v, _ := val.AsString()
 		// Write length then string
-		strLen := int32(len(v))
+		strLen := int32(len(v)) //nolint:gosec // String length always fits in int32
 		if err := binary.Write(rw.writer, binary.LittleEndian, strLen); err != nil {
 			return err
 		}

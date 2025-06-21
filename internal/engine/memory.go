@@ -9,8 +9,9 @@ import (
 
 // memoryEngine is an in-memory implementation of the Engine interface.
 type memoryEngine struct {
-	mu   sync.RWMutex
-	data map[string][]byte
+	mu     sync.RWMutex
+	data   map[string][]byte
+	closed bool
 }
 
 // NewMemoryEngine creates a new in-memory storage engine.
@@ -23,6 +24,10 @@ func NewMemoryEngine() Engine {
 func (m *memoryEngine) Get(ctx context.Context, key []byte) ([]byte, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
+	if m.closed {
+		return nil, ErrEngineClosed
+	}
 
 	value, exists := m.data[string(key)]
 	if !exists {
@@ -39,6 +44,10 @@ func (m *memoryEngine) Put(ctx context.Context, key, value []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.closed {
+		return ErrEngineClosed
+	}
+
 	// Store copies to prevent external modifications
 	keyCopy := make([]byte, len(key))
 	copy(keyCopy, key)
@@ -54,6 +63,10 @@ func (m *memoryEngine) Delete(ctx context.Context, key []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.closed {
+		return ErrEngineClosed
+	}
+
 	delete(m.data, string(key))
 	return nil
 }
@@ -61,6 +74,10 @@ func (m *memoryEngine) Delete(ctx context.Context, key []byte) error {
 func (m *memoryEngine) Scan(ctx context.Context, start, end []byte) (Iterator, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
+	if m.closed {
+		return nil, ErrEngineClosed
+	}
 
 	// Collect all keys within range
 	var keys []string
@@ -92,6 +109,13 @@ func (m *memoryEngine) Scan(ctx context.Context, start, end []byte) (Iterator, e
 }
 
 func (m *memoryEngine) BeginTransaction(ctx context.Context) (Transaction, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.closed {
+		return nil, ErrEngineClosed
+	}
+
 	return &memoryTransaction{
 		engine:  m,
 		reads:   make(map[string][]byte),
@@ -105,8 +129,18 @@ func (m *memoryEngine) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Clear data
-	m.data = nil
+	if m.closed {
+		return nil
+	}
+
+	// Mark as closed
+	m.closed = true
+
+	// Clear data but don't set to nil to avoid nil pointer issues
+	for k := range m.data {
+		delete(m.data, k)
+	}
+
 	return nil
 }
 
@@ -187,7 +221,9 @@ func (tx *memoryTransaction) Get(key []byte) ([]byte, error) {
 	}
 
 	// Read from engine
-	value, err := tx.engine.Get(context.Background(), key)
+	// Note: Using background context as transaction doesn't have access to request context
+	// This could be improved by passing context through transaction methods
+	value, err := tx.engine.Get(context.TODO(), key)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,9 @@ var (
 
 	// ErrTransactionConflict is returned when a transaction conflicts.
 	ErrTransactionConflict = errors.New("transaction conflict")
+
+	// ErrEngineClosed is returned when operating on a closed engine.
+	ErrEngineClosed = errors.New("engine closed")
 )
 
 // Engine defines the interface for storage backends.

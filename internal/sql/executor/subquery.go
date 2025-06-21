@@ -8,7 +8,6 @@ import (
 
 // SubqueryOperator executes a subquery and caches the result.
 type SubqueryOperator struct {
-	baseOperator
 	subplan   Operator
 	cached    bool
 	result    *types.Value

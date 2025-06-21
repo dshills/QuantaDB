@@ -242,7 +242,7 @@ func processSemiJoinRows(
 ) (*Row, error) {
 	// For NOT IN with NULL in right side, return no rows
 	if joinType == SemiJoinTypeAnti && hasNullHandling && rightHasNull {
-		return nil, nil
+		return nil, nil //nolint:nilnil // NOT IN with NULL returns empty result set
 	}
 
 	// Process left rows
@@ -252,7 +252,7 @@ func processSemiJoinRows(
 			return nil, err
 		}
 		if leftRow == nil {
-			return nil, nil // EOF
+			return nil, nil //nolint:nilnil // EOF - standard iterator pattern
 		}
 
 		// Check if row matches

@@ -52,7 +52,7 @@ func BenchmarkProjectionPushdown(b *testing.B) {
 			// Scan returns all 20 columns
 			// Filter processes all 20 columns
 			// Project reduces to 2 columns
-			dataFlow := calculateDataFlow(project, false)
+			dataFlow := calculateDataFlow(project)
 			_ = dataFlow
 		}
 	})
@@ -68,14 +68,14 @@ func BenchmarkProjectionPushdown(b *testing.B) {
 			// Projection reduces to 3 columns (col0, col1, col2)
 			// Filter processes only 3 columns
 			// Final project already has the right columns
-			dataFlow := calculateDataFlow(optimized, true)
+			dataFlow := calculateDataFlow(optimized)
 			_ = dataFlow
 		}
 	})
 }
 
 // calculateDataFlow simulates the amount of data flowing through operators
-func calculateDataFlow(plan Plan, optimized bool) int64 {
+func calculateDataFlow(plan Plan) int64 {
 	// Simplified calculation: columns * assumed row count at each level
 	const rowCount = 10000
 
@@ -173,8 +173,8 @@ func TestProjectionPushdownOptimization(t *testing.T) {
 	}
 
 	// Calculate data flow reduction
-	unoptimizedFlow := calculateDataFlow(project, false)
-	optimizedFlow := calculateDataFlow(optimized, true)
+	unoptimizedFlow := calculateDataFlow(project)
+	optimizedFlow := calculateDataFlow(optimized)
 
 	reduction := float64(unoptimizedFlow-optimizedFlow) / float64(unoptimizedFlow) * 100
 	t.Logf("Data flow reduction: %.1f%% (from %d to %d column-rows)",

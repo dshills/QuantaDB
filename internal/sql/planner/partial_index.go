@@ -110,8 +110,6 @@ func (m *PartialIndexMatcher) checkSpecificImplications(expr1, expr2 Expression)
 		// Other operators not handled yet
 		return false
 	}
-
-	return false
 }
 
 // getReferencedColumn extracts the column name from an expression if it's a column reference.

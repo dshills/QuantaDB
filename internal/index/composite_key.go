@@ -152,7 +152,7 @@ func DecodeCompositeKey(data []byte, columnTypes []types.DataType) (*CompositeKe
 				return nil, fmt.Errorf("insufficient data for integer at column %d", i)
 			}
 			// Decode int32 from big-endian
-			intVal := int32(uint32(data[offset])<<24 | uint32(data[offset+1])<<16 |
+			intVal := int32(uint32(data[offset])<<24 | uint32(data[offset+1])<<16 | //nolint:gosec // Safe conversion from byte array
 				uint32(data[offset+2])<<8 | uint32(data[offset+3]))
 			values[i] = types.NewIntegerValue(intVal)
 			bytesRead = 4

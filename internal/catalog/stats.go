@@ -128,7 +128,7 @@ func estimateRangeSelectivity(stats *ColumnStats, value types.Value, isLower boo
 		return 0.3 // Default
 	}
 
-	var selectedRows int64 = 0
+	var selectedRows int64
 
 	for _, bucket := range stats.Histogram.Buckets {
 		bucketSelectivity := calculateBucketSelectivity(bucket, value, isLower, inclusive)
@@ -169,19 +169,19 @@ func calculateBucketSelectivity(bucket HistogramBucket, value types.Value, isLow
 		}
 		// value is within bucket range, estimate fraction
 		return estimateFractionInRange(lowerBound, upperBound, value, true, inclusive)
-	} else {
-		// For > or >= predicates, we want values greater than 'value'
-		if cmpUpper <= 0 {
-			// value >= upperBound, so no rows in this bucket satisfy predicate
-			return 0.0
-		}
-		if cmpLower >= 0 {
-			// value <= lowerBound, so all rows in this bucket satisfy predicate
-			return 1.0
-		}
-		// value is within bucket range, estimate fraction
-		return estimateFractionInRange(lowerBound, upperBound, value, false, inclusive)
 	}
+
+	// For > or >= predicates, we want values greater than 'value'
+	if cmpUpper <= 0 {
+		// value >= upperBound, so no rows in this bucket satisfy predicate
+		return 0.0
+	}
+	if cmpLower >= 0 {
+		// value <= lowerBound, so all rows in this bucket satisfy predicate
+		return 1.0
+	}
+	// value is within bucket range, estimate fraction
+	return estimateFractionInRange(lowerBound, upperBound, value, false, inclusive)
 }
 
 // estimateFractionInRange estimates what fraction of values in [lower, upper] satisfy the predicate.
@@ -203,16 +203,16 @@ func estimateFractionInRange(lower, upper, value types.Value, isLower bool, incl
 			fraction -= 1.0 / float64(totalRange)
 		}
 		return Selectivity(fraction)
-	} else {
-		// Calculate fraction greater than value
-		valueRange := calculateRange(value, upper)
-		fraction := float64(valueRange) / float64(totalRange)
-		if !inclusive && fraction > 0 {
-			// Adjust for non-inclusive comparison
-			fraction -= 1.0 / float64(totalRange)
-		}
-		return Selectivity(fraction)
 	}
+
+	// Calculate fraction greater than value
+	valueRange := calculateRange(value, upper)
+	fraction := float64(valueRange) / float64(totalRange)
+	if !inclusive && fraction > 0 {
+		// Adjust for non-inclusive comparison
+		fraction -= 1.0 / float64(totalRange)
+	}
+	return Selectivity(fraction)
 }
 
 // calculateRange calculates the "distance" between two values for range estimation.
@@ -321,17 +321,17 @@ func estimateRangeSelectivitySimple(stats *ColumnStats, value types.Value, isLow
 			return 1.0
 		}
 		return Selectivity(fraction)
-	} else {
-		valueRange := calculateRange(value, stats.MaxValue)
-		fraction := float64(valueRange) / float64(totalRange)
-		if fraction < 0 {
-			return 0.0
-		}
-		if fraction > 1 {
-			return 1.0
-		}
-		return Selectivity(fraction)
 	}
+
+	valueRange := calculateRange(value, stats.MaxValue)
+	fraction := float64(valueRange) / float64(totalRange)
+	if fraction < 0 {
+		return 0.0
+	}
+	if fraction > 1 {
+		return 1.0
+	}
+	return Selectivity(fraction)
 }
 
 // ComparisonOp represents a comparison operator for selectivity estimation.

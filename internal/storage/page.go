@@ -126,5 +126,5 @@ func (p *Page) HasSpaceFor(size uint16) bool {
 	dataStart := p.Header.FreeSpacePtr - size - PageHeaderSize
 
 	// Ensure slot array won't overlap with data area
-	return uint16(nextSlotEnd) < dataStart
+	return nextSlotEnd < dataStart
 }

@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/config"
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/log"
 	"github.com/dshills/QuantaDB/internal/network"
@@ -42,9 +42,25 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Load configuration
+	var cfg *config.Config
+	if *configFile != "" {
+		var err error
+		cfg, err = config.LoadFromFile(*configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load config file: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		cfg = config.DefaultConfig()
+	}
+
+	// Override config with command-line flags
+	cfg.LoadFromFlags(*host, *port, *dataDir, *logLevel)
+
 	// Initialize logger
 	level := slog.LevelInfo
-	switch *logLevel {
+	switch cfg.LogLevel {
 	case "debug":
 		level = slog.LevelDebug
 	case "warn":
@@ -58,12 +74,12 @@ func main() {
 		"version", version,
 		"commit", commit,
 		"config", *configFile,
-		"host", *host,
-		"port", *port,
-		"data_dir", *dataDir)
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"data_dir", cfg.DataDir)
 
 	// Ensure data directory exists
-	if err := os.MkdirAll(*dataDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 		logger.Error("Failed to create data directory", "error", err)
 		os.Exit(1)
 	}
@@ -71,7 +87,7 @@ func main() {
 	// Initialize catalog
 	cat := catalog.NewMemoryCatalog()
 	// Initialize storage components
-	dbPath := filepath.Join(*dataDir, "quantadb.db")
+	dbPath := cfg.GetDatabasePath()
 	diskManager, err := storage.NewDiskManager(dbPath)
 	if err != nil {
 		logger.Error("Failed to create disk manager", "error", err)
@@ -79,8 +95,9 @@ func main() {
 	}
 	defer diskManager.Close()
 
-	// Create buffer pool (128MB default)
-	bufferPool := storage.NewBufferPool(diskManager, 128*1024*1024/storage.PageSize)
+	// Create buffer pool
+	bufferPoolPages := cfg.Storage.BufferPoolSize * 1024 * 1024 / cfg.Storage.PageSize
+	bufferPool := storage.NewBufferPool(diskManager, bufferPoolPages)
 
 	// Initialize storage engine (for backward compatibility)
 	eng := engine.NewMemoryEngine()
@@ -90,12 +107,14 @@ func main() {
 	txnManager := txn.NewManager(eng, nil)
 
 	// Initialize WAL manager (optional - can be nil)
-	walConfig := wal.DefaultConfig()
-	walConfig.Directory = filepath.Join(*dataDir, "wal")
-	walManager, err := wal.NewManager(walConfig)
-	if err != nil {
-		logger.Warn("Failed to create WAL manager, continuing without WAL", "error", err)
-		walManager = nil
+	var walManager *wal.Manager
+	if cfg.WAL.Enabled {
+		walConfig := cfg.ToWALConfig()
+		walManager, err = wal.NewManager(walConfig)
+		if err != nil {
+			logger.Warn("Failed to create WAL manager, continuing without WAL", "error", err)
+			walManager = nil
+		}
 	}
 	if walManager != nil {
 		defer walManager.Close()
@@ -105,12 +124,10 @@ func main() {
 	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, walManager, txnManager)
 
 	// Configure server
-	config := network.DefaultConfig()
-	config.Host = *host
-	config.Port = *port
+	networkConfig := cfg.ToNetworkConfig()
 
 	// Create and start server
-	server := network.NewServerWithTxnManager(config, cat, eng, txnManager, logger)
+	server := network.NewServerWithTxnManager(networkConfig, cat, eng, txnManager, logger)
 	server.SetStorageBackend(storageBackend)
 
 	ctx, cancel := context.WithCancel(context.Background())

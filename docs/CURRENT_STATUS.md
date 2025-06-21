@@ -61,6 +61,9 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
    - Join reordering (dynamic programming for ≤8 tables, greedy for larger)
    - Semi/anti join transformation for EXISTS/IN
    - ANALYZE command support for statistics collection
+   - Projection pushdown optimization (reduces data flow by up to 48%)
+   - Subquery planning and decorrelation
+   - Common Table Expression (CTE) support
    - Missing: ParameterRef handling for prepared statements
 
 3. **Query Executor** (`internal/sql/executor/`)
@@ -75,6 +78,12 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
    - Buffer pool with LRU eviction
    - Disk manager for file I/O
    - Slotted page format
+
+9. **Configuration System** (`internal/config/`)
+   - JSON-based configuration file support
+   - Command-line flag override capability
+   - Comprehensive server configuration options
+   - Network, storage, WAL, and transaction settings
 
 5. **Transaction Manager** (`internal/txn/`)
    - MVCC implementation
@@ -197,8 +206,9 @@ ANALYZE users;
 1. **Error Handling**: Inconsistent error wrapping and messages
 2. **Testing**: Storage integration tests needed
 3. **Documentation**: API documentation incomplete
-4. **Configuration**: No configuration file support
+4. ~~**Configuration**: No configuration file support~~ ✅ FIXED - JSON config support added
 5. **Monitoring**: No metrics or health endpoints
+6. **Connection Complexity**: Connection struct exceeds 900 lines mixing multiple concerns
 
 ## Contributors
 

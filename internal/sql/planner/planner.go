@@ -547,7 +547,7 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 
 		// Determine result type from subquery schema
 		schema := subplan.Schema()
-		var resultType types.DataType = types.Unknown
+		var resultType = types.Unknown
 		if schema != nil && len(schema.Columns) == 1 {
 			resultType = schema.Columns[0].DataType
 		}

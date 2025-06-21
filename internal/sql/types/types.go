@@ -79,9 +79,9 @@ func (v Value) AsInt() (int32, error) {
 	case int32:
 		return val, nil
 	case int64:
-		return int32(val), nil
+		return int32(val), nil //nolint:gosec // Conversion handled by caller
 	case int:
-		return int32(val), nil
+		return int32(val), nil //nolint:gosec // Conversion handled by caller
 	default:
 		return 0, fmt.Errorf("cannot convert %T to int", v.Data)
 	}

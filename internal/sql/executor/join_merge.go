@@ -349,7 +349,7 @@ func (m *MergeJoinOperator) handleEndOfInput() (*Row, error) {
 		return result, nil
 	}
 
-	return nil, nil
+	return nil, nil //nolint:nilnil // EOF - standard iterator pattern
 }
 
 // combineRows combines a left and right row

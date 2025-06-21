@@ -627,9 +627,6 @@ func (e *inValuesEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 	}
 
 	// Not found in the list
-	result := false
-	if e.not {
-		result = true
-	}
+	result := !e.not
 	return types.NewValue(result), nil
 }
