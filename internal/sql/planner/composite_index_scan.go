@@ -10,13 +10,13 @@ import (
 // CompositeIndexScan represents a scan operation using a composite (multi-column) index.
 type CompositeIndexScan struct {
 	basePlan
-	TableName      string
-	IndexName      string
-	Index          *catalog.Index
-	StartValues    []types.Value // Start values for composite key (inclusive)
-	EndValues      []types.Value // End values for composite key (inclusive)
-	Reverse        bool          // Scan in reverse order
-	IndexMatch     *CompositeIndexMatch // Details about how the index matches predicates
+	TableName   string
+	IndexName   string
+	Index       *catalog.Index
+	StartValues []types.Value        // Start values for composite key (inclusive)
+	EndValues   []types.Value        // End values for composite key (inclusive)
+	Reverse     bool                 // Scan in reverse order
+	IndexMatch  *CompositeIndexMatch // Details about how the index matches predicates
 }
 
 func (s *CompositeIndexScan) logicalNode() {}
@@ -26,7 +26,7 @@ func (s *CompositeIndexScan) String() string {
 }
 
 // NewCompositeIndexScan creates a new composite index scan node.
-func NewCompositeIndexScan(tableName, indexName string, index *catalog.Index, schema *Schema, 
+func NewCompositeIndexScan(tableName, indexName string, index *catalog.Index, schema *Schema,
 	startValues, endValues []types.Value, indexMatch *CompositeIndexMatch) *CompositeIndexScan {
 	return &CompositeIndexScan{
 		basePlan: basePlan{
@@ -66,20 +66,20 @@ func tryCompositeIndexScan(scan *LogicalScan, filter *LogicalFilter, cat catalog
 	// Use composite index matcher for enhanced index selection
 	matcher := NewCompositeIndexMatcher()
 	bestMatch := matcher.FindBestIndexMatch(table, filter.Predicate)
-	
+
 	if bestMatch != nil {
 		// Extract composite key bounds using the matcher
 		startValues, endValues, canUse := matcher.ExtractCompositeIndexBounds(bestMatch.Index, filter.Predicate)
-		
+
 		if canUse {
 			// Create composite index scan
 			indexScan := NewCompositeIndexScan(
-				scan.TableName, 
-				bestMatch.Index.Name, 
-				bestMatch.Index, 
-				scan.Schema(), 
-				startValues, 
-				endValues, 
+				scan.TableName,
+				bestMatch.Index.Name,
+				bestMatch.Index,
+				scan.Schema(),
+				startValues,
+				endValues,
 				bestMatch,
 			)
 			return indexScan
@@ -111,7 +111,7 @@ func tryCompositeIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat
 	// Use composite index matcher for enhanced index selection
 	matcher := NewCompositeIndexMatcher()
 	bestMatch := matcher.FindBestIndexMatch(table, filter.Predicate)
-	
+
 	if bestMatch == nil {
 		return nil
 	}
@@ -127,16 +127,16 @@ func tryCompositeIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat
 		if indexCost.TotalCost < tableCost.TotalCost {
 			// Extract composite key bounds using the matcher
 			startValues, endValues, canUse := matcher.ExtractCompositeIndexBounds(bestMatch.Index, filter.Predicate)
-			
+
 			if canUse {
 				// Create composite index scan
 				indexScan := NewCompositeIndexScan(
-					scan.TableName, 
-					bestMatch.Index.Name, 
-					bestMatch.Index, 
-					scan.Schema(), 
-					startValues, 
-					endValues, 
+					scan.TableName,
+					bestMatch.Index.Name,
+					bestMatch.Index,
+					scan.Schema(),
+					startValues,
+					endValues,
 					bestMatch,
 				)
 				return indexScan

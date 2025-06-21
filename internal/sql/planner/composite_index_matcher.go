@@ -11,19 +11,19 @@ import (
 type CompositeIndexMatch struct {
 	// Index being evaluated
 	Index *catalog.Index
-	
+
 	// Number of leading columns that can be used (leftmost prefix rule)
 	MatchingColumns int
-	
+
 	// Column predicates in index order
 	ColumnPredicates []*ColumnPredicate
-	
+
 	// Whether any columns use range predicates
 	HasRangePredicates bool
-	
+
 	// Estimated selectivity (0.0 to 1.0)
 	Selectivity float64
-	
+
 	// Start and end keys for the composite index scan
 	StartKey CompositeKey
 	EndKey   CompositeKey
@@ -97,7 +97,7 @@ func (m *CompositeIndexMatcher) extractPredicatesRecursive(expr Expression, pred
 			// Recursively process both sides of AND
 			m.extractPredicatesRecursive(e.Left, predicates)
 			m.extractPredicatesRecursive(e.Right, predicates)
-		
+
 		case OpEqual, OpNotEqual, OpLess, OpLessEqual, OpGreater, OpGreaterEqual:
 			// Extract column predicate
 			if colRef, ok := e.Left.(*ColumnRef); ok {
@@ -116,6 +116,10 @@ func (m *CompositeIndexMatcher) extractPredicatesRecursive(expr Expression, pred
 					IsRange:    m.isRangeOperator(e.Operator),
 				}
 			}
+		case OpOr, OpLike, OpNotLike, OpIn, OpNotIn, OpIs, OpIsNot,
+			OpAdd, OpSubtract, OpMultiply, OpDivide, OpModulo, OpConcat:
+			// These operators are not supported for index matching
+			// Do nothing - they cannot be used for index bounds
 		}
 	}
 }
@@ -236,6 +240,11 @@ func (m *CompositeIndexMatcher) buildCompositeKeys(match *CompositeIndexMatch) {
 			// For <=, start is open, end is the value (inclusive)
 			endValues = append(endValues, predicate.Value)
 			// Don't add to startValues - we want an open range
+
+		case OpNotEqual, OpOr, OpAnd, OpLike, OpNotLike, OpIn, OpNotIn, OpIs, OpIsNot,
+			OpAdd, OpSubtract, OpMultiply, OpDivide, OpModulo, OpConcat:
+			// These operators are not supported for composite key building
+			// Skip them
 		}
 
 		// After any range predicate, we can't add more columns
@@ -264,7 +273,7 @@ func (m *CompositeIndexMatcher) CanUseIndexForFilter(index *catalog.Index, filte
 func (m *CompositeIndexMatcher) ExtractCompositeIndexBounds(index *catalog.Index, filter Expression) (startValues, endValues []types.Value, canUse bool) {
 	columnPredicates := m.extractColumnPredicates(filter)
 	match := m.evaluateIndexForPredicates(index, columnPredicates)
-	
+
 	if match == nil || match.MatchingColumns == 0 {
 		return nil, nil, false
 	}
@@ -314,6 +323,6 @@ func (match *CompositeIndexMatch) IsPrefixMatch() bool {
 
 // String returns a string representation of the index match
 func (match *CompositeIndexMatch) String() string {
-	return fmt.Sprintf("IndexMatch(%s: %d/%d columns, selectivity=%.3f)", 
+	return fmt.Sprintf("IndexMatch(%s: %d/%d columns, selectivity=%.3f)",
 		match.Index.Name, match.MatchingColumns, len(match.Index.Columns), match.Selectivity)
 }

@@ -26,7 +26,7 @@ func (plm *PageLockManager) AcquirePageLock(pageID PageID) {
 		plm.locks[pageID] = lock
 	}
 	plm.mu.Unlock()
-	
+
 	lock.Lock()
 }
 
@@ -35,7 +35,7 @@ func (plm *PageLockManager) ReleasePageLock(pageID PageID) {
 	plm.mu.Lock()
 	lock, exists := plm.locks[pageID]
 	plm.mu.Unlock()
-	
+
 	if exists {
 		lock.Unlock()
 	}

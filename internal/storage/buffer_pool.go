@@ -8,12 +8,12 @@ import (
 
 // BufferPool manages pages in memory with LRU eviction.
 type BufferPool struct {
-	diskManager  *DiskManager
-	pages        map[PageID]*BufferPoolPage
-	lruList      *list.List
-	maxPages     int
-	mu           sync.RWMutex
-	pageLockMgr  *PageLockManager
+	diskManager *DiskManager
+	pages       map[PageID]*BufferPoolPage
+	lruList     *list.List
+	maxPages    int
+	mu          sync.RWMutex
+	pageLockMgr *PageLockManager
 }
 
 // BufferPoolPage wraps a page with metadata for buffer management.
@@ -205,7 +205,7 @@ func (bp *BufferPool) evictPage() bool {
 			// Remove from LRU list and map
 			bp.lruList.Remove(elem)
 			delete(bp.pages, pageID)
-			
+
 			// Clean up page lock
 			bp.pageLockMgr.CleanupPageLock(pageID)
 

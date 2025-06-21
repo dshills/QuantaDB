@@ -53,7 +53,7 @@ func TestCompositeKey_Encoding(t *testing.T) {
 	}
 
 	key := NewCompositeKey(values)
-	
+
 	// Test encoding
 	encoded, err := key.Encode()
 	if err != nil {
@@ -210,7 +210,7 @@ func TestCompositeKey_Decoding(t *testing.T) {
 
 	for i, val := range decodedKey.Values {
 		if types.CompareValues(val, originalValues[i]) != 0 {
-			t.Errorf("Value %d differs after decode: expected %v, got %v", 
+			t.Errorf("Value %d differs after decode: expected %v, got %v",
 				i, originalValues[i], val)
 		}
 	}
@@ -273,8 +273,8 @@ func TestCompositeKeyMatch_Basic(t *testing.T) {
 func TestCompositeKey_LexicographicOrdering(t *testing.T) {
 	// Test that composite keys maintain proper lexicographic ordering
 	testCases := []struct {
-		values1 []types.Value
-		values2 []types.Value
+		values1  []types.Value
+		values2  []types.Value
 		expected int // -1, 0, 1
 	}{
 		// Same first column, different second
@@ -306,7 +306,7 @@ func TestCompositeKey_LexicographicOrdering(t *testing.T) {
 	for i, tc := range testCases {
 		key1 := NewCompositeKey(tc.values1)
 		key2 := NewCompositeKey(tc.values2)
-		
+
 		result := key1.Compare(key2)
 		if result != tc.expected {
 			t.Errorf("Test case %d: expected %d, got %d", i, tc.expected, result)

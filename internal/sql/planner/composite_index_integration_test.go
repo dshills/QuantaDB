@@ -56,7 +56,7 @@ func TestCompositeIndexIntegration(t *testing.T) {
 	t.Run("TwoColumnPredicate", func(t *testing.T) {
 		// Create logical plan: Filter(company_id=1 AND department='Engineering') -> Scan(employees)
 		scan := NewLogicalScan("employees", "", nil)
-		
+
 		predicate := &BinaryOp{
 			Left: &BinaryOp{
 				Left:     &ColumnRef{ColumnName: "company_id", ColumnType: types.Integer},
@@ -73,7 +73,7 @@ func TestCompositeIndexIntegration(t *testing.T) {
 			},
 			Type: types.Boolean,
 		}
-		
+
 		filter := NewLogicalFilter(scan, predicate)
 
 		// Optimize the plan
@@ -98,7 +98,7 @@ func TestCompositeIndexIntegration(t *testing.T) {
 	t.Run("ThreeColumnPredicate", func(t *testing.T) {
 		// Create logical plan: Filter(company_id=1 AND department='Engineering' AND name='Alice') -> Scan(employees)
 		scan := NewLogicalScan("employees", "", nil)
-		
+
 		predicate := &BinaryOp{
 			Left: &BinaryOp{
 				Left: &BinaryOp{
@@ -125,7 +125,7 @@ func TestCompositeIndexIntegration(t *testing.T) {
 			},
 			Type: types.Boolean,
 		}
-		
+
 		filter := NewLogicalFilter(scan, predicate)
 
 		// Optimize the plan
@@ -150,14 +150,14 @@ func TestCompositeIndexIntegration(t *testing.T) {
 	t.Run("SingleColumnPredicate", func(t *testing.T) {
 		// Create logical plan: Filter(company_id=1) -> Scan(employees)
 		scan := NewLogicalScan("employees", "", nil)
-		
+
 		predicate := &BinaryOp{
 			Left:     &ColumnRef{ColumnName: "company_id", ColumnType: types.Integer},
 			Operator: OpEqual,
 			Right:    &Literal{Value: types.NewIntegerValue(1), Type: types.Integer},
 			Type:     types.Boolean,
 		}
-		
+
 		filter := NewLogicalFilter(scan, predicate)
 
 		// Optimize the plan
@@ -174,7 +174,7 @@ func TestCompositeIndexIntegration(t *testing.T) {
 	t.Run("OrPredicate", func(t *testing.T) {
 		// Create logical plan: Filter(company_id=1 OR department='Engineering') -> Scan(employees)
 		scan := NewLogicalScan("employees", "", nil)
-		
+
 		predicate := &BinaryOp{
 			Left: &BinaryOp{
 				Left:     &ColumnRef{ColumnName: "company_id", ColumnType: types.Integer},
@@ -191,7 +191,7 @@ func TestCompositeIndexIntegration(t *testing.T) {
 			},
 			Type: types.Boolean,
 		}
-		
+
 		filter := NewLogicalFilter(scan, predicate)
 
 		// Optimize the plan

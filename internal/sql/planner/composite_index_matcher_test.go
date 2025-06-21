@@ -122,7 +122,7 @@ func TestCompositeIndexMatcher_LeftmostPrefixRule(t *testing.T) {
 
 	// Create test table
 	table := &catalog.Table{
-		ID:   1,
+		ID:        1,
 		TableName: "products",
 		Columns: []*catalog.Column{
 			{ID: 1, Name: "category_id", DataType: types.Integer},
@@ -198,7 +198,7 @@ func TestCompositeIndexMatcher_RangePredicates(t *testing.T) {
 
 	// Create test table
 	table := &catalog.Table{
-		ID:   1,
+		ID:        1,
 		TableName: "orders",
 		Columns: []*catalog.Column{
 			{ID: 1, Name: "customer_id", DataType: types.Integer},
@@ -291,7 +291,7 @@ func TestCompositeIndexMatcher_IndexSelection(t *testing.T) {
 
 	// Create test table with multiple indexes
 	table := &catalog.Table{
-		ID:   1,
+		ID:        1,
 		TableName: "employees",
 		Columns: []*catalog.Column{
 			{ID: 1, Name: "company_id", DataType: types.Integer},
@@ -418,7 +418,7 @@ func TestCompositeIndexMatcher_UnsupportedPredicates(t *testing.T) {
 
 	// Create test table
 	table := &catalog.Table{
-		ID:   1,
+		ID:        1,
 		TableName: "test",
 		Columns: []*catalog.Column{
 			{ID: 1, Name: "id", DataType: types.Integer},

@@ -118,13 +118,13 @@ func (p *Page) HasSpaceFor(size uint16) bool {
 	if p.Header.FreeSpace < size+4 {
 		return false
 	}
-	
+
 	// Also check that slots won't collide with data
 	// Calculate where the next slot would end (slots are stored in Data array)
 	nextSlotEnd := (p.Header.ItemCount + 1) * 4
 	// Calculate where the new data would start (relative to Data array start)
 	dataStart := p.Header.FreeSpacePtr - size - PageHeaderSize
-	
+
 	// Ensure slot array won't overlap with data area
 	return uint16(nextSlotEnd) < dataStart
 }

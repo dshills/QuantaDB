@@ -122,18 +122,26 @@ func TestIndexSelectionRule(t *testing.T) {
 					return
 				}
 
-				indexScan, ok := result.(*IndexScan)
-				if !ok {
-					t.Errorf("Expected IndexScan but got %T", result)
+				// Accept either IndexScan or CompositeIndexScan
+				var indexName, tableName string
+				switch scan := result.(type) {
+				case *IndexScan:
+					indexName = scan.IndexName
+					tableName = scan.TableName
+				case *CompositeIndexScan:
+					indexName = scan.IndexName
+					tableName = scan.TableName
+				default:
+					t.Errorf("Expected IndexScan or CompositeIndexScan but got %T", result)
 					return
 				}
 
-				if indexScan.IndexName != tt.indexName {
-					t.Errorf("Expected index name %s but got %s", tt.indexName, indexScan.IndexName)
+				if indexName != tt.indexName {
+					t.Errorf("Expected index name %s but got %s", tt.indexName, indexName)
 				}
 
-				if indexScan.TableName != "users" {
-					t.Errorf("Expected table name 'users' but got %s", indexScan.TableName)
+				if tableName != "users" {
+					t.Errorf("Expected table name 'users' but got %s", tableName)
 				}
 			} else {
 				if applied {
@@ -225,13 +233,19 @@ func TestIndexSelectionWithComplexPlan(t *testing.T) {
 		return
 	}
 
-	indexScan, ok := projectResult.Children()[0].(*IndexScan)
-	if !ok {
-		t.Errorf("Expected IndexScan as child but got %T", projectResult.Children()[0])
+	// Accept either IndexScan or CompositeIndexScan
+	var indexName string
+	switch scan := projectResult.Children()[0].(type) {
+	case *IndexScan:
+		indexName = scan.IndexName
+	case *CompositeIndexScan:
+		indexName = scan.IndexName
+	default:
+		t.Errorf("Expected IndexScan or CompositeIndexScan as child but got %T", projectResult.Children()[0])
 		return
 	}
 
-	if indexScan.IndexName != "idx_products_price" {
-		t.Errorf("Expected index name 'idx_products_price' but got %s", indexScan.IndexName)
+	if indexName != "idx_products_price" {
+		t.Errorf("Expected index name 'idx_products_price' but got %s", indexName)
 	}
 }

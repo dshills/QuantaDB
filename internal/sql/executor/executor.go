@@ -65,9 +65,10 @@ type Column struct {
 
 // ExecStats collects execution statistics.
 type ExecStats struct {
-	RowsRead     int64
-	RowsReturned int64
-	BytesRead    int64
+	RowsRead       int64
+	RowsReturned   int64
+	BytesRead      int64
+	IndexOnlyScans int64
 }
 
 // BasicExecutor is a basic query executor.
@@ -164,6 +165,10 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildVacuumOperator(p, ctx)
 	case *planner.IndexScan:
 		return e.buildIndexScanOperator(p, ctx)
+	case *planner.CompositeIndexScan:
+		return e.buildCompositeIndexScanOperator(p, ctx)
+	case *planner.IndexOnlyScan:
+		return e.buildIndexOnlyScanOperator(p, ctx)
 	case *planner.LogicalValues:
 		return e.buildValuesOperator(p, ctx)
 	default:
@@ -188,6 +193,22 @@ func (e *BasicExecutor) buildScanOperator(plan *planner.LogicalScan, ctx *ExecCo
 	return nil, fmt.Errorf("storage backend not configured - non-MVCC scans are deprecated")
 }
 
+// getTableFromCatalog tries to get a table from catalog using multiple schemas
+func (e *BasicExecutor) getTableFromCatalog(ctx *ExecContext, tableName string) (*catalog.Table, error) {
+	// Try "public" schema first, then "test", then empty
+	table, err := ctx.Catalog.GetTable("public", tableName)
+	if err != nil {
+		table, err = ctx.Catalog.GetTable("test", tableName)
+		if err != nil {
+			table, err = ctx.Catalog.GetTable("", tableName)
+			if err != nil {
+				return nil, fmt.Errorf("table not found: %w", err)
+			}
+		}
+	}
+	return table, nil
+}
+
 // buildIndexScanOperator builds an index scan operator.
 func (e *BasicExecutor) buildIndexScanOperator(plan *planner.IndexScan, ctx *ExecContext) (Operator, error) {
 	if e.storage == nil {
@@ -204,11 +225,56 @@ func (e *BasicExecutor) buildIndexScanOperator(plan *planner.IndexScan, ctx *Exe
 		return nil, fmt.Errorf("invalid index manager type")
 	}
 
-	// Get table from catalog - try multiple schemas like in the planner
+	// Get table from catalog
+	table, err := e.getTableFromCatalog(ctx, plan.TableName)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartKey, plan.EndKey), nil
+}
+
+// buildCompositeIndexScanOperator builds a composite index scan operator.
+func (e *BasicExecutor) buildCompositeIndexScanOperator(plan *planner.CompositeIndexScan, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured for composite index scan")
+	}
+
+	if e.indexMgr == nil {
+		return nil, fmt.Errorf("index manager not configured for composite index scan")
+	}
+
+	// Type assert to get the actual index.Manager
+	indexMgr, ok := e.indexMgr.(*index.Manager)
+	if !ok {
+		return nil, fmt.Errorf("invalid index manager type")
+	}
+
+	// Get table from catalog
+	table, err := e.getTableFromCatalog(ctx, plan.TableName)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewCompositeIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartValues, plan.EndValues), nil
+}
+
+// buildIndexOnlyScanOperator builds an index-only scan operator.
+func (e *BasicExecutor) buildIndexOnlyScanOperator(plan *planner.IndexOnlyScan, ctx *ExecContext) (Operator, error) {
+	if e.indexMgr == nil {
+		return nil, fmt.Errorf("index manager not configured for index-only scan")
+	}
+
+	// Type assert to get the actual index.Manager
+	indexMgr, ok := e.indexMgr.(*index.Manager)
+	if !ok {
+		return nil, fmt.Errorf("invalid index manager type")
+	}
+
+	// Get table from catalog - try multiple schemas
 	var table *catalog.Table
 	var err error
 
-	// Try "public" schema first, then "test", then empty
 	table, err = ctx.Catalog.GetTable("public", plan.TableName)
 	if err != nil {
 		table, err = ctx.Catalog.GetTable("test", plan.TableName)
@@ -220,7 +286,7 @@ func (e *BasicExecutor) buildIndexScanOperator(plan *planner.IndexScan, ctx *Exe
 		}
 	}
 
-	return NewIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartKey, plan.EndKey), nil
+	return NewIndexOnlyScanOperator(table, plan.Index, indexMgr, plan.StartValues, plan.EndValues, plan.ProjectedColumns), nil
 }
 
 // buildFilterOperator builds a filter operator.

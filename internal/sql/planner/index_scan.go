@@ -203,21 +203,21 @@ func tryIndexScan(scan *LogicalScan, filter *LogicalFilter, cat catalog.Catalog)
 	// Use composite index matcher for enhanced index selection
 	matcher := NewCompositeIndexMatcher()
 	bestMatch := matcher.FindBestIndexMatch(table, filter.Predicate)
-	
+
 	if bestMatch != nil {
 		// Convert composite keys to expressions for the index scan
 		var startKey, endKey Expression
-		
+
 		// Build start key expression
 		if len(bestMatch.StartKey.Values) > 0 {
 			startKey = bestMatch.StartKey.Values[0] // For now, use first value
 		}
-		
-		// Build end key expression  
+
+		// Build end key expression
 		if len(bestMatch.EndKey.Values) > 0 {
 			endKey = bestMatch.EndKey.Values[0] // For now, use first value
 		}
-		
+
 		// Create index scan using the constructor
 		indexScan := NewIndexScan(scan.TableName, bestMatch.Index.Name, bestMatch.Index, scan.Schema(), startKey, endKey)
 		return indexScan
@@ -263,7 +263,7 @@ func tryIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat catalog.
 	// Use composite index matcher for enhanced index selection
 	matcher := NewCompositeIndexMatcher()
 	bestMatch := matcher.FindBestIndexMatch(table, filter.Predicate)
-	
+
 	if bestMatch == nil {
 		// Fallback to original logic for backward compatibility
 		return tryIndexScanOriginal(scan, filter, cat, costEstimator)
@@ -280,17 +280,17 @@ func tryIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat catalog.
 		if indexCost.TotalCost < tableCost.TotalCost {
 			// Convert composite keys to expressions for the index scan
 			var startKey, endKey Expression
-			
+
 			// Build start key expression
 			if len(bestMatch.StartKey.Values) > 0 {
 				startKey = bestMatch.StartKey.Values[0] // For now, use first value
 			}
-			
-			// Build end key expression  
+
+			// Build end key expression
 			if len(bestMatch.EndKey.Values) > 0 {
 				endKey = bestMatch.EndKey.Values[0] // For now, use first value
 			}
-			
+
 			return NewIndexScan(scan.TableName, bestMatch.Index.Name, bestMatch.Index, scan.Schema(), startKey, endKey)
 		}
 	}

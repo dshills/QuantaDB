@@ -10,7 +10,7 @@ func TestCompositeBTreeIndex_Basic(t *testing.T) {
 	// Create a composite index on (id, name)
 	columnTypes := []types.DataType{types.Integer, types.Text}
 	columnNames := []string{"id", "name"}
-	
+
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, false)
 
 	// Test basic insert and search
@@ -40,7 +40,7 @@ func TestCompositeBTreeIndex_Basic(t *testing.T) {
 func TestCompositeBTreeIndex_MultipleRows(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text, types.Boolean}
 	columnNames := []string{"id", "name", "active"}
-	
+
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, false)
 
 	// Insert multiple rows
@@ -103,7 +103,7 @@ func TestCompositeBTreeIndex_MultipleRows(t *testing.T) {
 
 	// Search for id=1, name="alice" (should return row 1)
 	prefixResults2, err := idx.Search([]types.Value{
-		types.NewIntegerValue(1), 
+		types.NewIntegerValue(1),
 		types.NewTextValue("alice"),
 	})
 	if err != nil {
@@ -118,7 +118,7 @@ func TestCompositeBTreeIndex_MultipleRows(t *testing.T) {
 func TestCompositeBTreeIndex_UniqueConstraint(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text}
 	columnNames := []string{"id", "email"}
-	
+
 	// Create unique index
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, true, false)
 
@@ -148,7 +148,7 @@ func TestCompositeBTreeIndex_UniqueConstraint(t *testing.T) {
 func TestCompositeBTreeIndex_RangeSearch(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text}
 	columnNames := []string{"score", "name"}
-	
+
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, false)
 
 	// Insert test data with scores
@@ -244,7 +244,7 @@ func TestCompositeBTreeIndex_RangeSearch(t *testing.T) {
 func TestCompositeBTreeIndex_Delete(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text}
 	columnNames := []string{"id", "name"}
-	
+
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, false)
 
 	// Insert a row
@@ -290,7 +290,7 @@ func TestCompositeBTreeIndex_Delete(t *testing.T) {
 func TestCompositeBTreeIndex_Stats(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text}
 	columnNames := []string{"id", "name"}
-	
+
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, false)
 
 	// Check initial stats
@@ -329,7 +329,7 @@ func TestCompositeBTreeIndex_Stats(t *testing.T) {
 func TestCompositeBTreeIndex_ErrorCases(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text}
 	columnNames := []string{"id", "name"}
-	
+
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, false)
 
 	// Test wrong number of values for insert
@@ -360,7 +360,7 @@ func TestCompositeBTreeIndex_ErrorCases(t *testing.T) {
 func TestCompositeBTreeIndex_NullHandling(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text}
 	columnNames := []string{"id", "name"}
-	
+
 	// Test with nullable index
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, true)
 
@@ -391,7 +391,7 @@ func TestCompositeBTreeIndex_NullHandling(t *testing.T) {
 func TestCompositeBTreeIndex_MatchesPredicate(t *testing.T) {
 	columnTypes := []types.DataType{types.Integer, types.Text, types.Boolean}
 	columnNames := []string{"id", "name", "active"}
-	
+
 	idx := NewCompositeBTreeIndex(columnTypes, columnNames, false, false)
 
 	// Test matching with exact predicates

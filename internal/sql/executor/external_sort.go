@@ -207,7 +207,7 @@ func NewMemoryIterator(rows []*Row) *MemoryIterator {
 
 func (m *MemoryIterator) Next() (*Row, error) {
 	if m.position >= len(m.rows) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // EOF - standard iterator pattern
 	}
 	row := m.rows[m.position]
 	m.position++
@@ -282,7 +282,7 @@ func (m *MergeIterator) Next() (*Row, error) {
 
 	// Get minimum element
 	if m.heap.Len() == 0 {
-		return nil, nil // EOF
+		return nil, nil //nolint:nilnil // EOF - standard iterator pattern
 	}
 
 	// Pop minimum
@@ -472,7 +472,7 @@ func (rr *RowReader) ReadRow() (*Row, error) {
 	var numValues int32
 	if err := binary.Read(rr.reader, binary.LittleEndian, &numValues); err != nil {
 		if err == io.EOF {
-			return nil, nil
+			return nil, nil //nolint:nilnil // EOF - standard iterator pattern
 		}
 		return nil, err
 	}

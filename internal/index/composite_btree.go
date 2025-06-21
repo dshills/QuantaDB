@@ -9,13 +9,13 @@ import (
 
 // CompositeBTreeIndex implements a B+Tree index for multi-column keys
 type CompositeBTreeIndex struct {
-	mu           sync.RWMutex
-	tree         *BTree
-	columnTypes  []types.DataType
-	columnNames  []string
-	unique       bool
-	nullable     bool
-	stats        IndexStats
+	mu          sync.RWMutex
+	tree        *BTree
+	columnTypes []types.DataType
+	columnNames []string
+	unique      bool
+	nullable    bool
+	stats       IndexStats
 }
 
 // NewCompositeBTreeIndex creates a new composite B+Tree index
@@ -35,7 +35,7 @@ func NewCompositeBTreeIndex(columnTypes []types.DataType, columnNames []string, 
 // Insert adds a composite key-value pair to the index
 func (idx *CompositeBTreeIndex) Insert(values []types.Value, rowID []byte) error {
 	if len(values) != len(idx.columnTypes) {
-		return fmt.Errorf("value count (%d) does not match column count (%d)", 
+		return fmt.Errorf("value count (%d) does not match column count (%d)",
 			len(values), len(idx.columnTypes))
 	}
 
@@ -103,14 +103,14 @@ func (idx *CompositeBTreeIndex) Search(values []types.Value) ([][]byte, error) {
 func (idx *CompositeBTreeIndex) prefixSearch(prefixBytes []byte) ([][]byte, error) {
 	// For prefix search, we need to find all keys that start with the prefix
 	// We do this by creating a range from prefix to prefix+1
-	
+
 	startKey := make([]byte, len(prefixBytes))
 	copy(startKey, prefixBytes)
-	
+
 	// Create end key by incrementing the last byte
 	endKey := make([]byte, len(prefixBytes))
 	copy(endKey, prefixBytes)
-	
+
 	// Find the last non-0xFF byte and increment it
 	carried := true
 	for i := len(endKey) - 1; i >= 0 && carried; i-- {
@@ -121,7 +121,7 @@ func (idx *CompositeBTreeIndex) prefixSearch(prefixBytes []byte) ([][]byte, erro
 			endKey[i] = 0x00
 		}
 	}
-	
+
 	if carried {
 		// All bytes were 0xFF, so we scan to the end
 		return idx.scanToEnd(startKey)
@@ -184,8 +184,8 @@ func (idx *CompositeBTreeIndex) RangeSearch(startValues, endValues []types.Value
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode end key: %w", err)
 		}
-		
-		// If this is a partial key (fewer values than index columns), 
+
+		// If this is a partial key (fewer values than index columns),
 		// we need to make it inclusive by padding with maximum values
 		if len(endValues) < len(idx.columnTypes) {
 			// Append 0xFF bytes to make this key greater than any key with this prefix
@@ -240,7 +240,7 @@ func (idx *CompositeBTreeIndex) fullScan() ([]IndexEntry, error) {
 // Delete removes a composite key from the index
 func (idx *CompositeBTreeIndex) Delete(values []types.Value) error {
 	if len(values) != len(idx.columnTypes) {
-		return fmt.Errorf("value count (%d) does not match column count (%d)", 
+		return fmt.Errorf("value count (%d) does not match column count (%d)",
 			len(values), len(idx.columnTypes))
 	}
 
@@ -303,7 +303,7 @@ func (idx *CompositeBTreeIndex) MatchesPredicate(predicates map[string]interface
 	for _, colName := range idx.columnNames {
 		if pred, exists := predicates[colName]; exists {
 			match.MatchingColumns++
-			
+
 			// Check if this is a range predicate vs equality
 			switch pred.(type) {
 			case string: // Assuming string means equality for now

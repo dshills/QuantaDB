@@ -197,7 +197,7 @@ func (dp *DynamicProgrammingEnumerator) findTableIndex(graph *JoinGraph, table *
 }
 
 // calculateJoinCost calculates the cost of joining two plans.
-func (dp *DynamicProgrammingEnumerator) calculateJoinCost(costEstimator *CostEstimator, left, right *DPEntry, joinCondition *JoinEdge) Cost {
+func (dp *DynamicProgrammingEnumerator) calculateJoinCost(_ *CostEstimator, left, right *DPEntry, joinCondition *JoinEdge) Cost {
 	// Simplified cost calculation
 	// In practice, this would consider different join algorithms
 
@@ -237,26 +237,6 @@ func (dp *DynamicProgrammingEnumerator) createJoinPlan(left, right Plan, joinCon
 
 	// Create a logical join node using the constructor
 	return NewLogicalJoin(leftLogical, rightLogical, joinCondition.JoinType, joinCondition.Condition, nil)
-}
-
-// combineSchemas combines two schemas for a join.
-func (dp *DynamicProgrammingEnumerator) combineSchemas(left, right *Schema) *Schema {
-	if left == nil || right == nil {
-		if left != nil {
-			return left
-		}
-		return right
-	}
-
-	combined := &Schema{
-		Columns: make([]Column, 0, len(left.Columns)+len(right.Columns)),
-	}
-
-	// Add all columns from both schemas
-	combined.Columns = append(combined.Columns, left.Columns...)
-	combined.Columns = append(combined.Columns, right.Columns...)
-
-	return combined
 }
 
 // createFallbackPlan creates a simple nested loop join plan as fallback.
@@ -447,7 +427,7 @@ func BuildJoinGraph(tables []string, joins []Expression, cat catalog.Catalog, co
 }
 
 // extractJoinEdge extracts a join edge from a join expression.
-func extractJoinEdge(expr Expression, graph *JoinGraph, costEstimator *CostEstimator) *JoinEdge {
+func extractJoinEdge(expr Expression, graph *JoinGraph, _ *CostEstimator) *JoinEdge {
 	// Simplified join edge extraction
 	// In practice, this would be more sophisticated
 

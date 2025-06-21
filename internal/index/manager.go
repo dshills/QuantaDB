@@ -58,7 +58,8 @@ func (m *Manager) CreateIndex(schemaName, tableName, indexName string, columns [
 		return fmt.Errorf("index %s already exists", indexName)
 	}
 
-	// Create the index
+	// For now, create a standard B+Tree index
+	// The composite key encoding will be handled at insert/delete time
 	idx := NewBTreeIndex(unique, nullable)
 	m.indexes[key] = idx
 
@@ -113,38 +114,57 @@ func (m *Manager) GetTableIndexes(schemaName, tableName string) []string {
 	return indexes
 }
 
+// encodeIndexKey encodes the index key based on the index columns
+func (m *Manager) encodeIndexKey(indexMeta *catalog.Index, row map[string]types.Value) ([]byte, error) {
+	encoder := KeyEncoder{}
+
+	if len(indexMeta.Columns) == 1 {
+		// Single column index
+		colName := indexMeta.Columns[0].Column.Name
+		val, exists := row[colName]
+		if !exists {
+			return nil, fmt.Errorf("column %s not found in row", colName)
+		}
+
+		return encoder.EncodeValue(val)
+	}
+
+	// Composite index - extract values in order
+	values := make([]types.Value, len(indexMeta.Columns))
+	for i, indexCol := range indexMeta.Columns {
+		colName := indexCol.Column.Name
+		val, exists := row[colName]
+		if !exists {
+			return nil, fmt.Errorf("column %s not found in row", colName)
+		}
+		values[i] = val
+	}
+
+	return encoder.EncodeMultiColumn(values)
+}
+
 // InsertIntoIndexes updates all indexes when a row is inserted.
 func (m *Manager) InsertIntoIndexes(schemaName, tableName string, row map[string]types.Value, rowID []byte) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Get table schema
-	table, err := m.catalog.GetTable(schemaName, tableName)
-	if err != nil {
-		return err
-	}
-
 	// Update each index
 	for indexName := range m.getTableIndexMap(schemaName, tableName) {
-		// Get index metadata (would come from catalog in real implementation)
 		idx, err := m.GetIndex(schemaName, tableName, indexName)
 		if err != nil {
 			continue
 		}
 
-		// For now, assume single-column indexes on first column
-		// Real implementation would store index metadata
-		colName := table.Columns[0].Name
-		val, exists := row[colName]
-		if !exists {
-			return fmt.Errorf("column %s not found in row", colName)
+		// Get index metadata from catalog
+		indexMeta, err := m.catalog.GetIndex(schemaName, tableName, indexName)
+		if err != nil {
+			continue
 		}
 
-		// Encode the key
-		encoder := KeyEncoder{}
-		key, err := encoder.EncodeValue(val)
+		// Build key based on index columns
+		key, err := m.encodeIndexKey(indexMeta, row)
 		if err != nil {
-			return fmt.Errorf("failed to encode key: %w", err)
+			return err
 		}
 
 		// Insert into index
@@ -161,12 +181,6 @@ func (m *Manager) DeleteFromIndexes(schemaName, tableName string, row map[string
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Get table schema
-	table, err := m.catalog.GetTable(schemaName, tableName)
-	if err != nil {
-		return err
-	}
-
 	// Update each index
 	for indexName := range m.getTableIndexMap(schemaName, tableName) {
 		idx, err := m.GetIndex(schemaName, tableName, indexName)
@@ -174,18 +188,16 @@ func (m *Manager) DeleteFromIndexes(schemaName, tableName string, row map[string
 			continue
 		}
 
-		// For now, assume single-column indexes on first column
-		colName := table.Columns[0].Name
-		val, exists := row[colName]
-		if !exists {
-			return fmt.Errorf("column %s not found in row", colName)
+		// Get index metadata from catalog
+		indexMeta, err := m.catalog.GetIndex(schemaName, tableName, indexName)
+		if err != nil {
+			continue
 		}
 
-		// Encode the key
-		encoder := KeyEncoder{}
-		key, err := encoder.EncodeValue(val)
+		// Build key based on index columns
+		key, err := m.encodeIndexKey(indexMeta, row)
 		if err != nil {
-			return fmt.Errorf("failed to encode key: %w", err)
+			return err
 		}
 
 		// Delete from index

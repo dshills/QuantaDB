@@ -108,7 +108,7 @@ func EstimateSelectivity(stats *ColumnStats, op ComparisonOp, value types.Value)
 }
 
 // estimateEqualitySelectivity estimates selectivity for equality predicates.
-func estimateEqualitySelectivity(stats *ColumnStats, value types.Value) Selectivity {
+func estimateEqualitySelectivity(stats *ColumnStats, _ types.Value) Selectivity {
 	if stats.DistinctCount > 0 {
 		// Use uniform distribution assumption
 		return Selectivity(1.0 / float64(stats.DistinctCount))

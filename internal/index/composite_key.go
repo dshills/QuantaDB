@@ -19,7 +19,7 @@ func NewCompositeKey(values []types.Value) *CompositeKey {
 	for i, val := range values {
 		types[i] = val.Type()
 	}
-	
+
 	return &CompositeKey{
 		Values: values,
 		Types:  types,
@@ -54,7 +54,7 @@ func (ck *CompositeKey) Compare(other *CompositeKey) int {
 	} else if len(ck.Values) > len(other.Values) {
 		return 1
 	}
-	
+
 	return 0
 }
 
@@ -99,7 +99,7 @@ func (ck *CompositeKey) String() string {
 		result += val.String()
 	}
 	result += ")"
-	
+
 	return result
 }
 
@@ -135,9 +135,9 @@ func DecodeCompositeKey(data []byte, columnTypes []types.DataType) (*CompositeKe
 		}
 
 		// Handle NULL marker
-		if offset+4 <= len(data) && 
-		   data[offset] == 0xFF && data[offset+1] == 0xFF && 
-		   data[offset+2] == 0xFF && data[offset+3] == 0xFF {
+		if offset+4 <= len(data) &&
+			data[offset] == 0xFF && data[offset+1] == 0xFF &&
+			data[offset+2] == 0xFF && data[offset+3] == 0xFF {
 			values[i] = types.NewNullValue()
 			offset += 4
 			continue
@@ -152,8 +152,8 @@ func DecodeCompositeKey(data []byte, columnTypes []types.DataType) (*CompositeKe
 				return nil, fmt.Errorf("insufficient data for integer at column %d", i)
 			}
 			// Decode int32 from big-endian
-			intVal := int32(uint32(data[offset])<<24 | uint32(data[offset+1])<<16 | 
-			               uint32(data[offset+2])<<8 | uint32(data[offset+3]))
+			intVal := int32(uint32(data[offset])<<24 | uint32(data[offset+1])<<16 |
+				uint32(data[offset+2])<<8 | uint32(data[offset+3]))
 			values[i] = types.NewIntegerValue(intVal)
 			bytesRead = 4
 
@@ -195,16 +195,16 @@ func DecodeCompositeKey(data []byte, columnTypes []types.DataType) (*CompositeKe
 type CompositeKeyMatch struct {
 	// Number of leading columns that can be used
 	MatchingColumns int
-	
+
 	// Whether the match allows for range scans
 	CanUseRange bool
-	
+
 	// Estimated selectivity (0.0 to 1.0)
 	Selectivity float64
-	
+
 	// The prefix key for point lookups
 	PrefixKey *CompositeKey
-	
+
 	// Range bounds if applicable
 	StartKey *CompositeKey
 	EndKey   *CompositeKey
