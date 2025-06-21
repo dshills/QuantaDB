@@ -273,7 +273,21 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 		// Check if the child is a table scan
 		if len(p.Children()) > 0 {
 			if scan, ok := p.Children()[0].(*LogicalScan); ok {
-				// Try to convert to index scan using cost-based optimization
+				// Try composite index scan first (enhanced multi-column index support)
+				if is.costEstimator != nil {
+					if compositeIndexScan := tryCompositeIndexScanWithCost(scan, p, is.catalog, is.costEstimator); compositeIndexScan != nil {
+						// Composite index scan found - return it directly (filter is incorporated)
+						return compositeIndexScan.(LogicalPlan), true
+					}
+				} else {
+					// Fallback to simple composite index scan if no cost estimator
+					if compositeIndexScan := tryCompositeIndexScan(scan, p, is.catalog); compositeIndexScan != nil {
+						// Composite index scan found - return it directly (filter is incorporated)
+						return compositeIndexScan.(LogicalPlan), true
+					}
+				}
+
+				// Fallback to original index scan logic for backward compatibility
 				if is.costEstimator != nil {
 					if indexScan := tryIndexScanWithCost(scan, p, is.catalog, is.costEstimator); indexScan != nil {
 						// Index scan found - return it directly (filter is incorporated)

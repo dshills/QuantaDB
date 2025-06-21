@@ -200,7 +200,30 @@ func tryIndexScan(scan *LogicalScan, filter *LogicalFilter, cat catalog.Catalog)
 		}
 	}
 
-	// Check each index to see if it can be used
+	// Use composite index matcher for enhanced index selection
+	matcher := NewCompositeIndexMatcher()
+	bestMatch := matcher.FindBestIndexMatch(table, filter.Predicate)
+	
+	if bestMatch != nil {
+		// Convert composite keys to expressions for the index scan
+		var startKey, endKey Expression
+		
+		// Build start key expression
+		if len(bestMatch.StartKey.Values) > 0 {
+			startKey = bestMatch.StartKey.Values[0] // For now, use first value
+		}
+		
+		// Build end key expression  
+		if len(bestMatch.EndKey.Values) > 0 {
+			endKey = bestMatch.EndKey.Values[0] // For now, use first value
+		}
+		
+		// Create index scan using the constructor
+		indexScan := NewIndexScan(scan.TableName, bestMatch.Index.Name, bestMatch.Index, scan.Schema(), startKey, endKey)
+		return indexScan
+	}
+
+	// Fallback to original logic for any missed cases
 	for _, index := range table.Indexes {
 		if canUseIndexForFilter(index, filter.Predicate) {
 			startKey, endKey, ok := extractIndexBounds(index, filter.Predicate)
@@ -222,6 +245,63 @@ func tryIndexScan(scan *LogicalScan, filter *LogicalFilter, cat catalog.Catalog)
 // tryIndexScanWithCost attempts to convert a scan+filter into an index scan using cost-based optimization.
 func tryIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat catalog.Catalog, costEstimator *CostEstimator) Plan {
 	// Get table metadata - try multiple schemas like in the original function
+	var table *catalog.Table
+	var err error
+
+	// Try "public" schema first, then "test", then empty
+	table, err = cat.GetTable("public", scan.TableName)
+	if err != nil {
+		table, err = cat.GetTable("test", scan.TableName)
+		if err != nil {
+			table, err = cat.GetTable("", scan.TableName)
+			if err != nil {
+				return nil
+			}
+		}
+	}
+
+	// Use composite index matcher for enhanced index selection
+	matcher := NewCompositeIndexMatcher()
+	bestMatch := matcher.FindBestIndexMatch(table, filter.Predicate)
+	
+	if bestMatch == nil {
+		// Fallback to original logic for backward compatibility
+		return tryIndexScanOriginal(scan, filter, cat, costEstimator)
+	}
+
+	// Use cost estimator to determine if this index is worth using
+	if costEstimator != nil && costEstimator.ShouldUseIndex(table, bestMatch.Index, filter.Predicate) {
+		// Calculate cost for the best matching index
+		selectivity := costEstimator.EstimateSelectivity(table, filter.Predicate)
+		indexCost := costEstimator.EstimateIndexScanCost(table, bestMatch.Index, selectivity)
+
+		// Check if index scan is better than table scan
+		tableCost := costEstimator.EstimateTableScanCost(table, 1.0)
+		if indexCost.TotalCost < tableCost.TotalCost {
+			// Convert composite keys to expressions for the index scan
+			var startKey, endKey Expression
+			
+			// Build start key expression
+			if len(bestMatch.StartKey.Values) > 0 {
+				startKey = bestMatch.StartKey.Values[0] // For now, use first value
+			}
+			
+			// Build end key expression  
+			if len(bestMatch.EndKey.Values) > 0 {
+				endKey = bestMatch.EndKey.Values[0] // For now, use first value
+			}
+			
+			return NewIndexScan(scan.TableName, bestMatch.Index.Name, bestMatch.Index, scan.Schema(), startKey, endKey)
+		}
+	}
+
+	// No cost-effective index found
+	return nil
+}
+
+// tryIndexScanOriginal provides the original index scan logic as fallback
+func tryIndexScanOriginal(scan *LogicalScan, filter *LogicalFilter, cat catalog.Catalog, costEstimator *CostEstimator) Plan {
+	// Get table metadata
 	var table *catalog.Table
 	var err error
 
