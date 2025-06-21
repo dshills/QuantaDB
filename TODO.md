@@ -40,6 +40,22 @@
   - Executor evaluation for both simple and searched forms
   - Support for nested CASE expressions
   - Integration with aggregate functions (TPC-H Q8 style)
+- [x] **Subqueries in SELECT**: Scalar subqueries in projection list
+  - Parser support for subquery expressions
+  - Planner integration with SubqueryExpr
+  - Executor subqueryEvaluator connected to SubqueryOperator
+  - Support for aggregates without GROUP BY in subqueries
+  - Int32 support in aggregate functions (AVG, SUM)
+- [x] **Date Arithmetic**: Date/time arithmetic with INTERVAL types
+  - INTERVAL data type with months, days, and seconds components
+  - Parser support for INTERVAL literals (e.g., INTERVAL '1 day')
+  - Date/Timestamp + INTERVAL operations
+  - Date/Timestamp - INTERVAL operations
+  - Date - Date = INTERVAL (returns days)
+  - Timestamp - Timestamp = INTERVAL
+  - Interval + Interval operations
+  - Interval * Scalar multiplication
+  - Comprehensive test coverage for all operations
 
 ### JOIN Support (COMPLETED)
 - [x] **JOIN Syntax**: Full implementation of SQL JOIN operations
@@ -55,7 +71,6 @@
 ## Phase 5: SQL Feature Completion (Next)
 
 ### Query Features (Required for TPC-H)
-- [x] **Subqueries in SELECT**: Support scalar subqueries in projection list (COMPLETED)
   - Modified expression building to pass executor reference for subquery building
   - Connected subqueryEvaluator to build SubqueryOperator from logical plan
   - Fixed planner to handle aggregates without GROUP BY clause
@@ -72,7 +87,6 @@
 - [x] **ORDER BY**: Implement multi-column ordering with ASC/DESC (COMPLETED - was already implemented)
 - [x] **Date Literals**: Support for date 'YYYY-MM-DD' syntax (COMPLETED)
 - [x] **EXTRACT Function**: Support EXTRACT(field FROM date/timestamp) for YEAR, MONTH, DAY, HOUR, MINUTE, SECOND (COMPLETED)
-- [ ] **Date Arithmetic**: Date arithmetic operations and interval types
 - [ ] **String Functions**: SUBSTRING, string concatenation (||)
 - [x] **CASE Expressions**: Implement CASE WHEN for conditional logic (COMPLETED)
 - [ ] **IN/NOT IN**: Support for value lists and subqueries

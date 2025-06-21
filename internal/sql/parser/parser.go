@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -1304,6 +1305,22 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		}
 		return &Literal{Value: timestampValue}, nil
 
+	case TokenInterval:
+		// Handle interval literal: interval '1 day', interval '2 months', etc.
+		p.advance()
+		if p.current.Type != TokenString {
+			return nil, p.error("expected string literal after INTERVAL")
+		}
+		intervalStr := p.current.Value
+		p.advance()
+		
+		// Parse the interval string
+		intervalValue, err := p.parseIntervalString(intervalStr)
+		if err != nil {
+			return nil, p.error(fmt.Sprintf("invalid interval literal: %v", err))
+		}
+		return &Literal{Value: types.NewIntervalValue(intervalValue)}, nil
+
 	case TokenExtract:
 		// Handle EXTRACT(field FROM expression)
 		p.advance() // consume 'EXTRACT'
@@ -1961,4 +1978,73 @@ func (p *Parser) canBeIdentifier() bool {
 			p.current.Type != TokenError && p.current.Type != TokenNumber &&
 			p.current.Type != TokenString && p.current.Type != TokenParam
 	}
+}
+
+// parseIntervalString parses an interval string like '1 day', '2 months', '3 hours', etc.
+func (p *Parser) parseIntervalString(s string) (types.Interval, error) {
+	// Simple interval parser - handles patterns like:
+	// '1 day', '2 days', '3 months', '1 year', '2 hours', '30 minutes', '45 seconds'
+	// '1 year 2 months', '1 day 02:30:00'
+	
+	parts := strings.Fields(strings.ToLower(s))
+	if len(parts) == 0 {
+		return types.Interval{}, fmt.Errorf("empty interval string")
+	}
+	
+	var interval types.Interval
+	i := 0
+	
+	for i < len(parts) {
+		// Try to parse a number
+		if i >= len(parts) {
+			break
+		}
+		
+		num, err := strconv.ParseInt(parts[i], 10, 64)
+		if err != nil {
+			// Maybe it's a time format like '02:30:00'
+			if strings.Contains(parts[i], ":") {
+				duration, err := time.ParseDuration(strings.ReplaceAll(parts[i], ":", "h") + "m")
+				if err != nil {
+					return types.Interval{}, fmt.Errorf("invalid time format: %s", parts[i])
+				}
+				interval.Seconds = duration
+				i++
+				continue
+			}
+			return types.Interval{}, fmt.Errorf("expected number, got: %s", parts[i])
+		}
+		
+		i++
+		if i >= len(parts) {
+			return types.Interval{}, fmt.Errorf("expected time unit after number")
+		}
+		
+		unit := parts[i]
+		i++
+		
+		// Handle singular/plural forms
+		unit = strings.TrimSuffix(unit, "s")
+		
+		switch unit {
+		case "year":
+			interval.Months += int32(num * 12)
+		case "month":
+			interval.Months += int32(num)
+		case "week":
+			interval.Days += int32(num * 7)
+		case "day":
+			interval.Days += int32(num)
+		case "hour":
+			interval.Seconds += time.Duration(num) * time.Hour
+		case "minute":
+			interval.Seconds += time.Duration(num) * time.Minute
+		case "second":
+			interval.Seconds += time.Duration(num) * time.Second
+		default:
+			return types.Interval{}, fmt.Errorf("unknown interval unit: %s", unit)
+		}
+	}
+	
+	return interval, nil
 }

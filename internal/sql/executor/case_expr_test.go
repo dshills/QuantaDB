@@ -101,11 +101,11 @@ func TestCaseExpressionExecution(t *testing.T) {
 			p := parser.NewParser(query)
 			stmt, err := p.Parse()
 			require.NoError(t, err)
-			
+
 			selectStmt, ok := stmt.(*parser.SelectStmt)
 			require.True(t, ok)
 			require.Len(t, selectStmt.Columns, 1)
-			
+
 			expr := selectStmt.Columns[0].Expr
 
 			// Build evaluator with catalog columns
@@ -116,7 +116,7 @@ func TestCaseExpressionExecution(t *testing.T) {
 					DataType: col.Type,
 				}
 			}
-			
+
 			ctx := &evalContext{
 				columns: catalogColumns,
 			}
@@ -132,7 +132,7 @@ func TestCaseExpressionExecution(t *testing.T) {
 					require.True(t, result.IsNull(), "Expected NULL for row %d", i)
 				} else {
 					require.False(t, result.IsNull(), "Expected non-NULL for row %d", i)
-					
+
 					// Handle different numeric types
 					switch expected := tt.expected[i].(type) {
 					case float64:
@@ -150,7 +150,6 @@ func TestCaseExpressionExecution(t *testing.T) {
 		})
 	}
 }
-
 
 // Benchmark CASE expression evaluation
 func BenchmarkCaseExpression(b *testing.B) {
@@ -178,7 +177,7 @@ func BenchmarkCaseExpression(b *testing.B) {
 			DataType: col.Type,
 		}
 	}
-	
+
 	ctx := &evalContext{
 		row:     row,
 		columns: catalogColumns,

@@ -156,7 +156,7 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 		if err != nil {
 			return types.Value{}, err
 		}
-		
+
 		switch e.Operator {
 		case parser.TokenMinus:
 			// Negate the value
@@ -211,7 +211,7 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 
 	case *parser.CaseExpr:
 		// Evaluate CASE expression
-		
+
 		// For simple CASE, evaluate the main expression first
 		var mainValue types.Value
 		if e.Expr != nil {
@@ -221,13 +221,13 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 				return types.Value{}, fmt.Errorf("failed to evaluate CASE expression: %w", err)
 			}
 		}
-		
+
 		// Evaluate WHEN clauses in order
 		for _, when := range e.WhenList {
 			// For simple CASE, compare mainValue with when.Condition
 			// For searched CASE, evaluate when.Condition as boolean
 			var matches bool
-			
+
 			if e.Expr != nil {
 				// Simple CASE: compare mainValue with when condition
 				whenValue, err := evaluateExpression(when.Condition, ctx)
@@ -241,7 +241,7 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 				if err != nil {
 					return types.Value{}, fmt.Errorf("failed to evaluate WHEN condition: %w", err)
 				}
-				
+
 				// Check if condition is true
 				if condBool, ok := condValue.Data.(bool); ok {
 					matches = condBool
@@ -249,18 +249,18 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 					return types.Value{}, fmt.Errorf("WHEN condition must evaluate to boolean, got %T", condValue.Data)
 				}
 			}
-			
+
 			if matches {
 				// Return the result for this WHEN clause
 				return evaluateExpression(when.Result, ctx)
 			}
 		}
-		
+
 		// No WHEN clause matched, return ELSE value or NULL
 		if e.Else != nil {
 			return evaluateExpression(e.Else, ctx)
 		}
-		
+
 		// Return NULL if no ELSE clause
 		return types.NullValue(types.Unknown), nil
 

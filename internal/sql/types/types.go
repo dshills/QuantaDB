@@ -208,16 +208,17 @@ func CompareValues(a, b Value) int {
 
 // Common SQL types
 var (
-	Integer   DataType
-	BigInt    DataType
-	SmallInt  DataType
-	Boolean   DataType
-	Varchar   func(size int) DataType
-	Char      func(size int) DataType
-	Text      DataType
-	Timestamp DataType
-	Date      DataType
-	Decimal   func(precision, scale int) DataType
+	Integer      DataType
+	BigInt       DataType
+	SmallInt     DataType
+	Boolean      DataType
+	Varchar      func(size int) DataType
+	Char         func(size int) DataType
+	Text         DataType
+	Timestamp    DataType
+	Date         DataType
+	Decimal      func(precision, scale int) DataType
+	IntervalType DataType
 )
 
 // TypeID represents the internal ID of a data type

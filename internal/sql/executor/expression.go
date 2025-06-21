@@ -271,10 +271,26 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 	switch e.operator {
 	// Arithmetic operators
 	case planner.OpAdd:
+		// Check for date/interval arithmetic first
+		if result, ok := e.evalDateArithmetic(leftVal, rightVal, true); ok {
+			return result, nil
+		}
+
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
+			case int32:
+				switch b := b.(type) {
+				case int32:
+					return a + b
+				case int64:
+					return int64(a) + b
+				case float64:
+					return float64(a) + b
+				}
 			case int64:
 				switch b := b.(type) {
+				case int32:
+					return a + int64(b)
 				case int64:
 					return a + b
 				case float64:
@@ -282,6 +298,8 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 				}
 			case float64:
 				switch b := b.(type) {
+				case int32:
+					return a + float64(b)
 				case int64:
 					return a + float64(b)
 				case float64:
@@ -292,10 +310,26 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		})
 
 	case planner.OpSubtract:
+		// Check for date/interval arithmetic first
+		if result, ok := e.evalDateArithmetic(leftVal, rightVal, false); ok {
+			return result, nil
+		}
+
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
+			case int32:
+				switch b := b.(type) {
+				case int32:
+					return a - b
+				case int64:
+					return int64(a) - b
+				case float64:
+					return float64(a) - b
+				}
 			case int64:
 				switch b := b.(type) {
+				case int32:
+					return a - int64(b)
 				case int64:
 					return a - b
 				case float64:
@@ -303,6 +337,8 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 				}
 			case float64:
 				switch b := b.(type) {
+				case int32:
+					return a - float64(b)
 				case int64:
 					return a - float64(b)
 				case float64:
@@ -313,10 +349,52 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		})
 
 	case planner.OpMultiply:
+		// Check for interval * scalar
+		if interval, ok := leftVal.Data.(types.Interval); ok {
+			var factor float64
+			switch v := rightVal.Data.(type) {
+			case int32:
+				factor = float64(v)
+			case int64:
+				factor = float64(v)
+			case float64:
+				factor = v
+			default:
+				return types.NewNullValue(), fmt.Errorf("interval can only be multiplied by a number")
+			}
+			return types.NewValue(interval.Multiply(factor)), nil
+		}
+		// Check for scalar * interval (commutative)
+		if interval, ok := rightVal.Data.(types.Interval); ok {
+			var factor float64
+			switch v := leftVal.Data.(type) {
+			case int32:
+				factor = float64(v)
+			case int64:
+				factor = float64(v)
+			case float64:
+				factor = v
+			default:
+				return types.NewNullValue(), fmt.Errorf("interval can only be multiplied by a number")
+			}
+			return types.NewValue(interval.Multiply(factor)), nil
+		}
+
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
+			case int32:
+				switch b := b.(type) {
+				case int32:
+					return a * b
+				case int64:
+					return int64(a) * b
+				case float64:
+					return float64(a) * b
+				}
 			case int64:
 				switch b := b.(type) {
+				case int32:
+					return a * int64(b)
 				case int64:
 					return a * b
 				case float64:
@@ -324,6 +402,8 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 				}
 			case float64:
 				switch b := b.(type) {
+				case int32:
+					return a * float64(b)
 				case int64:
 					return a * float64(b)
 				case float64:
@@ -451,75 +531,209 @@ func (e *binaryOpEvaluator) evalArithmetic(left, right types.Value, op func(a, b
 	return types.NewValue(result), nil
 }
 
+// evalDateArithmetic evaluates date/time arithmetic operations.
+// Returns (result, true) if this is a date arithmetic operation, (nil, false) otherwise.
+func (e *binaryOpEvaluator) evalDateArithmetic(left, right types.Value, isAdd bool) (types.Value, bool) {
+	if left.IsNull() || right.IsNull() {
+		return types.NewNullValue(), true
+	}
+
+	// Check if left is a date/timestamp (stored as time.Time)
+	if leftTime, ok := left.Data.(time.Time); ok {
+		// Date/Timestamp + Interval
+		if interval, ok := right.Data.(types.Interval); ok {
+			if isAdd {
+				result := interval.AddToTime(leftTime)
+				// Preserve the original type (Date vs Timestamp)
+				if left.Type() == types.Date {
+					return types.NewDateValue(result), true
+				}
+				return types.NewTimestampValue(result), true
+			} else {
+				// Date/Timestamp - Interval
+				result := interval.SubtractFromTime(leftTime)
+				// Preserve the original type (Date vs Timestamp)
+				if left.Type() == types.Date {
+					return types.NewDateValue(result), true
+				}
+				return types.NewTimestampValue(result), true
+			}
+		}
+
+		// Date/Timestamp - Date/Timestamp = Interval
+		if rightTime, ok := right.Data.(time.Time); ok {
+			if !isAdd {
+				interval := types.TimeDifference(leftTime, rightTime)
+				return types.NewIntervalValue(interval), true
+			}
+		}
+	}
+
+	// Interval + Date/Timestamp (commutative)
+	if interval, ok := left.Data.(types.Interval); ok {
+		if rightTime, ok := right.Data.(time.Time); ok {
+			if isAdd {
+				result := interval.AddToTime(rightTime)
+				// Preserve the original type (Date vs Timestamp)
+				if right.Type() == types.Date {
+					return types.NewDateValue(result), true
+				}
+				return types.NewTimestampValue(result), true
+			}
+			// Interval - Date/Timestamp doesn't make sense
+		}
+	}
+
+	// Interval + Interval
+	if interval1, ok := left.Data.(types.Interval); ok {
+		if interval2, ok := right.Data.(types.Interval); ok {
+			if isAdd {
+				return types.NewValue(interval1.Add(interval2)), true
+			} else {
+				return types.NewValue(interval1.Subtract(interval2)), true
+			}
+		}
+	}
+
+	return types.Value{}, false
+}
+
 // evalComparison evaluates comparison operations.
 func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int) bool) (types.Value, error) {
+	// Handle NULL values
+	if left.IsNull() || right.IsNull() {
+		// NULL comparisons always return NULL (which is false in WHERE)
+		return types.NewNullValue(), nil
+	}
+
 	// Simple comparison based on Go's comparable types
 	// In a real implementation, we'd use the type system's Compare method
 	cmp := 0
 
-	switch l := left.Data.(type) {
-	case int64:
-		switch r := right.Data.(type) {
-		case int64:
-			if l < r {
-				cmp = -1
-			} else if l > r {
-				cmp = 1
-			}
-		case float64:
-			lf := float64(l)
-			if lf < r {
-				cmp = -1
-			} else if lf > r {
-				cmp = 1
-			}
-		default:
-			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
-		}
-
-	case float64:
-		switch r := right.Data.(type) {
-		case int64:
-			rf := float64(r)
-			if l < rf {
-				cmp = -1
-			} else if l > rf {
-				cmp = 1
-			}
-		case float64:
-			if l < r {
-				cmp = -1
-			} else if l > r {
-				cmp = 1
-			}
-		default:
-			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
-		}
-
-	case string:
-		if r, ok := right.Data.(string); ok {
-			if l < r {
-				cmp = -1
-			} else if l > r {
-				cmp = 1
+	// Handle date/time types first
+	if _, ok := left.Data.(time.Time); ok {
+		if _, ok := right.Data.(time.Time); ok {
+			// Both are time.Time, use appropriate comparator based on type
+			if left.Type() == types.Date && right.Type() == types.Date {
+				cmp = types.Date.Compare(left, right)
+			} else if left.Type() == types.Timestamp && right.Type() == types.Timestamp {
+				cmp = types.Timestamp.Compare(left, right)
+			} else {
+				// Mixed date/timestamp comparison - compare as timestamps
+				cmp = types.Timestamp.Compare(left, right)
 			}
 		} else {
-			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			return types.NewNullValue(), fmt.Errorf("cannot compare time with %T", right.Data)
 		}
-
-	case bool:
-		if r, ok := right.Data.(bool); ok {
-			if !l && r {
-				cmp = -1
-			} else if l && !r {
-				cmp = 1
-			}
+	} else if _, ok := left.Data.(types.Interval); ok {
+		if _, ok := right.Data.(types.Interval); ok {
+			cmp = types.IntervalType.Compare(left, right)
 		} else {
-			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			return types.NewNullValue(), fmt.Errorf("cannot compare interval with %T", right.Data)
 		}
+	} else {
+		// Handle numeric and other types
+		switch l := left.Data.(type) {
+		case int32:
+			switch r := right.Data.(type) {
+			case int32:
+				if l < r {
+					cmp = -1
+				} else if l > r {
+					cmp = 1
+				}
+			case int64:
+				if int64(l) < r {
+					cmp = -1
+				} else if int64(l) > r {
+					cmp = 1
+				}
+			case float64:
+				if float64(l) < r {
+					cmp = -1
+				} else if float64(l) > r {
+					cmp = 1
+				}
+			default:
+				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			}
 
-	default:
-		return types.NewNullValue(), fmt.Errorf("unsupported type for comparison: %T", l)
+		case int64:
+			switch r := right.Data.(type) {
+			case int32:
+				if l < int64(r) {
+					cmp = -1
+				} else if l > int64(r) {
+					cmp = 1
+				}
+			case int64:
+				if l < r {
+					cmp = -1
+				} else if l > r {
+					cmp = 1
+				}
+			case float64:
+				lf := float64(l)
+				if lf < r {
+					cmp = -1
+				} else if lf > r {
+					cmp = 1
+				}
+			default:
+				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			}
+
+		case float64:
+			switch r := right.Data.(type) {
+			case int32:
+				rf := float64(r)
+				if l < rf {
+					cmp = -1
+				} else if l > rf {
+					cmp = 1
+				}
+			case int64:
+				rf := float64(r)
+				if l < rf {
+					cmp = -1
+				} else if l > rf {
+					cmp = 1
+				}
+			case float64:
+				if l < r {
+					cmp = -1
+				} else if l > r {
+					cmp = 1
+				}
+			default:
+				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			}
+
+		case string:
+			if r, ok := right.Data.(string); ok {
+				if l < r {
+					cmp = -1
+				} else if l > r {
+					cmp = 1
+				}
+			} else {
+				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			}
+
+		case bool:
+			if r, ok := right.Data.(bool); ok {
+				if !l && r {
+					cmp = -1
+				} else if l && !r {
+					cmp = 1
+				}
+			} else {
+				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			}
+
+		default:
+			return types.NewNullValue(), fmt.Errorf("unsupported type for comparison: %T", l)
+		}
 	}
 
 	return types.NewValue(op(cmp)), nil
@@ -609,13 +823,13 @@ func (e *subqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		if e.executor == nil {
 			return types.NewNullValue(), fmt.Errorf("executor not available for subquery evaluation")
 		}
-		
+
 		// Build the physical operator from the logical plan
 		physicalOp, err := e.executor.buildOperator(e.subplan, ctx)
 		if err != nil {
 			return types.NewNullValue(), fmt.Errorf("failed to build subquery operator: %w", err)
 		}
-		
+
 		// Wrap in a SubqueryOperator (true for scalar subquery)
 		e.subOperator = NewSubqueryOperator(physicalOp, true)
 	}
@@ -817,9 +1031,9 @@ type caseWhenEvaluator struct {
 
 // caseExprEvaluator evaluates CASE expressions.
 type caseExprEvaluator struct {
-	caseEval  ExprEvaluator        // nil for searched CASE
-	whenEvals []caseWhenEvaluator  // WHEN clauses
-	elseEval  ExprEvaluator        // ELSE clause (may be nil)
+	caseEval  ExprEvaluator       // nil for searched CASE
+	whenEvals []caseWhenEvaluator // WHEN clauses
+	elseEval  ExprEvaluator       // ELSE clause (may be nil)
 	dataType  types.DataType
 }
 
@@ -832,7 +1046,7 @@ func (e *caseExprEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		if err != nil {
 			return types.NewNullValue(), fmt.Errorf("failed to evaluate CASE expression: %w", err)
 		}
-		
+
 		if mainValue.IsNull() {
 			// If the main expression is NULL, return NULL (or ELSE value)
 			if e.elseEval != nil {
@@ -841,18 +1055,18 @@ func (e *caseExprEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			return types.NewNullValue(), nil
 		}
 	}
-	
+
 	// Evaluate WHEN clauses in order
 	for _, when := range e.whenEvals {
 		var matches bool
-		
+
 		if e.caseEval != nil {
 			// Simple CASE: compare mainValue with when condition
 			whenValue, err := when.conditionEval.Eval(row, ctx)
 			if err != nil {
 				return types.NewNullValue(), fmt.Errorf("failed to evaluate WHEN value: %w", err)
 			}
-			
+
 			if !whenValue.IsNull() && mainValue.Equal(whenValue) {
 				matches = true
 			}
@@ -862,7 +1076,7 @@ func (e *caseExprEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 			if err != nil {
 				return types.NewNullValue(), fmt.Errorf("failed to evaluate WHEN condition: %w", err)
 			}
-			
+
 			if !condValue.IsNull() {
 				if condBool, ok := condValue.Data.(bool); ok {
 					matches = condBool
@@ -871,17 +1085,17 @@ func (e *caseExprEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 				}
 			}
 		}
-		
+
 		if matches {
 			// Return the result for this WHEN clause
 			return when.resultEval.Eval(row, ctx)
 		}
 	}
-	
+
 	// No WHEN clause matched, return ELSE value or NULL
 	if e.elseEval != nil {
 		return e.elseEval.Eval(row, ctx)
 	}
-	
+
 	return types.NewNullValue(), nil
 }

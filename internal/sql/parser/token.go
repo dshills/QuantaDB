@@ -69,6 +69,7 @@ const (
 	TokenTimestamp
 	TokenDate
 	TokenDecimal
+	TokenInterval
 
 	// Functions and date parts
 	TokenExtract
@@ -177,6 +178,7 @@ var tokenStrings = map[TokenType]string{
 	TokenTimestamp:    "TIMESTAMP",
 	TokenDate:         "DATE",
 	TokenDecimal:      "DECIMAL",
+	TokenInterval:     "INTERVAL",
 	TokenExtract:      "EXTRACT",
 	TokenYear:         "YEAR",
 	TokenMonth:        "MONTH",
@@ -295,6 +297,7 @@ var keywords = map[string]TokenType{
 	"TIMESTAMP": TokenTimestamp,
 	"DATE":      TokenDate,
 	"DECIMAL":   TokenDecimal,
+	"INTERVAL":  TokenInterval,
 	"NUMERIC":   TokenDecimal,
 	"EXTRACT":   TokenExtract,
 	"YEAR":      TokenYear,
