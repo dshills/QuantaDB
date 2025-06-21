@@ -1,6 +1,5 @@
 package executor
 
-
 // SimpleRowIterator is a simplified iterator interface for merge join
 type SimpleRowIterator interface {
 	Next() (*Row, error)
@@ -29,7 +28,7 @@ func (b *BufferedIterator) Next() (*Row, error) {
 		b.hasBuffer = false
 		return row, nil
 	}
-	
+
 	return b.base.Next()
 }
 
@@ -38,17 +37,17 @@ func (b *BufferedIterator) Peek() (*Row, error) {
 	if b.hasBuffer {
 		return b.buffer, nil
 	}
-	
+
 	row, err := b.base.Next()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if row != nil {
 		b.buffer = row
 		b.hasBuffer = true
 	}
-	
+
 	return row, nil
 }
 
@@ -69,16 +68,4 @@ func ensurePeekable(iter SimpleRowIterator) PeekableIterator {
 		return peekable
 	}
 	return NewBufferedIterator(iter)
-}
-
-// Update the merge join to use buffered iterators
-func updateMergeJoinForPeeking(m *MergeJoinOperator) {
-	// This would be called in the initialize method
-	// to wrap the iterators with buffered iterators
-}
-
-// Helper function to update peekIterator in join_merge.go
-func peekIteratorImpl(iter SimpleRowIterator) (*Row, error) {
-	peekable := ensurePeekable(iter)
-	return peekable.Peek()
 }

@@ -58,12 +58,16 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
    - Logical plan generation
    - Cost-based query optimization with real statistics
    - Index selection optimization (chooses best index based on cost)
+   - Join reordering (dynamic programming for ≤8 tables, greedy for larger)
+   - Semi/anti join transformation for EXISTS/IN
    - ANALYZE command support for statistics collection
    - Missing: ParameterRef handling for prepared statements
 
 3. **Query Executor** (`internal/sql/executor/`)
    - Physical operators (Scan, Filter, Join, Aggregate, Sort)
-   - Hash joins and nested loop joins
+   - Hash joins, nested loop joins, and sort-merge joins
+   - Semi/anti joins for EXISTS/IN predicates
+   - External sort with disk spilling
    - Aggregate functions (COUNT, SUM, AVG, MIN, MAX)
 
 4. **Storage Engine** (`internal/storage/`)

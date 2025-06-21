@@ -12,27 +12,27 @@ type MergeJoinOperator struct {
 	rightChild    Operator
 	joinType      JoinType
 	joinCondition ExprEvaluator
-	leftSortKeys  []int  // Column indices to sort/compare on
-	rightSortKeys []int  // Column indices to sort/compare on
-	
+	leftSortKeys  []int // Column indices to sort/compare on
+	rightSortKeys []int // Column indices to sort/compare on
+
 	// Execution state
 	leftIter      PeekableIterator
 	rightIter     PeekableIterator
 	leftRow       *Row
 	rightRow      *Row
-	leftGroup     []*Row  // For handling duplicates
-	rightGroup    []*Row  // For handling duplicates
-	groupLeftIdx  int     // Current position in left group
-	groupRightIdx int     // Current position in right group
-	
+	leftGroup     []*Row // For handling duplicates
+	rightGroup    []*Row // For handling duplicates
+	groupLeftIdx  int    // Current position in left group
+	groupRightIdx int    // Current position in right group
+
 	// For outer joins
-	leftMatched   bool
-	rightMatched  bool
-	
+	leftMatched  bool
+	rightMatched bool
+
 	// Schema info
-	leftSchema    *Schema
-	rightSchema   *Schema
-	outputSchema  *Schema
+	leftSchema   *Schema
+	rightSchema  *Schema
+	outputSchema *Schema
 }
 
 // NewMergeJoinOperator creates a new merge join operator
@@ -60,13 +60,13 @@ func (m *MergeJoinOperator) Next() (*Row, error) {
 			return nil, err
 		}
 	}
-	
+
 	for {
 		// Try to produce a row from current groups
 		if row := m.produceFromGroups(); row != nil {
 			return row, nil
 		}
-		
+
 		// Need to advance to next groups
 		if !m.advanceToNextMatch() {
 			// No more matches
@@ -81,24 +81,24 @@ func (m *MergeJoinOperator) initialize() error {
 	m.leftSchema = m.leftChild.Schema()
 	m.rightSchema = m.rightChild.Schema()
 	m.outputSchema = m.createOutputSchema()
-	
+
 	// Create sorted iterators
 	leftSorted, err := m.ensureSorted(m.leftChild, m.leftSortKeys)
 	if err != nil {
 		return fmt.Errorf("failed to sort left input: %w", err)
 	}
 	m.leftIter = ensurePeekable(leftSorted)
-	
+
 	rightSorted, err := m.ensureSorted(m.rightChild, m.rightSortKeys)
 	if err != nil {
 		return fmt.Errorf("failed to sort right input: %w", err)
 	}
 	m.rightIter = ensurePeekable(rightSorted)
-	
+
 	// Get first rows
 	m.leftRow, _ = m.leftIter.Next()
 	m.rightRow, _ = m.rightIter.Next()
-	
+
 	return nil
 }
 
@@ -109,7 +109,7 @@ func (m *MergeJoinOperator) ensureSorted(input Operator, sortKeys []int) (Simple
 		// Already sorted correctly
 		return &operatorIterator{op: input}, nil
 	}
-	
+
 	// Need to sort
 	sorter := NewExternalSort(sortKeys, m.createCompareFn(sortKeys))
 	return sorter.Sort(&operatorIterator{op: input})
@@ -147,7 +147,7 @@ func compareJoinValues(a, b types.Value) int {
 	if b.IsNull() {
 		return 1
 	}
-	
+
 	// Compare based on type
 	switch a.Type() {
 	case types.Integer:
@@ -159,7 +159,7 @@ func compareJoinValues(a, b types.Value) int {
 			return 1
 		}
 		return 0
-		
+
 	case types.Text:
 		aStr, _ := a.AsString()
 		bStr, _ := b.AsString()
@@ -169,7 +169,7 @@ func compareJoinValues(a, b types.Value) int {
 			return 1
 		}
 		return 0
-		
+
 	case types.Boolean:
 		aBool, _ := a.AsBool()
 		bBool, _ := b.AsBool()
@@ -179,7 +179,7 @@ func compareJoinValues(a, b types.Value) int {
 			return 1
 		}
 		return 0
-		
+
 	default:
 		// For other types, use string representation
 		return compareJoinValues(types.NewTextValue(a.String()), types.NewTextValue(b.String()))
@@ -192,33 +192,33 @@ func (m *MergeJoinOperator) produceFromGroups() *Row {
 	if len(m.leftGroup) == 0 || len(m.rightGroup) == 0 {
 		return nil
 	}
-	
+
 	// Check if we've exhausted current groups
 	if m.groupLeftIdx >= len(m.leftGroup) {
 		return nil
 	}
-	
+
 	// Get current rows from groups
 	leftRow := m.leftGroup[m.groupLeftIdx]
 	rightRow := m.rightGroup[m.groupRightIdx]
-	
+
 	// Advance position in groups
 	m.groupRightIdx++
 	if m.groupRightIdx >= len(m.rightGroup) {
 		m.groupRightIdx = 0
 		m.groupLeftIdx++
 	}
-	
+
 	// Mark rows as matched for outer joins
 	m.leftMatched = true
 	m.rightMatched = true
-	
+
 	// Combine rows and check join condition
 	combined := m.combineRows(leftRow, rightRow)
 	if m.evaluateJoinCondition(combined) {
 		return combined
 	}
-	
+
 	// Condition failed, try next combination
 	return m.produceFromGroups()
 }
@@ -230,11 +230,11 @@ func (m *MergeJoinOperator) advanceToNextMatch() bool {
 	m.rightGroup = nil
 	m.groupLeftIdx = 0
 	m.groupRightIdx = 0
-	
+
 	for m.leftRow != nil && m.rightRow != nil {
 		// Compare join keys
 		cmp := m.compareJoinKeys(m.leftRow, m.rightRow)
-		
+
 		switch {
 		case cmp < 0:
 			// Left < Right: advance left
@@ -248,7 +248,7 @@ func (m *MergeJoinOperator) advanceToNextMatch() bool {
 			}
 			m.leftRow, _ = m.leftIter.Next()
 			m.leftMatched = false
-			
+
 		case cmp > 0:
 			// Left > Right: advance right
 			if !m.rightMatched && (m.joinType == RightJoin || m.joinType == FullJoin) {
@@ -261,12 +261,12 @@ func (m *MergeJoinOperator) advanceToNextMatch() bool {
 			}
 			m.rightRow, _ = m.rightIter.Next()
 			m.rightMatched = false
-			
+
 		default:
 			// Equal: collect matching groups
 			m.leftGroup = m.collectGroup(m.leftIter, m.leftRow, true)
 			m.rightGroup = m.collectGroup(m.rightIter, m.rightRow, false)
-			
+
 			// Advance past the groups
 			if len(m.leftGroup) > 0 {
 				m.leftRow, _ = m.leftIter.Next()
@@ -274,30 +274,30 @@ func (m *MergeJoinOperator) advanceToNextMatch() bool {
 			if len(m.rightGroup) > 0 {
 				m.rightRow, _ = m.rightIter.Next()
 			}
-			
+
 			m.leftMatched = false
 			m.rightMatched = false
-			
+
 			return true
 		}
 	}
-	
+
 	return false
 }
 
 // collectGroup collects all rows with the same join key
 func (m *MergeJoinOperator) collectGroup(iter PeekableIterator, firstRow *Row, isLeft bool) []*Row {
 	group := []*Row{firstRow}
-	
+
 	// Determine which keys to use
 	sortKeys := m.leftSortKeys
 	if !isLeft {
 		sortKeys = m.rightSortKeys
 	}
-	
+
 	// Create compare function for this side
 	compareFn := m.createCompareFn(sortKeys)
-	
+
 	// Collect all rows with same key
 	for {
 		// Peek at next row
@@ -305,17 +305,17 @@ func (m *MergeJoinOperator) collectGroup(iter PeekableIterator, firstRow *Row, i
 		if err != nil || nextRow == nil {
 			break
 		}
-		
+
 		// Check if same key
 		if compareFn(firstRow, nextRow) != 0 {
 			break
 		}
-		
+
 		// Consume the row
 		row, _ := iter.Next()
 		group = append(group, row)
 	}
-	
+
 	return group
 }
 
@@ -324,7 +324,7 @@ func (m *MergeJoinOperator) compareJoinKeys(left, right *Row) int {
 	for i := 0; i < len(m.leftSortKeys); i++ {
 		leftVal := left.Values[m.leftSortKeys[i]]
 		rightVal := right.Values[m.rightSortKeys[i]]
-		
+
 		cmp := compareJoinValues(leftVal, rightVal)
 		if cmp != 0 {
 			return cmp
@@ -341,14 +341,14 @@ func (m *MergeJoinOperator) handleEndOfInput() (*Row, error) {
 		m.leftRow, _ = m.leftIter.Next()
 		return result, nil
 	}
-	
+
 	// For right/full outer join, output remaining right rows
 	if (m.joinType == RightJoin || m.joinType == FullJoin) && m.rightRow != nil {
 		result := m.combineRows(m.createNullRow(m.leftSchema), m.rightRow)
 		m.rightRow, _ = m.rightIter.Next()
 		return result, nil
 	}
-	
+
 	return nil, nil
 }
 
@@ -357,7 +357,7 @@ func (m *MergeJoinOperator) combineRows(left, right *Row) *Row {
 	values := make([]types.Value, 0, len(left.Values)+len(right.Values))
 	values = append(values, left.Values...)
 	values = append(values, right.Values...)
-	
+
 	return &Row{Values: values}
 }
 
@@ -375,26 +375,26 @@ func (m *MergeJoinOperator) evaluateJoinCondition(row *Row) bool {
 	if m.joinCondition == nil {
 		return true // No additional condition
 	}
-	
+
 	// Create a minimal ExecContext for evaluation
 	ctx := &ExecContext{}
 	result, err := m.joinCondition.Eval(row, ctx)
 	if err != nil {
 		return false
 	}
-	
+
 	boolVal, err := result.AsBool()
 	if err != nil {
 		return false
 	}
-	
+
 	return boolVal
 }
 
 // createOutputSchema creates the schema for joined rows
 func (m *MergeJoinOperator) createOutputSchema() *Schema {
 	columns := make([]Column, 0, len(m.leftSchema.Columns)+len(m.rightSchema.Columns))
-	
+
 	// Add left columns
 	for _, col := range m.leftSchema.Columns {
 		columns = append(columns, Column{
@@ -403,7 +403,7 @@ func (m *MergeJoinOperator) createOutputSchema() *Schema {
 			Nullable: col.Nullable,
 		})
 	}
-	
+
 	// Add right columns
 	for _, col := range m.rightSchema.Columns {
 		columns = append(columns, Column{
@@ -412,7 +412,7 @@ func (m *MergeJoinOperator) createOutputSchema() *Schema {
 			Nullable: col.Nullable,
 		})
 	}
-	
+
 	return &Schema{Columns: columns}
 }
 
@@ -422,10 +422,7 @@ func (m *MergeJoinOperator) Open(ctx *ExecContext) error {
 	if err := m.leftChild.Open(ctx); err != nil {
 		return err
 	}
-	if err := m.rightChild.Open(ctx); err != nil {
-		return err
-	}
-	return nil
+	return m.rightChild.Open(ctx)
 }
 
 // Schema returns the output schema
@@ -439,7 +436,7 @@ func (m *MergeJoinOperator) Schema() *Schema {
 // Close cleans up resources
 func (m *MergeJoinOperator) Close() error {
 	var err error
-	
+
 	if m.leftIter != nil {
 		if e := m.leftIter.Close(); e != nil {
 			err = e
@@ -450,7 +447,7 @@ func (m *MergeJoinOperator) Close() error {
 			err = e
 		}
 	}
-	
+
 	// Close child operators
 	if e := m.leftChild.Close(); e != nil && err == nil {
 		err = e
@@ -458,7 +455,7 @@ func (m *MergeJoinOperator) Close() error {
 	if e := m.rightChild.Close(); e != nil && err == nil {
 		err = e
 	}
-	
+
 	return err
 }
 
@@ -494,4 +491,3 @@ func (o *operatorIterator) Next() (*Row, error) {
 func (o *operatorIterator) Close() error {
 	return o.op.Close()
 }
-

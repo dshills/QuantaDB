@@ -14,50 +14,50 @@ func TestSemiJoinBasic(t *testing.T) {
 			{Name: "customer_id", Type: types.Integer},
 		},
 	}
-	
+
 	itemsSchema := &Schema{
 		Columns: []Column{
 			{Name: "item_id", Type: types.Integer},
 			{Name: "order_id", Type: types.Integer},
 		},
 	}
-	
+
 	// Orders with IDs 1, 2, 3
 	ordersRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1), types.NewIntegerValue(100)}},
 		{Values: []types.Value{types.NewIntegerValue(2), types.NewIntegerValue(101)}},
 		{Values: []types.Value{types.NewIntegerValue(3), types.NewIntegerValue(102)}},
 	}
-	
+
 	// Items only for orders 1 and 3
 	itemsRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1), types.NewIntegerValue(1)}},
 		{Values: []types.Value{types.NewIntegerValue(2), types.NewIntegerValue(1)}}, // Multiple items for order 1
 		{Values: []types.Value{types.NewIntegerValue(3), types.NewIntegerValue(3)}},
 	}
-	
+
 	ordersOp := NewMockOperator(ordersRows, ordersSchema)
 	itemsOp := NewMockOperator(itemsRows, itemsSchema)
-	
+
 	// Create evaluators for join keys
-	leftKey := &columnRefEvaluator{columnIdx: 0, resolved: true}   // order_id from orders
-	rightKey := &columnRefEvaluator{columnIdx: 1, resolved: true}  // order_id from items
-	
+	leftKey := &columnRefEvaluator{columnIdx: 0, resolved: true}  // order_id from orders
+	rightKey := &columnRefEvaluator{columnIdx: 1, resolved: true} // order_id from items
+
 	// Test semi join (EXISTS)
 	semiJoin := NewSemiJoinOperator(
 		ordersOp, itemsOp,
 		[]ExprEvaluator{leftKey},
 		[]ExprEvaluator{rightKey},
 		nil, // No additional condition
-		SemiJoinType_Semi,
+		SemiJoinTypeSemi,
 		false, // No NULL handling needed
 	)
-	
+
 	ctx := &ExecContext{}
 	if err := semiJoin.Open(ctx); err != nil {
 		t.Fatalf("Failed to open semi join: %v", err)
 	}
-	
+
 	var results []*Row
 	for {
 		row, err := semiJoin.Next()
@@ -69,12 +69,12 @@ func TestSemiJoinBasic(t *testing.T) {
 		}
 		results = append(results, row)
 	}
-	
+
 	// Should return orders 1 and 3 (which have items)
 	if len(results) != 2 {
 		t.Errorf("Expected 2 rows, got %d", len(results))
 	}
-	
+
 	// Verify the order IDs
 	expectedIDs := []int32{1, 3}
 	for i, row := range results {
@@ -93,46 +93,46 @@ func TestAntiJoinBasic(t *testing.T) {
 			{Name: "customer_id", Type: types.Integer},
 		},
 	}
-	
+
 	itemsSchema := &Schema{
 		Columns: []Column{
 			{Name: "item_id", Type: types.Integer},
 			{Name: "order_id", Type: types.Integer},
 		},
 	}
-	
+
 	ordersRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1), types.NewIntegerValue(100)}},
 		{Values: []types.Value{types.NewIntegerValue(2), types.NewIntegerValue(101)}},
 		{Values: []types.Value{types.NewIntegerValue(3), types.NewIntegerValue(102)}},
 	}
-	
+
 	itemsRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1), types.NewIntegerValue(1)}},
 		{Values: []types.Value{types.NewIntegerValue(3), types.NewIntegerValue(3)}},
 	}
-	
+
 	ordersOp := NewMockOperator(ordersRows, ordersSchema)
 	itemsOp := NewMockOperator(itemsRows, itemsSchema)
-	
+
 	leftKey := &columnRefEvaluator{columnIdx: 0, resolved: true}
 	rightKey := &columnRefEvaluator{columnIdx: 1, resolved: true}
-	
+
 	// Test anti join (NOT EXISTS)
 	antiJoin := NewSemiJoinOperator(
 		ordersOp, itemsOp,
 		[]ExprEvaluator{leftKey},
 		[]ExprEvaluator{rightKey},
 		nil,
-		SemiJoinType_Anti,
+		SemiJoinTypeAnti,
 		false,
 	)
-	
+
 	ctx := &ExecContext{}
 	if err := antiJoin.Open(ctx); err != nil {
 		t.Fatalf("Failed to open anti join: %v", err)
 	}
-	
+
 	var results []*Row
 	for {
 		row, err := antiJoin.Next()
@@ -144,12 +144,12 @@ func TestAntiJoinBasic(t *testing.T) {
 		}
 		results = append(results, row)
 	}
-	
+
 	// Should return only order 2 (which has no items)
 	if len(results) != 1 {
 		t.Errorf("Expected 1 row, got %d", len(results))
 	}
-	
+
 	if len(results) > 0 {
 		id, _ := results[0].Values[0].AsInt()
 		if id != 2 {
@@ -165,13 +165,13 @@ func TestSemiJoinWithNulls(t *testing.T) {
 			{Name: "value", Type: types.Integer},
 		},
 	}
-	
+
 	rightSchema := &Schema{
 		Columns: []Column{
 			{Name: "id", Type: types.Integer},
 		},
 	}
-	
+
 	// Left has values 1, 2, 3, NULL
 	leftRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1), types.NewIntegerValue(10)}},
@@ -179,35 +179,35 @@ func TestSemiJoinWithNulls(t *testing.T) {
 		{Values: []types.Value{types.NewIntegerValue(3), types.NewIntegerValue(30)}},
 		{Values: []types.Value{types.NewNullValue(), types.NewIntegerValue(40)}},
 	}
-	
+
 	// Right has values 1, 2, NULL
 	rightRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1)}},
 		{Values: []types.Value{types.NewIntegerValue(2)}},
 		{Values: []types.Value{types.NewNullValue()}},
 	}
-	
+
 	leftOp := NewMockOperator(leftRows, leftSchema)
 	rightOp := NewMockOperator(rightRows, rightSchema)
-	
+
 	leftKey := &columnRefEvaluator{columnIdx: 0, resolved: true}
 	rightKey := &columnRefEvaluator{columnIdx: 0, resolved: true}
-	
+
 	// Test semi join with NULLs
 	semiJoin := NewSemiJoinOperator(
 		leftOp, rightOp,
 		[]ExprEvaluator{leftKey},
 		[]ExprEvaluator{rightKey},
 		nil,
-		SemiJoinType_Semi,
+		SemiJoinTypeSemi,
 		false,
 	)
-	
+
 	ctx := &ExecContext{}
 	if err := semiJoin.Open(ctx); err != nil {
 		t.Fatalf("Failed to open semi join: %v", err)
 	}
-	
+
 	var results []*Row
 	for {
 		row, err := semiJoin.Next()
@@ -219,7 +219,7 @@ func TestSemiJoinWithNulls(t *testing.T) {
 		}
 		results = append(results, row)
 	}
-	
+
 	// Should return rows with id 1 and 2 (NULLs don't match)
 	if len(results) != 2 {
 		t.Errorf("Expected 2 rows, got %d", len(results))
@@ -232,47 +232,47 @@ func TestAntiJoinWithNullHandling(t *testing.T) {
 			{Name: "id", Type: types.Integer},
 		},
 	}
-	
+
 	rightSchema := &Schema{
 		Columns: []Column{
 			{Name: "id", Type: types.Integer},
 		},
 	}
-	
+
 	// Left has values 1, 2, 3
 	leftRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1)}},
 		{Values: []types.Value{types.NewIntegerValue(2)}},
 		{Values: []types.Value{types.NewIntegerValue(3)}},
 	}
-	
+
 	// Right has values 1, NULL (simulating NOT IN with NULL)
 	rightRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1)}},
 		{Values: []types.Value{types.NewNullValue()}},
 	}
-	
+
 	leftOp := NewMockOperator(leftRows, leftSchema)
 	rightOp := NewMockOperator(rightRows, rightSchema)
-	
+
 	leftKey := &columnRefEvaluator{columnIdx: 0, resolved: true}
 	rightKey := &columnRefEvaluator{columnIdx: 0, resolved: true}
-	
+
 	// Test anti join with NULL handling (NOT IN semantics)
 	antiJoin := NewSemiJoinOperator(
 		leftOp, rightOp,
 		[]ExprEvaluator{leftKey},
 		[]ExprEvaluator{rightKey},
 		nil,
-		SemiJoinType_Anti,
+		SemiJoinTypeAnti,
 		true, // Enable NULL handling for NOT IN
 	)
-	
+
 	ctx := &ExecContext{}
 	if err := antiJoin.Open(ctx); err != nil {
 		t.Fatalf("Failed to open anti join: %v", err)
 	}
-	
+
 	var results []*Row
 	for {
 		row, err := antiJoin.Next()
@@ -284,7 +284,7 @@ func TestAntiJoinWithNullHandling(t *testing.T) {
 		}
 		results = append(results, row)
 	}
-	
+
 	// With NOT IN and NULL in right side, should return no rows
 	if len(results) != 0 {
 		t.Errorf("Expected 0 rows due to NULL in NOT IN, got %d", len(results))
@@ -299,43 +299,43 @@ func TestNestedLoopSemiJoin(t *testing.T) {
 			{Name: "score", Type: types.Integer},
 		},
 	}
-	
+
 	rightSchema := &Schema{
 		Columns: []Column{
 			{Name: "min_score", Type: types.Integer},
 			{Name: "category", Type: types.Text},
 		},
 	}
-	
+
 	leftRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(1), types.NewIntegerValue(85)}},
 		{Values: []types.Value{types.NewIntegerValue(2), types.NewIntegerValue(65)}},
 		{Values: []types.Value{types.NewIntegerValue(3), types.NewIntegerValue(95)}},
 	}
-	
+
 	rightRows := []*Row{
 		{Values: []types.Value{types.NewIntegerValue(80), types.NewTextValue("A")}},
 		{Values: []types.Value{types.NewIntegerValue(90), types.NewTextValue("B")}},
 	}
-	
+
 	leftOp := NewMockOperator(leftRows, leftSchema)
 	rightOp := NewMockOperator(rightRows, rightSchema)
-	
+
 	// Join condition: left.score >= right.min_score
 	joinCond := &mockScoreComparison{}
-	
+
 	nestedJoin := NewNestedLoopSemiJoinOperator(
 		leftOp, rightOp,
 		joinCond,
-		SemiJoinType_Semi,
+		SemiJoinTypeSemi,
 		false,
 	)
-	
+
 	ctx := &ExecContext{}
 	if err := nestedJoin.Open(ctx); err != nil {
 		t.Fatalf("Failed to open nested loop semi join: %v", err)
 	}
-	
+
 	var results []*Row
 	for {
 		row, err := nestedJoin.Next()
@@ -347,7 +347,7 @@ func TestNestedLoopSemiJoin(t *testing.T) {
 		}
 		results = append(results, row)
 	}
-	
+
 	// Rows 1 (85>=80) and 3 (95>=80 and 95>=90) should match
 	if len(results) != 2 {
 		t.Errorf("Expected 2 rows, got %d", len(results))
@@ -363,16 +363,16 @@ func (m *mockScoreComparison) Eval(row *Row, ctx *ExecContext) (types.Value, err
 	if len(row.Values) < 4 {
 		return types.NewBooleanValue(false), nil
 	}
-	
+
 	leftScore, err := row.Values[1].AsInt()
 	if err != nil {
 		return types.NewBooleanValue(false), nil
 	}
-	
+
 	rightMinScore, err := row.Values[2].AsInt()
 	if err != nil {
 		return types.NewBooleanValue(false), nil
 	}
-	
+
 	return types.NewBooleanValue(leftScore >= rightMinScore), nil
 }

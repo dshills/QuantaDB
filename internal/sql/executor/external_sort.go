@@ -13,12 +13,12 @@ import (
 
 // ExternalSort implements external merge sort for large datasets
 type ExternalSort struct {
-	sortKeys     []int                    // Column indices to sort by
-	compareFn    func(*Row, *Row) int     // Comparison function
-	memoryLimit  int64                    // Memory limit in bytes
-	tempDir      string                   // Directory for temporary files
-	spillFiles   []string                 // List of spill files created
-	rowEstimate  int                      // Estimated bytes per row
+	sortKeys    []int                // Column indices to sort by
+	compareFn   func(*Row, *Row) int // Comparison function
+	memoryLimit int64                // Memory limit in bytes
+	tempDir     string               // Directory for temporary files
+	spillFiles  []string             // List of spill files created
+	rowEstimate int                  // Estimated bytes per row
 }
 
 // NewExternalSort creates a new external sort operator
@@ -39,12 +39,12 @@ func (es *ExternalSort) Sort(input SimpleRowIterator) (SimpleRowIterator, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sorted runs: %w", err)
 	}
-	
+
 	// If only one run and it's in memory, return it directly
 	if len(runs) == 1 {
 		return runs[0], nil
 	}
-	
+
 	// Merge multiple runs
 	return es.mergeRuns(runs)
 }
@@ -52,23 +52,23 @@ func (es *ExternalSort) Sort(input SimpleRowIterator) (SimpleRowIterator, error)
 // createSortedRuns creates sorted runs from the input
 func (es *ExternalSort) createSortedRuns(input SimpleRowIterator) ([]SimpleRowIterator, error) {
 	var runs []SimpleRowIterator
-	
+
 	for {
 		// Load batch up to memory limit
 		batch, err := es.loadBatch(input)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if len(batch) == 0 {
 			break // No more input
 		}
-		
+
 		// Sort batch in memory
 		sort.Slice(batch, func(i, j int) bool {
 			return es.compareFn(batch[i], batch[j]) < 0
 		})
-		
+
 		// Decide whether to keep in memory or spill
 		batchSize := es.estimateBatchSize(batch)
 		if batchSize > es.memoryLimit/4 || len(runs) > 0 {
@@ -84,7 +84,7 @@ func (es *ExternalSort) createSortedRuns(input SimpleRowIterator) ([]SimpleRowIt
 			runs = append(runs, run)
 		}
 	}
-	
+
 	return runs, nil
 }
 
@@ -92,7 +92,7 @@ func (es *ExternalSort) createSortedRuns(input SimpleRowIterator) ([]SimpleRowIt
 func (es *ExternalSort) loadBatch(input SimpleRowIterator) ([]*Row, error) {
 	var batch []*Row
 	currentSize := int64(0)
-	
+
 	for currentSize < es.memoryLimit {
 		row, err := input.Next()
 		if err != nil {
@@ -101,16 +101,16 @@ func (es *ExternalSort) loadBatch(input SimpleRowIterator) ([]*Row, error) {
 		if row == nil {
 			break // End of input
 		}
-		
+
 		batch = append(batch, row)
 		currentSize += int64(es.rowEstimate)
-		
+
 		// Update row estimate based on actual data
 		if len(batch) == 1 {
 			es.rowEstimate = es.estimateRowSize(row)
 		}
 	}
-	
+
 	return batch, nil
 }
 
@@ -122,7 +122,7 @@ func (es *ExternalSort) estimateRowSize(row *Row) int {
 		case types.Integer:
 			size += 8
 		case types.Boolean:
-			size += 1
+			size++
 		case types.Text:
 			str, _ := val.AsString()
 			size += len(str) + 8
@@ -148,10 +148,10 @@ func (es *ExternalSort) spillToDisk(batch []*Row) (SimpleRowIterator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
-	
+
 	fileName := tempFile.Name()
 	es.spillFiles = append(es.spillFiles, fileName)
-	
+
 	// Write rows to file
 	writer := NewRowWriter(tempFile)
 	for _, row := range batch {
@@ -160,11 +160,11 @@ func (es *ExternalSort) spillToDisk(batch []*Row) (SimpleRowIterator, error) {
 			return nil, fmt.Errorf("failed to write row: %w", err)
 		}
 	}
-	
+
 	if err := tempFile.Close(); err != nil {
 		return nil, err
 	}
-	
+
 	// Return iterator for the file
 	return NewDiskIterator(fileName)
 }
@@ -174,11 +174,11 @@ func (es *ExternalSort) mergeRuns(runs []SimpleRowIterator) (SimpleRowIterator, 
 	if len(runs) == 0 {
 		return NewMemoryIterator(nil), nil
 	}
-	
+
 	if len(runs) == 1 {
 		return runs[0], nil
 	}
-	
+
 	// Use k-way merge
 	return NewMergeIterator(runs, es.compareFn), nil
 }
@@ -243,7 +243,7 @@ func (d *DiskIterator) Next() (*Row, error) {
 		d.file = file
 		d.reader = NewRowReader(file)
 	}
-	
+
 	return d.reader.ReadRow()
 }
 
@@ -279,21 +279,21 @@ func (m *MergeIterator) Next() (*Row, error) {
 			return nil, err
 		}
 	}
-	
+
 	// Get minimum element
 	if m.heap.Len() == 0 {
 		return nil, nil // EOF
 	}
-	
+
 	// Pop minimum
 	item := heap.Pop(m.heap).(*mergeItem)
-	
+
 	// Try to get next row from same iterator
 	nextRow, err := m.iterators[item.iterIdx].Next()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if nextRow != nil {
 		// Push new item
 		heap.Push(m.heap, &mergeItem{
@@ -301,7 +301,7 @@ func (m *MergeIterator) Next() (*Row, error) {
 			iterIdx: item.iterIdx,
 		})
 	}
-	
+
 	return item.row, nil
 }
 
@@ -310,7 +310,7 @@ func (m *MergeIterator) initialize() error {
 		items:     make([]*mergeItem, 0, len(m.iterators)),
 		compareFn: m.compareFn,
 	}
-	
+
 	// Get first row from each iterator
 	for i, iter := range m.iterators {
 		row, err := iter.Next()
@@ -324,10 +324,10 @@ func (m *MergeIterator) initialize() error {
 			})
 		}
 	}
-	
+
 	heap.Init(h)
 	m.heap = h
-	
+
 	return nil
 }
 
@@ -389,17 +389,18 @@ func NewRowWriter(w io.Writer) *RowWriter {
 // WriteRow writes a row to the file
 func (rw *RowWriter) WriteRow(row *Row) error {
 	// Write number of values
-	if err := binary.Write(rw.writer, binary.LittleEndian, int32(len(row.Values))); err != nil {
+	numValues := int32(len(row.Values))
+	if err := binary.Write(rw.writer, binary.LittleEndian, numValues); err != nil {
 		return err
 	}
-	
+
 	// Write each value
 	for _, val := range row.Values {
 		if err := rw.writeValue(val); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -416,39 +417,40 @@ func (rw *RowWriter) writeValue(val types.Value) error {
 	default:
 		typeID = 0 // Unknown
 	}
-	
+
 	if err := binary.Write(rw.writer, binary.LittleEndian, typeID); err != nil {
 		return err
 	}
-	
+
 	// Write null flag
 	if err := binary.Write(rw.writer, binary.LittleEndian, val.IsNull()); err != nil {
 		return err
 	}
-	
+
 	if val.IsNull() {
 		return nil
 	}
-	
+
 	// Write value based on type
 	switch val.Type() {
 	case types.Integer:
 		v, _ := val.AsInt()
 		return binary.Write(rw.writer, binary.LittleEndian, v)
-		
+
 	case types.Boolean:
 		v, _ := val.AsBool()
 		return binary.Write(rw.writer, binary.LittleEndian, v)
-		
+
 	case types.Text:
 		v, _ := val.AsString()
 		// Write length then string
-		if err := binary.Write(rw.writer, binary.LittleEndian, int32(len(v))); err != nil {
+		strLen := int32(len(v))
+		if err := binary.Write(rw.writer, binary.LittleEndian, strLen); err != nil {
 			return err
 		}
 		_, err := rw.writer.Write([]byte(v))
 		return err
-		
+
 	default:
 		return fmt.Errorf("unsupported type for serialization: %v", val.Type())
 	}
@@ -474,7 +476,7 @@ func (rr *RowReader) ReadRow() (*Row, error) {
 		}
 		return nil, err
 	}
-	
+
 	// Read values
 	values := make([]types.Value, numValues)
 	for i := range values {
@@ -484,7 +486,7 @@ func (rr *RowReader) ReadRow() (*Row, error) {
 		}
 		values[i] = val
 	}
-	
+
 	return &Row{Values: values}, nil
 }
 
@@ -494,17 +496,17 @@ func (rr *RowReader) readValue() (types.Value, error) {
 	if err := binary.Read(rr.reader, binary.LittleEndian, &typ); err != nil {
 		return types.Value{}, err
 	}
-	
+
 	// Read null flag
 	var isNull bool
 	if err := binary.Read(rr.reader, binary.LittleEndian, &isNull); err != nil {
 		return types.Value{}, err
 	}
-	
+
 	if isNull {
 		return types.NewNullValue(), nil
 	}
-	
+
 	// Read value based on type
 	switch typ {
 	case 1: // Integer
@@ -513,27 +515,27 @@ func (rr *RowReader) readValue() (types.Value, error) {
 			return types.Value{}, err
 		}
 		return types.NewIntegerValue(v), nil
-		
+
 	case 2: // Boolean
 		var v bool
 		if err := binary.Read(rr.reader, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}
 		return types.NewBooleanValue(v), nil
-		
+
 	case 3: // Text
 		// Read length then string
 		var length int32
 		if err := binary.Read(rr.reader, binary.LittleEndian, &length); err != nil {
 			return types.Value{}, err
 		}
-		
+
 		buf := make([]byte, length)
 		if _, err := io.ReadFull(rr.reader, buf); err != nil {
 			return types.Value{}, err
 		}
 		return types.NewTextValue(string(buf)), nil
-		
+
 	default:
 		return types.Value{}, fmt.Errorf("unsupported type for deserialization: %v", typ)
 	}

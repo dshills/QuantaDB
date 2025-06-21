@@ -91,7 +91,7 @@ func (vs *VacuumScanner) FindDeadVersionsInTable(tableID int64) ([]DeadVersion, 
 			if pageDataOffset < storage.PageHeaderSize {
 				continue
 			}
-			
+
 			dataOffset := pageDataOffset - storage.PageHeaderSize
 			if int(dataOffset) >= len(page.Data) || int(dataOffset)+int(dataSize) > len(page.Data) {
 				continue
@@ -104,7 +104,7 @@ func (vs *VacuumScanner) FindDeadVersionsInTable(tableID int64) ([]DeadVersion, 
 				// Not an MVCC row, skip
 				continue
 			}
-			
+
 			// Deserialize MVCC row
 			mvccRow, err := mvccFormat.Deserialize(rowData)
 			if err != nil {

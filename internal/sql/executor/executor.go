@@ -384,43 +384,43 @@ func (e *BasicExecutor) buildJoinOperator(plan *planner.LogicalJoin, ctx *ExecCo
 func (e *BasicExecutor) chooseJoinAlgorithm(left, right Operator, plan *planner.LogicalJoin, predicate ExprEvaluator, joinType JoinType) (Operator, error) {
 	// Extract join keys from the condition
 	leftKeys, rightKeys := e.extractJoinKeys(plan.Condition, left.Schema(), right.Schema())
-	
+
 	// If we have equi-join keys, we can use hash join or merge join
 	if len(leftKeys) > 0 && len(leftKeys) == len(rightKeys) {
 		// Check if inputs are already sorted
 		leftSorted := e.isSorted(plan.Children()[0], leftKeys)
 		rightSorted := e.isSorted(plan.Children()[1], rightKeys)
-		
+
 		// Use merge join if both inputs are sorted or if we have large inputs
 		if leftSorted && rightSorted {
 			// Convert column names to indices
 			leftIndices := e.namesToIndices(leftKeys, left.Schema())
 			rightIndices := e.namesToIndices(rightKeys, right.Schema())
-			
+
 			return NewMergeJoinOperator(left, right, joinType, predicate, leftIndices, rightIndices), nil
 		}
-		
+
 		// Otherwise use hash join for equi-joins
 		// For now, just use the first join key
 		// TODO: Support multi-column hash joins
 		if len(leftKeys) == 1 {
 			leftExpr := &planner.ColumnRef{ColumnName: leftKeys[0]}
 			rightExpr := &planner.ColumnRef{ColumnName: rightKeys[0]}
-			
+
 			leftEval, err := buildExprEvaluatorWithSchema(leftExpr, left.Schema())
 			if err != nil {
 				return nil, err
 			}
-			
+
 			rightEval, err := buildExprEvaluatorWithSchema(rightExpr, right.Schema())
 			if err != nil {
 				return nil, err
 			}
-			
+
 			return NewHashJoinOperator(left, right, []ExprEvaluator{leftEval}, []ExprEvaluator{rightEval}, predicate, joinType), nil
 		}
 	}
-	
+
 	// Fall back to nested loop join for non-equi joins or complex conditions
 	return NewNestedLoopJoinOperator(left, right, predicate, joinType), nil
 }
@@ -430,24 +430,24 @@ func (e *BasicExecutor) buildSemiAntiJoin(left, right Operator, plan *planner.Lo
 	// Map join type
 	var semiJoinType SemiJoinType
 	hasNullHandling := false // TODO: Detect from query pattern
-	
+
 	switch plan.JoinType {
 	case planner.SemiJoin:
-		semiJoinType = SemiJoinType_Semi
+		semiJoinType = SemiJoinTypeSemi
 	case planner.AntiJoin:
-		semiJoinType = SemiJoinType_Anti
+		semiJoinType = SemiJoinTypeAnti
 	default:
 		return nil, fmt.Errorf("invalid semi/anti join type: %v", plan.JoinType)
 	}
-	
+
 	// Extract join keys
 	leftKeys, rightKeys := e.extractJoinKeys(plan.Condition, left.Schema(), right.Schema())
-	
+
 	// If we have equi-join keys, use hash-based semi/anti join
 	if len(leftKeys) > 0 && len(leftKeys) == len(rightKeys) {
 		leftEvals := make([]ExprEvaluator, len(leftKeys))
 		rightEvals := make([]ExprEvaluator, len(rightKeys))
-		
+
 		for i, leftKey := range leftKeys {
 			leftExpr := &planner.ColumnRef{ColumnName: leftKey}
 			leftEval, err := buildExprEvaluatorWithSchema(leftExpr, left.Schema())
@@ -455,7 +455,7 @@ func (e *BasicExecutor) buildSemiAntiJoin(left, right Operator, plan *planner.Lo
 				return nil, err
 			}
 			leftEvals[i] = leftEval
-			
+
 			rightExpr := &planner.ColumnRef{ColumnName: rightKeys[i]}
 			rightEval, err := buildExprEvaluatorWithSchema(rightExpr, right.Schema())
 			if err != nil {
@@ -463,10 +463,10 @@ func (e *BasicExecutor) buildSemiAntiJoin(left, right Operator, plan *planner.Lo
 			}
 			rightEvals[i] = rightEval
 		}
-		
+
 		return NewSemiJoinOperator(left, right, leftEvals, rightEvals, predicate, semiJoinType, hasNullHandling), nil
 	}
-	
+
 	// Fall back to nested loop for complex conditions
 	return NewNestedLoopSemiJoinOperator(left, right, predicate, semiJoinType, hasNullHandling), nil
 }
@@ -476,15 +476,16 @@ func (e *BasicExecutor) extractJoinKeys(condition planner.Expression, leftSchema
 	if condition == nil {
 		return nil, nil
 	}
-	
+
 	// Look for equality conditions
 	switch expr := condition.(type) {
 	case *planner.BinaryOp:
-		if expr.Operator == planner.OpEqual {
+		switch expr.Operator {
+		case planner.OpEqual:
 			// Check if it's a column = column comparison
 			leftCol, leftOk := expr.Left.(*planner.ColumnRef)
 			rightCol, rightOk := expr.Right.(*planner.ColumnRef)
-			
+
 			if leftOk && rightOk {
 				// Determine which column belongs to which side
 				if e.columnBelongsTo(leftCol.ColumnName, leftSchema) && e.columnBelongsTo(rightCol.ColumnName, rightSchema) {
@@ -493,17 +494,19 @@ func (e *BasicExecutor) extractJoinKeys(condition planner.Expression, leftSchema
 					return []string{rightCol.ColumnName}, []string{leftCol.ColumnName}
 				}
 			}
-		} else if expr.Operator == planner.OpAnd {
+		case planner.OpAnd:
 			// Recursively extract from AND conditions
 			leftKeys1, rightKeys1 := e.extractJoinKeys(expr.Left, leftSchema, rightSchema)
 			leftKeys2, rightKeys2 := e.extractJoinKeys(expr.Right, leftSchema, rightSchema)
-			
+
 			if leftKeys1 != nil && leftKeys2 != nil {
 				return append(leftKeys1, leftKeys2...), append(rightKeys1, rightKeys2...)
 			}
+		default:
+			// Other operators not relevant for join key extraction
 		}
 	}
-	
+
 	return nil, nil
 }
 
@@ -538,14 +541,14 @@ func (e *BasicExecutor) isSorted(plan planner.Plan, columns []string) bool {
 		// TODO: Check if we're scanning an index that provides the required order
 		return false
 	}
-	
+
 	// Check children
 	for _, child := range plan.Children() {
 		if e.isSorted(child, columns) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 

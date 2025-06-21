@@ -107,14 +107,14 @@ func (m *MVCCStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 		if err != nil {
 			return RowID{}, err
 		}
-		
+
 		// Update metadata safely
 		m.mu.Lock()
 		if currentMeta, exists := m.tableMeta[tableID]; exists {
 			currentMeta.LastPageID = newPageID
 		}
 		m.mu.Unlock()
-		
+
 		pageID = newPageID
 		page = newPage
 	}
@@ -229,7 +229,6 @@ func (m *MVCCStorageBackend) DeleteRow(tableID int64, rowID RowID) error {
 
 // ScanTable returns an MVCC-aware iterator
 func (m *MVCCStorageBackend) ScanTable(tableID int64, snapshotTS int64) (RowIterator, error) {
-	
 	// Get table metadata - copy needed data while holding lock
 	m.mu.RLock()
 	meta, exists := m.tableMeta[tableID]
@@ -297,12 +296,12 @@ func (m *MVCCStorageBackend) GetMVCCRow(tableID int64, rowID RowID) (*MVCCRow, e
 
 	// Read slot entry
 	slotOffset := int(rowID.SlotID) * 4 // Offset within Data array
-	
+
 	// Bounds check for slot access
-	if int(slotOffset)+4 > len(page.Data) {
+	if slotOffset+4 > len(page.Data) {
 		return nil, fmt.Errorf("slot offset out of bounds: %d+4 > %d", slotOffset, len(page.Data))
 	}
-	
+
 	slotData := page.Data[slotOffset : slotOffset+4]
 	pageDataOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 	dataSize := uint16(slotData[2])<<8 | uint16(slotData[3])
@@ -316,7 +315,7 @@ func (m *MVCCStorageBackend) GetMVCCRow(tableID int64, rowID RowID) (*MVCCRow, e
 		return nil, fmt.Errorf("invalid page data offset: %d < header size %d", pageDataOffset, storage.PageHeaderSize)
 	}
 	dataOffset := pageDataOffset - storage.PageHeaderSize
-	
+
 	// Bounds check for data access
 	if int(dataOffset) >= len(page.Data) {
 		return nil, fmt.Errorf("data offset out of bounds: %d not in [0, %d)", dataOffset, len(page.Data))
@@ -324,7 +323,7 @@ func (m *MVCCStorageBackend) GetMVCCRow(tableID int64, rowID RowID) (*MVCCRow, e
 	if int(dataOffset)+int(dataSize) > len(page.Data) {
 		return nil, fmt.Errorf("data read would exceed page bounds: %d+%d > %d", dataOffset, dataSize, len(page.Data))
 	}
-	
+
 	rowData := page.Data[dataOffset : dataOffset+dataSize]
 
 	// Deserialize as MVCC row
@@ -434,7 +433,7 @@ func (m *MVCCStorageBackend) allocateNewDataPage(currentPageID storage.PageID, c
 	// Link pages and mark current page as dirty
 	currentPage.Header.NextPageID = newPageID
 	m.bufferPool.ReleasePageLock(currentPageID)
-	
+
 	// Unpin current page after all modifications are complete
 	m.bufferPool.UnpinPage(currentPageID, true)
 
@@ -481,16 +480,16 @@ func (m *MVCCStorageBackend) insertMVCCRow(tableID int64, mvccRow *MVCCRow) (Row
 	if err != nil {
 		return RowID{}, fmt.Errorf("failed to fetch page: %w", err)
 	}
-	
+
 	// Acquire page lock before checking space and modifying
 	m.bufferPool.AcquirePageLock(pageID)
-	
+
 	// Re-check if page has space after acquiring lock (another thread might have filled it)
 	if !page.HasSpaceFor(uint16(dataLen)) {
 		// Need to allocate a new page
 		// First release current page lock to avoid deadlock
 		m.bufferPool.ReleasePageLock(pageID)
-		
+
 		// Allocate new page
 		newPage, err := m.bufferPool.NewPage()
 		if err != nil {
@@ -498,17 +497,17 @@ func (m *MVCCStorageBackend) insertMVCCRow(tableID int64, mvccRow *MVCCRow) (Row
 			return RowID{}, fmt.Errorf("failed to allocate new page: %w", err)
 		}
 		newPageID := newPage.Header.PageID
-		
+
 		// Initialize new page
 		newPage.Header.Type = storage.PageTypeData
 		newPage.Header.NextPageID = storage.InvalidPageID
-		
+
 		// Re-acquire lock on old page to update link
 		m.bufferPool.AcquirePageLock(pageID)
 		page.Header.NextPageID = newPageID
 		m.bufferPool.ReleasePageLock(pageID)
 		m.bufferPool.UnpinPage(pageID, true)
-		
+
 		// Update metadata atomically - re-check if another thread already allocated
 		m.mu.Lock()
 		if currentMeta, exists := m.tableMeta[tableID]; exists {
@@ -524,11 +523,11 @@ func (m *MVCCStorageBackend) insertMVCCRow(tableID int64, mvccRow *MVCCRow) (Row
 			currentMeta.LastPageID = newPageID
 		}
 		m.mu.Unlock()
-		
+
 		// Switch to new page
 		pageID = newPageID
 		page = newPage
-		
+
 		// Acquire lock for new page
 		m.bufferPool.AcquirePageLock(pageID)
 	}

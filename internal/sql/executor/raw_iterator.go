@@ -109,7 +109,7 @@ func (it *DiskRawRowIterator) Value() ([]byte, RowID, error) {
 
 	// Bounds check for data access
 	if int(dataOffset) >= len(it.currentPage.Data) {
-		return nil, RowID{}, fmt.Errorf("data offset out of bounds: %d not in [0, %d) - pageDataOffset=%d, slot %d on page %d (bytes: %02x %02x %02x %02x)", 
+		return nil, RowID{}, fmt.Errorf("data offset out of bounds: %d not in [0, %d) - pageDataOffset=%d, slot %d on page %d (bytes: %02x %02x %02x %02x)",
 			dataOffset, len(it.currentPage.Data), pageDataOffset, it.slotID, it.pageID, slotData[0], slotData[1], slotData[2], slotData[3])
 	}
 	if int(dataOffset)+int(dataSize) > len(it.currentPage.Data) {
@@ -180,7 +180,7 @@ func (it *MVCCRawRowIterator) Next() (*Row, RowID, error) {
 		errorCount = 0
 
 		// Check if this is MVCC format by looking at version byte
-		
+
 		if len(rowData) > 0 && rowData[0] == 1 {
 			// MVCC format
 			mvccRow, err := mvccFormat.Deserialize(rowData)

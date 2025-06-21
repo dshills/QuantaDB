@@ -199,10 +199,10 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 		return RowID{}, fmt.Errorf("row data too large: %d exceeds max uint16", len(rowData))
 	}
 	rowSize := uint16(len(rowData)) //nolint:gosec // Bounds checked above
-	
+
 	// Acquire page lock before checking space and modifying
 	d.bufferPool.AcquirePageLock(pageID)
-	
+
 	// Re-check if page has space after acquiring lock
 	if !page.HasSpaceFor(rowSize) {
 		// Need to allocate a new page
@@ -216,7 +216,7 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 			return RowID{}, fmt.Errorf("failed to allocate new page: %w", err)
 		}
 		newPageID := newPage.Header.PageID
-		
+
 		// Initialize new page
 		newPage.Header.Type = storage.PageTypeData
 		newPage.Header.NextPageID = storage.InvalidPageID
@@ -243,7 +243,7 @@ func (d *DiskStorageBackend) InsertRow(tableID int64, row *Row) (RowID, error) {
 		// Use new page
 		pageID = newPageID
 		page = newPage
-		
+
 		// Acquire lock for new page
 		d.bufferPool.AcquirePageLock(pageID)
 	}
@@ -290,10 +290,10 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 
 	// Validate page state before insert
 	if page.Header.FreeSpacePtr < storage.PageHeaderSize || page.Header.FreeSpacePtr > storage.PageSize {
-		panic(fmt.Sprintf("invalid FreeSpacePtr before insert: %d (must be in [%d, %d])", 
+		panic(fmt.Sprintf("invalid FreeSpacePtr before insert: %d (must be in [%d, %d])",
 			page.Header.FreeSpacePtr, storage.PageHeaderSize, storage.PageSize))
 	}
-	
+
 	// Calculate data position (grows from end)
 	if len(data) > math.MaxUint16 {
 		panic(fmt.Sprintf("data too large for page: %d exceeds max uint16", len(data)))
@@ -301,20 +301,20 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 	dataSize := uint16(len(data)) //nolint:gosec // Bounds checked above
 
 	// Bounds check for slot offset
-	if int(slotOffset)+4 > len(page.Data) {
+	if slotOffset+4 > len(page.Data) {
 		panic(fmt.Sprintf("slot offset out of bounds: %d+4 > %d", slotOffset, len(page.Data)))
 	}
 
 	// FreeSpacePtr points to start of free space (where next data will be written)
 	// Data grows from the end backwards, so new data position is FreeSpacePtr - dataSize
 	pageDataOffset := page.Header.FreeSpacePtr - dataSize
-	
+
 	// Validate we're not going below the header
 	if pageDataOffset < storage.PageHeaderSize {
-		panic(fmt.Sprintf("data would overlap header: pageDataOffset=%d < PageHeaderSize=%d (FreeSpacePtr=%d, dataSize=%d, slotID=%d)", 
+		panic(fmt.Sprintf("data would overlap header: pageDataOffset=%d < PageHeaderSize=%d (FreeSpacePtr=%d, dataSize=%d, slotID=%d)",
 			pageDataOffset, storage.PageHeaderSize, page.Header.FreeSpacePtr, dataSize, slotID))
 	}
-	
+
 	// Calculate offset within Data array
 	dataOffset := pageDataOffset - storage.PageHeaderSize
 
@@ -332,7 +332,7 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 		panic(fmt.Sprintf("Invalid slot offset calculation: slotOffset=%d, page.Data len=%d", slotOffset, len(page.Data)))
 	}
 	slotData := page.Data[slotOffset : slotOffset+4]
-	
+
 	// Validate before writing
 	if pageDataOffset < storage.PageHeaderSize {
 		panic(fmt.Sprintf("invalid pageDataOffset: %d < %d", pageDataOffset, storage.PageHeaderSize))
@@ -340,21 +340,21 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 	if pageDataOffset > storage.PageSize {
 		panic(fmt.Sprintf("pageDataOffset out of bounds: %d > %d", pageDataOffset, storage.PageSize))
 	}
-	
+
 	slotData[0] = byte(pageDataOffset >> 8)
 	slotData[1] = byte(pageDataOffset)
 	slotData[2] = byte(dataSize >> 8)
 	slotData[3] = byte(dataSize)
-	
+
 	// Verify slot was written correctly
 	writtenOffset := uint16(slotData[0])<<8 | uint16(slotData[1])
 	writtenSize := uint16(slotData[2])<<8 | uint16(slotData[3])
 	if writtenOffset != pageDataOffset {
-		panic(fmt.Sprintf("slot write verification failed: wrote offset %d, read back %d (slot %d, page %d)", 
+		panic(fmt.Sprintf("slot write verification failed: wrote offset %d, read back %d (slot %d, page %d)",
 			pageDataOffset, writtenOffset, slotID, page.Header.PageID))
 	}
 	if writtenSize != dataSize {
-		panic(fmt.Sprintf("slot write verification failed: wrote size %d, read back %d (slot %d, page %d)", 
+		panic(fmt.Sprintf("slot write verification failed: wrote size %d, read back %d (slot %d, page %d)",
 			dataSize, writtenSize, slotID, page.Header.PageID))
 	}
 	if pageDataOffset == 0 {
@@ -368,8 +368,6 @@ func (d *DiskStorageBackend) insertIntoPage(page *storage.Page, data []byte) uin
 	page.Header.ItemCount++
 	page.Header.FreeSpacePtr = pageDataOffset
 	page.Header.FreeSpace -= dataSize + 4
-	
-	
 
 	return slotID
 }

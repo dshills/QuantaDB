@@ -11,8 +11,8 @@ import (
 type SemiJoinType int
 
 const (
-	SemiJoinType_Semi SemiJoinType = iota
-	SemiJoinType_Anti
+	SemiJoinTypeSemi SemiJoinType = iota
+	SemiJoinTypeAnti
 )
 
 // SemiJoinOperator implements semi and anti joins for EXISTS/IN predicates
@@ -24,14 +24,14 @@ type SemiJoinOperator struct {
 	rightKeys     []ExprEvaluator
 	joinCondition ExprEvaluator
 	joinType      SemiJoinType
-	
+
 	// For NULL handling in NOT IN
 	hasNullHandling bool
 	rightHasNull    bool
-	
+
 	// Execution state
-	hashTable     map[uint64]struct{} // We only need existence, not the rows
-	built         bool
+	hashTable map[uint64]struct{} // We only need existence, not the rows
+	built     bool
 }
 
 // NewSemiJoinOperator creates a new semi/anti join operator
@@ -85,34 +85,7 @@ func (s *SemiJoinOperator) Next() (*Row, error) {
 		s.built = true
 	}
 
-	// For NOT IN with NULL in right side, return no rows
-	if s.joinType == SemiJoinType_Anti && s.hasNullHandling && s.rightHasNull {
-		return nil, nil
-	}
-
-	// Process left rows
-	for {
-		leftRow, err := s.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		if leftRow == nil {
-			return nil, nil // EOF
-		}
-
-		// Check if row matches
-		matches, err := s.checkMatch(leftRow)
-		if err != nil {
-			return nil, err
-		}
-
-		// For semi join, return rows that match
-		// For anti join, return rows that don't match
-		if (s.joinType == SemiJoinType_Semi && matches) ||
-		   (s.joinType == SemiJoinType_Anti && !matches) {
-			return leftRow, nil
-		}
-	}
+	return processSemiJoinRows(s.left, s.joinType, s.hasNullHandling, s.rightHasNull, s.checkMatch)
 }
 
 // buildHashTable builds the hash table from right input
@@ -135,7 +108,7 @@ func (s *SemiJoinOperator) buildHashTable() error {
 		// Track if we've seen NULL values (important for NOT IN)
 		if hasNull {
 			s.rightHasNull = true
-			if s.hasNullHandling && s.joinType == SemiJoinType_Anti {
+			if s.hasNullHandling && s.joinType == SemiJoinTypeAnti {
 				// For NOT IN, if right has NULL, we can short-circuit
 				return nil
 			}
@@ -143,10 +116,8 @@ func (s *SemiJoinOperator) buildHashTable() error {
 		}
 
 		// Check additional join condition if present
-		if s.joinCondition != nil {
-			// For hash table building, we can't evaluate the full condition
-			// Just mark that this hash value exists
-		}
+		// For hash table building, we can't evaluate the full condition
+		// Just mark that this hash value exists
 
 		s.hashTable[hash] = struct{}{}
 	}
@@ -261,19 +232,57 @@ func (s *SemiJoinOperator) Close() error {
 	return rightErr
 }
 
+// processSemiJoinRows contains the common logic for processing rows in semi/anti joins
+func processSemiJoinRows(
+	left Operator,
+	joinType SemiJoinType,
+	hasNullHandling bool,
+	rightHasNull bool,
+	checkMatch func(*Row) (bool, error),
+) (*Row, error) {
+	// For NOT IN with NULL in right side, return no rows
+	if joinType == SemiJoinTypeAnti && hasNullHandling && rightHasNull {
+		return nil, nil
+	}
+
+	// Process left rows
+	for {
+		leftRow, err := left.Next()
+		if err != nil {
+			return nil, err
+		}
+		if leftRow == nil {
+			return nil, nil // EOF
+		}
+
+		// Check if row matches
+		matches, err := checkMatch(leftRow)
+		if err != nil {
+			return nil, err
+		}
+
+		// For semi join, return rows that match
+		// For anti join, return rows that don't match
+		if (joinType == SemiJoinTypeSemi && matches) ||
+			(joinType == SemiJoinTypeAnti && !matches) {
+			return leftRow, nil
+		}
+	}
+}
+
 // NestedLoopSemiJoinOperator implements semi/anti join using nested loops
 // This is used when we need to evaluate complex join conditions
 type NestedLoopSemiJoinOperator struct {
 	baseOperator
-	left          Operator
-	right         Operator
-	joinCondition ExprEvaluator
-	joinType      SemiJoinType
+	left            Operator
+	right           Operator
+	joinCondition   ExprEvaluator
+	joinType        SemiJoinType
 	hasNullHandling bool
-	
+
 	// Execution state
-	rightRows []Row  // Materialized right side
-	built     bool
+	rightRows    []Row // Materialized right side
+	built        bool
 	rightHasNull bool
 }
 
@@ -325,34 +334,7 @@ func (n *NestedLoopSemiJoinOperator) Next() (*Row, error) {
 		n.built = true
 	}
 
-	// For NOT IN with NULL in right side, return no rows
-	if n.joinType == SemiJoinType_Anti && n.hasNullHandling && n.rightHasNull {
-		return nil, nil
-	}
-
-	// Process left rows
-	for {
-		leftRow, err := n.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		if leftRow == nil {
-			return nil, nil // EOF
-		}
-
-		// Check if row matches any right row
-		matches, err := n.checkMatch(leftRow)
-		if err != nil {
-			return nil, err
-		}
-
-		// For semi join, return rows that match
-		// For anti join, return rows that don't match
-		if (n.joinType == SemiJoinType_Semi && matches) ||
-		   (n.joinType == SemiJoinType_Anti && !matches) {
-			return leftRow, nil
-		}
-	}
+	return processSemiJoinRows(n.left, n.joinType, n.hasNullHandling, n.rightHasNull, n.checkMatch)
 }
 
 // materializeRight loads all right rows into memory
@@ -367,7 +349,7 @@ func (n *NestedLoopSemiJoinOperator) materializeRight() error {
 		}
 
 		// Check for NULLs if needed for NOT IN
-		if n.hasNullHandling && n.joinType == SemiJoinType_Anti {
+		if n.hasNullHandling && n.joinType == SemiJoinTypeAnti {
 			for _, val := range rightRow.Values {
 				if val.IsNull() {
 					n.rightHasNull = true
@@ -387,7 +369,7 @@ func (n *NestedLoopSemiJoinOperator) checkMatch(leftRow *Row) (bool, error) {
 	// Try each right row
 	for i := range n.rightRows {
 		rightRow := &n.rightRows[i]
-		
+
 		// Combine rows for condition evaluation
 		combinedRow := &Row{
 			Values: make([]types.Value, 0, len(leftRow.Values)+len(rightRow.Values)),
