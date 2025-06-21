@@ -128,10 +128,7 @@ func (c *Connection) Handle(ctx context.Context) error {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
-	// Send ready for query
-	if err := c.sendReadyForQuery(); err != nil {
-		return err
-	}
+	// Note: ReadyForQuery is already sent in handleStartup()
 
 	// Main message loop
 	for {
@@ -214,12 +211,9 @@ func (c *Connection) handleStartup() error {
 
 		c.logger.Debug("SSL response sent (no SSL support)")
 
-		// Now read the actual startup message
-		params, err := protocol.ReadStartupMessage(c.reader)
-		if err != nil {
-			return fmt.Errorf("failed to read startup message after SSL: %w", err)
-		}
-		c.params = params
+		// IMPORTANT: Recursively call handleStartup to read the actual startup message
+		// The client will send a completely new startup message after SSL negotiation
+		return c.handleStartup()
 	} else {
 		// Not an SSL request, parse as normal startup message
 		c.logger.Debug("Regular startup message detected")
@@ -244,10 +238,6 @@ func (c *Connection) handleStartup() error {
 		"application", c.params["application_name"])
 
 	// Send authentication request
-	// Set write deadline for all subsequent writes
-	if c.server.config.WriteTimeout > 0 {
-		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
-	}
 	auth := &protocol.Authentication{
 		Type: protocol.AuthOK, // No authentication for now
 	}
@@ -255,27 +245,38 @@ func (c *Connection) handleStartup() error {
 		return err
 	}
 
-	// Send parameter status messages
-	// Set write deadline for parameter status messages
-	if c.server.config.WriteTimeout > 0 {
-		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
-	}
-	parameters := map[string]string{
-		"server_version":              "15.0 (QuantaDB 0.1.0)",
-		"server_encoding":             "UTF8",
-		"client_encoding":             "UTF8",
-		"DateStyle":                   "ISO, MDY",
-		"integer_datetimes":           "on",
-		"TimeZone":                    "UTC",
-		"standard_conforming_strings": "on",
+	// Send ALL REQUIRED parameter status messages in the correct order
+	// This is CRITICAL for lib/pq compatibility
+	parameters := []struct {
+		name  string
+		value string
+	}{
+		{"application_name", c.params["application_name"]}, // Can be empty string
+		{"client_encoding", "UTF8"},
+		{"DateStyle", "ISO, MDY"},
+		{"default_transaction_read_only", "off"},
+		{"in_hot_standby", "off"},
+		{"integer_datetimes", "on"},
+		{"IntervalStyle", "postgres"},
+		{"is_superuser", "off"},
+		{"server_encoding", "UTF8"},
+		{"server_version", "15.0"}, // Simple version, no "(QuantaDB 0.1.0)"
+		{"session_authorization", c.params["user"]},
+		{"standard_conforming_strings", "on"},
+		{"TimeZone", "UTC"},
 	}
 
-	for name, value := range parameters {
-		param := &protocol.ParameterStatus{
-			Name:  name,
-			Value: value,
+	for _, param := range parameters {
+		// Skip only if both name and value are empty
+		if param.name == "" && param.value == "" {
+			continue
 		}
-		if err := protocol.WriteMessage(c.writer, param.ToMessage()); err != nil {
+		
+		ps := &protocol.ParameterStatus{
+			Name:  param.name,
+			Value: param.value,
+		}
+		if err := protocol.WriteMessage(c.writer, ps.ToMessage()); err != nil {
 			return err
 		}
 	}
@@ -285,11 +286,7 @@ func (c *Connection) handleStartup() error {
 		return fmt.Errorf("failed to generate secret key: %w", err)
 	}
 
-	// Send backend key data
-	// Set write deadline for backend key data
-	if c.server.config.WriteTimeout > 0 {
-		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
-	}
+	// Send backend key data with valid process ID
 	keyData := &protocol.BackendKeyData{
 		ProcessID: c.id,
 		SecretKey: c.secretKey,
@@ -298,11 +295,24 @@ func (c *Connection) handleStartup() error {
 		return err
 	}
 
-	// Set write deadline before final flush
-	if c.server.config.WriteTimeout > 0 {
-		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+	// Send ready for query
+	ready := &protocol.ReadyForQuery{
+		Status: protocol.TxnStatusIdle,
 	}
-	return c.writer.Flush()
+	if err := protocol.WriteMessage(c.writer, ready.ToMessage()); err != nil {
+		return err
+	}
+
+	// CRITICAL: Single flush at the end
+	// lib/pq expects all startup messages to arrive together
+	if err := c.writer.Flush(); err != nil {
+		return err
+	}
+
+	// Set state after successful startup
+	c.setState(StateReady)
+	
+	return nil
 }
 
 // handleAuthentication handles authentication
@@ -363,6 +373,23 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	// Handle special commands
 	query := strings.TrimSpace(q.Query)
 	upperQuery := strings.ToUpper(query)
+
+	// Handle empty queries (lib/pq sends ";" to test connection)
+	if query == "" || query == ";" {
+		// Send empty query response
+		emptyMsg := &protocol.Message{
+			Type: protocol.MsgEmptyQueryResponse,
+			Data: []byte{},
+		}
+		if err := protocol.WriteMessage(c.writer, emptyMsg); err != nil {
+			return err
+		}
+		if err := c.writer.Flush(); err != nil {
+			return err
+		}
+		c.setState(StateReady)
+		return c.sendReadyForQuery()
+	}
 
 	// Transaction control
 	if strings.HasPrefix(upperQuery, "BEGIN") {
