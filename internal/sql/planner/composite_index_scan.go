@@ -10,13 +10,14 @@ import (
 // CompositeIndexScan represents a scan operation using a composite (multi-column) index.
 type CompositeIndexScan struct {
 	basePlan
-	TableName   string
-	IndexName   string
-	Index       *catalog.Index
-	StartValues []types.Value        // Start values for composite key (inclusive)
-	EndValues   []types.Value        // End values for composite key (inclusive)
-	Reverse     bool                 // Scan in reverse order
-	IndexMatch  *CompositeIndexMatch // Details about how the index matches predicates
+	TableName        string
+	IndexName        string
+	Index            *catalog.Index
+	StartValues      []types.Value        // Start values for composite key (inclusive)
+	EndValues        []types.Value        // End values for composite key (inclusive)
+	Reverse          bool                 // Scan in reverse order
+	IndexMatch       *CompositeIndexMatch // Details about how the index matches predicates
+	PushedPredicates Expression           // Additional predicates to evaluate during scan
 }
 
 func (s *CompositeIndexScan) logicalNode() {}

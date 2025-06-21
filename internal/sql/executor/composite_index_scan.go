@@ -5,6 +5,7 @@ import (
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/index"
+	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 	"github.com/dshills/QuantaDB/internal/storage"
 )
@@ -12,17 +13,19 @@ import (
 // CompositeIndexScanOperator executes composite (multi-column) index scans.
 type CompositeIndexScanOperator struct {
 	baseOperator
-	table       *catalog.Table
-	index       *catalog.Index
-	indexImpl   index.Index
-	indexMgr    *index.Manager
-	storage     StorageBackend
-	startValues []types.Value
-	endValues   []types.Value
-	entries     []index.IndexEntry
-	position    int
-	keyEncoder  *index.KeyEncoder
-	isOpen      bool
+	table            *catalog.Table
+	index            *catalog.Index
+	indexImpl        index.Index
+	indexMgr         *index.Manager
+	storage          StorageBackend
+	startValues      []types.Value
+	endValues        []types.Value
+	pushedPredicates planner.Expression // Additional predicates to evaluate
+	predicateEval    ExprEvaluator      // Pre-built evaluator for pushed predicates
+	entries          []index.IndexEntry
+	position         int
+	keyEncoder       *index.KeyEncoder
+	isOpen           bool
 }
 
 // NewCompositeIndexScanOperator creates a new composite index scan operator.
@@ -32,6 +35,18 @@ func NewCompositeIndexScanOperator(
 	indexMgr *index.Manager,
 	storage StorageBackend,
 	startValues, endValues []types.Value,
+) *CompositeIndexScanOperator {
+	return NewCompositeIndexScanOperatorWithPredicates(table, indexMeta, indexMgr, storage, startValues, endValues, nil)
+}
+
+// NewCompositeIndexScanOperatorWithPredicates creates a new composite index scan operator with pushed predicates.
+func NewCompositeIndexScanOperatorWithPredicates(
+	table *catalog.Table,
+	indexMeta *catalog.Index,
+	indexMgr *index.Manager,
+	storage StorageBackend,
+	startValues, endValues []types.Value,
+	pushedPredicates planner.Expression,
 ) *CompositeIndexScanOperator {
 	// Build schema from table columns
 	schema := &Schema{
@@ -46,17 +61,18 @@ func NewCompositeIndexScanOperator(
 	}
 
 	return &CompositeIndexScanOperator{
-		baseOperator: baseOperator{schema: schema},
-		table:        table,
-		index:        indexMeta,
-		indexMgr:     indexMgr,
-		storage:      storage,
-		startValues:  startValues,
-		endValues:    endValues,
-		entries:      nil,
-		position:     0,
-		keyEncoder:   &index.KeyEncoder{},
-		isOpen:       false,
+		baseOperator:     baseOperator{schema: schema},
+		table:            table,
+		index:            indexMeta,
+		indexMgr:         indexMgr,
+		storage:          storage,
+		startValues:      startValues,
+		endValues:        endValues,
+		pushedPredicates: pushedPredicates,
+		entries:          nil,
+		position:         0,
+		keyEncoder:       &index.KeyEncoder{},
+		isOpen:           false,
 	}
 }
 
@@ -67,6 +83,15 @@ func (op *CompositeIndexScanOperator) Open(ctx *ExecContext) error {
 	}
 
 	op.ctx = ctx
+
+	// Build predicate evaluator once
+	if op.pushedPredicates != nil {
+		var err error
+		op.predicateEval, err = buildExprEvaluator(op.pushedPredicates)
+		if err != nil {
+			return fmt.Errorf("failed to build predicate evaluator: %w", err)
+		}
+	}
 
 	// Get the actual index implementation
 	var err error
@@ -131,33 +156,50 @@ func (op *CompositeIndexScanOperator) Next() (*Row, error) {
 		return nil, fmt.Errorf("composite index scan operator not open")
 	}
 
-	// Check if we have more entries
-	if op.position >= len(op.entries) {
-		return nil, nil // nolint:nilnil // EOF - standard iterator pattern
+	// Loop until we find a matching row or reach EOF
+	for op.position < len(op.entries) {
+		// Get current index entry
+		entry := op.entries[op.position]
+		op.position++
+
+		// Convert index entry RowID to storage RowID
+		rowID, err := op.decodeRowID(entry.RowID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode row ID from composite index entry: %w", err)
+		}
+
+		// Fetch the actual row from storage
+		row, err := op.storage.GetRow(op.table.ID, rowID, op.ctx.SnapshotTS)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch row from storage: %w", err)
+		}
+
+		// Evaluate pushed predicates if any
+		if op.predicateEval != nil {
+			// Evaluate the predicate
+			result, err := op.predicateEval.Eval(row, op.ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to evaluate pushed predicate: %w", err)
+			}
+
+			// Skip this row if predicate is false or NULL
+			boolResult, err := result.AsBool()
+			if err != nil || !boolResult {
+				// Continue to next row
+				continue
+			}
+		}
+
+		// Update statistics
+		if op.ctx.Stats != nil {
+			op.ctx.Stats.RowsRead++
+		}
+
+		return row, nil
 	}
 
-	// Get current index entry
-	entry := op.entries[op.position]
-	op.position++
-
-	// Convert index entry RowID to storage RowID
-	rowID, err := op.decodeRowID(entry.RowID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode row ID from composite index entry: %w", err)
-	}
-
-	// Fetch the actual row from storage
-	row, err := op.storage.GetRow(op.table.ID, rowID, op.ctx.SnapshotTS)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch row from storage: %w", err)
-	}
-
-	// Update statistics
-	if op.ctx.Stats != nil {
-		op.ctx.Stats.RowsRead++
-	}
-
-	return row, nil
+	// EOF - no more entries
+	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 }
 
 // Close cleans up the composite index scan operator.

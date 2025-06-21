@@ -171,6 +171,14 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildIndexOnlyScanOperator(p, ctx)
 	case *planner.LogicalValues:
 		return e.buildValuesOperator(p, ctx)
+	case *planner.BitmapIndexScan:
+		return e.buildBitmapIndexScanOperator(p, ctx)
+	case *planner.BitmapAnd:
+		return e.buildBitmapAndOperator(p, ctx)
+	case *planner.BitmapOr:
+		return e.buildBitmapOrOperator(p, ctx)
+	case *planner.BitmapHeapScan:
+		return e.buildBitmapHeapScanOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -231,7 +239,7 @@ func (e *BasicExecutor) buildIndexScanOperator(plan *planner.IndexScan, ctx *Exe
 		return nil, err
 	}
 
-	return NewIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartKey, plan.EndKey), nil
+	return NewIndexScanOperatorWithPredicates(table, plan.Index, indexMgr, e.storage, plan.StartKey, plan.EndKey, plan.PushedPredicates), nil
 }
 
 // buildCompositeIndexScanOperator builds a composite index scan operator.
@@ -256,6 +264,14 @@ func (e *BasicExecutor) buildCompositeIndexScanOperator(plan *planner.CompositeI
 		return nil, err
 	}
 
+	// Use the new constructor that supports pushed predicates
+	if plan.PushedPredicates != nil {
+		return NewCompositeIndexScanOperatorWithPredicates(
+			table, plan.Index, indexMgr, e.storage, 
+			plan.StartValues, plan.EndValues, plan.PushedPredicates,
+		), nil
+	}
+	
 	return NewCompositeIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartValues, plan.EndValues), nil
 }
 
@@ -894,4 +910,72 @@ func (r *operatorResult) Schema() *Schema {
 func (e *BasicExecutor) buildValuesOperator(plan *planner.LogicalValues, ctx *ExecContext) (Operator, error) {
 	_ = ctx // Context not needed for values operator
 	return NewValuesOperator(plan.Rows, convertSchema(plan.Schema())), nil
+}
+
+// buildBitmapIndexScanOperator builds a bitmap index scan operator.
+func (e *BasicExecutor) buildBitmapIndexScanOperator(plan *planner.BitmapIndexScan, ctx *ExecContext) (Operator, error) {
+	if e.indexMgr == nil {
+		return nil, fmt.Errorf("index manager not configured for bitmap index scan")
+	}
+
+	// Type assert to get the actual index.Manager
+	indexMgr, ok := e.indexMgr.(*index.Manager)
+	if !ok {
+		return nil, fmt.Errorf("invalid index manager type")
+	}
+
+	// Get table from catalog
+	table, err := e.getTableFromCatalog(ctx, plan.TableName)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewBitmapIndexScanOperator(table, plan.Index, indexMgr, plan.StartKey, plan.EndKey), nil
+}
+
+// buildBitmapAndOperator builds a bitmap AND operator.
+func (e *BasicExecutor) buildBitmapAndOperator(plan *planner.BitmapAnd, ctx *ExecContext) (Operator, error) {
+	var children []Operator
+	for _, child := range plan.BitmapChildren {
+		op, err := e.buildOperator(child, ctx)
+		if err != nil {
+			return nil, err
+		}
+		children = append(children, op)
+	}
+	return NewBitmapAndOperator(children), nil
+}
+
+// buildBitmapOrOperator builds a bitmap OR operator.
+func (e *BasicExecutor) buildBitmapOrOperator(plan *planner.BitmapOr, ctx *ExecContext) (Operator, error) {
+	var children []Operator
+	for _, child := range plan.BitmapChildren {
+		op, err := e.buildOperator(child, ctx)
+		if err != nil {
+			return nil, err
+		}
+		children = append(children, op)
+	}
+	return NewBitmapOrOperator(children), nil
+}
+
+// buildBitmapHeapScanOperator builds a bitmap heap scan operator.
+func (e *BasicExecutor) buildBitmapHeapScanOperator(plan *planner.BitmapHeapScan, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured for bitmap heap scan")
+	}
+
+	// Get table from catalog
+	table, err := e.getTableFromCatalog(ctx, plan.TableName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build bitmap source operator
+	bitmapSource, err := e.buildOperator(plan.BitmapSource, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewBitmapHeapScanOperator(table, bitmapSource, e.storage), nil
 }

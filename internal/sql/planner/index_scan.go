@@ -10,12 +10,13 @@ import (
 // IndexScan represents a scan operation using an index.
 type IndexScan struct {
 	basePlan
-	TableName string
-	IndexName string
-	Index     *catalog.Index
-	StartKey  Expression // Start of range (inclusive)
-	EndKey    Expression // End of range (inclusive)
-	Reverse   bool       // Scan in reverse order
+	TableName        string
+	IndexName        string
+	Index            *catalog.Index
+	StartKey         Expression // Start of range (inclusive)
+	EndKey           Expression // End of range (inclusive)
+	Reverse          bool       // Scan in reverse order
+	PushedPredicates Expression // Additional predicates to evaluate during scan
 }
 
 func (s *IndexScan) logicalNode() {}

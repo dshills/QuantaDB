@@ -98,7 +98,7 @@
 - [x] Sort-merge join implementation with external sort and disk spilling
 - [x] Semi/anti join support for EXISTS/IN predicates
 
-**Phase 3: Advanced Index Optimization (Week 3)** ✅ MOSTLY COMPLETE
+**Phase 3: Advanced Index Optimization (Week 3)** ✅ COMPLETE
 **Plan**: See `docs/planning/phase3-index-optimization-plan.md`
 - [x] Task 3.1: Multi-column index support (3 days) ✅ COMPLETE
   - [x] Composite key implementation in B+Tree
@@ -110,12 +110,15 @@
   - [x] IndexOnlyScanOperator implementation
   - [x] Automatic optimization during query planning
   - [ ] Visibility map for MVCC (deferred - not critical)
-- [ ] Task 3.3: Index intersection (1 day) - DEFERRED
-  - [ ] Bitmap index scan operations
-  - [ ] Index intersection planner
-- [ ] Task 3.4: Additional optimizations (1 day) - DEFERRED
-  - [ ] Index condition pushdown
-  - [ ] Partial index support
+- [x] Task 3.3: Index intersection (1 day) ✅ COMPLETE
+  - [x] Bitmap index scan operations
+  - [x] Index intersection planner
+  - [x] BitmapAnd/BitmapOr operators
+  - [x] BitmapHeapScan operator
+  - [x] Integration tests
+- [x] Task 3.4: Additional optimizations (1 day) ✅ COMPLETE
+  - [x] Index condition pushdown
+  - [x] Partial index support
 
 **Phase 4: Query Transformation Enhancements (Week 4)**
 - [ ] Complete projection pushdown implementation

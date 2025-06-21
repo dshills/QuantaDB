@@ -79,14 +79,15 @@ type Column struct {
 
 // Index represents an index on a table.
 type Index struct {
-	ID        int64
-	Name      string
-	TableID   int64
-	Type      IndexType
-	IsUnique  bool
-	IsPrimary bool
-	Columns   []IndexColumn
-	CreatedAt time.Time
+	ID          int64
+	Name        string
+	TableID     int64
+	Type        IndexType
+	IsUnique    bool
+	IsPrimary   bool
+	Columns     []IndexColumn
+	WhereClause interface{} // Expression for partial index WHERE clause
+	CreatedAt   time.Time
 }
 
 // IndexColumn represents a column in an index.

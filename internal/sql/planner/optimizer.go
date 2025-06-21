@@ -32,6 +32,7 @@ func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
 		catalog:       cat,
 		costEstimator: NewCostEstimator(cat),
 	}
+	indexConditionPushdown := NewIndexConditionPushdown(cat)
 	return &Optimizer{
 		catalog: cat,
 		rules: []OptimizationRule{
@@ -39,6 +40,7 @@ func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
 			&ProjectionPushdown{},
 			&ConstantFolding{},
 			indexSelection,
+			indexConditionPushdown,
 		},
 	}
 }
@@ -261,6 +263,65 @@ func (is *IndexSelection) SetCatalog(cat catalog.Catalog) {
 	is.costEstimator = NewCostEstimator(cat)
 }
 
+// tryIndexIntersection attempts to use multiple indexes with bitmap operations.
+func (is *IndexSelection) tryIndexIntersection(scan *LogicalScan, filter *LogicalFilter) LogicalPlan {
+	// Get table metadata
+	// Try multiple schemas like in other methods
+	var table *catalog.Table
+	var err error
+
+	// Try "public" schema first, then "test", then empty
+	table, err = is.catalog.GetTable("public", scan.TableName)
+	if err != nil {
+		table, err = is.catalog.GetTable("test", scan.TableName)
+		if err != nil {
+			table, err = is.catalog.GetTable("", scan.TableName)
+			if err != nil {
+				return nil
+			}
+		}
+	}
+
+	// Create intersection planner
+	planner := NewIndexIntersectionPlanner(is.catalog, is.costEstimator)
+
+	// Try to create an intersection plan
+	intersectionPlan, err := planner.PlanIndexIntersection(table, filter.Predicate)
+	if err != nil || intersectionPlan == nil {
+		return nil
+	}
+
+	// Convert to logical plan nodes
+	var bitmapScans []Plan
+	for _, group := range intersectionPlan.IndexGroups {
+		for _, indexPred := range group.Indexes {
+			bitmapScan := &BitmapIndexScan{
+				basePlan:  basePlan{schema: scan.schema},
+				TableName: scan.TableName,
+				Index:     indexPred.Index,
+				StartKey:  indexPred.StartValue,
+				EndKey:    indexPred.EndValue,
+			}
+			bitmapScans = append(bitmapScans, bitmapScan)
+		}
+	}
+
+	// Create bitmap AND operation
+	bitmapAnd := &BitmapAnd{
+		basePlan:       basePlan{schema: scan.schema},
+		BitmapChildren: bitmapScans,
+	}
+
+	// Create bitmap heap scan
+	heapScan := &BitmapHeapScan{
+		basePlan:     basePlan{schema: scan.schema},
+		TableName:    scan.TableName,
+		BitmapSource: bitmapAnd,
+	}
+
+	return heapScan
+}
+
 // Apply attempts to replace scan+filter combinations with index scans.
 func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 	if is.catalog == nil {
@@ -284,6 +345,13 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 					if compositeIndexScan := tryCompositeIndexScan(scan, p, is.catalog); compositeIndexScan != nil {
 						// Composite index scan found - return it directly (filter is incorporated)
 						return compositeIndexScan.(LogicalPlan), true
+					}
+				}
+
+				// Try index intersection for multiple predicates
+				if is.costEstimator != nil {
+					if intersectionPlan := is.tryIndexIntersection(scan, p); intersectionPlan != nil {
+						return intersectionPlan, true
 					}
 				}
 
