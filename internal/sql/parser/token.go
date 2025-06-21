@@ -102,6 +102,16 @@ const (
 	TokenElse
 	TokenEnd
 
+	// JOIN tokens
+	TokenJoin
+	TokenInner
+	TokenLeft
+	TokenRight
+	TokenFull
+	TokenOuter
+	TokenCross
+	TokenNatural
+
 	// Delimiters
 	TokenLeftParen
 	TokenRightParen
@@ -195,6 +205,14 @@ var tokenStrings = map[TokenType]string{
 	TokenThen:         "THEN",
 	TokenElse:         "ELSE",
 	TokenEnd:          "END",
+	TokenJoin:         "JOIN",
+	TokenInner:        "INNER",
+	TokenLeft:         "LEFT",
+	TokenRight:        "RIGHT",
+	TokenFull:         "FULL",
+	TokenOuter:        "OUTER",
+	TokenCross:        "CROSS",
+	TokenNatural:      "NATURAL",
 	TokenLeftParen:    "(",
 	TokenRightParen:   ")",
 	TokenComma:        ",",
@@ -300,6 +318,14 @@ var keywords = map[string]TokenType{
 	"THEN":      TokenThen,
 	"ELSE":      TokenElse,
 	"END":       TokenEnd,
+	"JOIN":      TokenJoin,
+	"INNER":     TokenInner,
+	"LEFT":      TokenLeft,
+	"RIGHT":     TokenRight,
+	"FULL":      TokenFull,
+	"OUTER":     TokenOuter,
+	"CROSS":     TokenCross,
+	"NATURAL":   TokenNatural,
 }
 
 // LookupKeyword returns the token type for a keyword.

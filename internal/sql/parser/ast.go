@@ -139,11 +139,87 @@ func (s *InsertStmt) String() string {
 	return strings.Join(parts, " ")
 }
 
+// TableExpression represents a table expression in a FROM clause.
+type TableExpression interface {
+	tableExpressionNode()
+	String() string
+}
+
+// TableRef represents a simple table reference with optional alias.
+type TableRef struct {
+	TableName string
+	Alias     string
+}
+
+func (t *TableRef) tableExpressionNode() {}
+func (t *TableRef) String() string {
+	if t.Alias != "" {
+		return fmt.Sprintf("%s AS %s", t.TableName, t.Alias)
+	}
+	return t.TableName
+}
+
+// SubqueryRef represents a subquery in the FROM clause with an alias.
+type SubqueryRef struct {
+	Query *SelectStmt
+	Alias string
+}
+
+func (s *SubqueryRef) tableExpressionNode() {}
+func (s *SubqueryRef) String() string {
+	return fmt.Sprintf("(%s) AS %s", s.Query.String(), s.Alias)
+}
+
+// JoinType represents the type of JOIN.
+type JoinType int
+
+const (
+	InnerJoin JoinType = iota
+	LeftJoin
+	RightJoin
+	FullJoin
+	CrossJoin
+)
+
+func (jt JoinType) String() string {
+	switch jt {
+	case InnerJoin:
+		return "INNER JOIN"
+	case LeftJoin:
+		return "LEFT JOIN"
+	case RightJoin:
+		return "RIGHT JOIN"
+	case FullJoin:
+		return "FULL JOIN"
+	case CrossJoin:
+		return "CROSS JOIN"
+	default:
+		return "UNKNOWN JOIN"
+	}
+}
+
+// JoinExpr represents a JOIN expression.
+type JoinExpr struct {
+	Left      TableExpression
+	Right     TableExpression
+	JoinType  JoinType
+	Condition Expression // ON condition
+}
+
+func (j *JoinExpr) tableExpressionNode() {}
+func (j *JoinExpr) String() string {
+	result := fmt.Sprintf("%s %s %s", j.Left.String(), j.JoinType.String(), j.Right.String())
+	if j.Condition != nil {
+		result += fmt.Sprintf(" ON %s", j.Condition.String())
+	}
+	return result
+}
+
 // SelectStmt represents a SELECT statement.
 type SelectStmt struct {
 	With    []CommonTableExpr // CTE definitions
 	Columns []SelectColumn
-	From    string
+	From    TableExpression
 	Where   Expression
 	GroupBy []Expression
 	Having  Expression
@@ -179,8 +255,8 @@ func (s *SelectStmt) String() string {
 	parts = append(parts, fmt.Sprintf("SELECT %s", strings.Join(cols, ", ")))
 
 	// FROM clause (only if present)
-	if s.From != "" {
-		parts = append(parts, fmt.Sprintf("FROM %s", s.From))
+	if s.From != nil {
+		parts = append(parts, fmt.Sprintf("FROM %s", s.From.String()))
 	}
 
 	// WHERE clause
@@ -276,11 +352,15 @@ func (l *Literal) String() string {
 
 // Identifier represents a column or table identifier.
 type Identifier struct {
-	Name string
+	Name  string
+	Table string // Optional table qualifier
 }
 
 func (i *Identifier) expressionNode() {}
 func (i *Identifier) String() string {
+	if i.Table != "" {
+		return fmt.Sprintf("%s.%s", i.Table, i.Name)
+	}
 	return i.Name
 }
 

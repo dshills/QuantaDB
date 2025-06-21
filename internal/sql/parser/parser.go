@@ -554,12 +554,11 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 
 	// Check for optional FROM clause
 	if p.match(TokenFrom) {
-		// Get table name
-		tableName := p.current.Value
-		if !p.consume(TokenIdentifier, "expected table name") {
-			return nil, p.lastError()
+		tableExpr, err := p.parseTableExpression()
+		if err != nil {
+			return nil, err
 		}
-		stmt.From = tableName
+		stmt.From = tableExpr
 	}
 
 	// Parse optional WHERE clause
@@ -1457,7 +1456,18 @@ func (p *Parser) parsePrimary() (Expression, error) {
 			}, nil
 		}
 		
-		return &Identifier{Name: name}, nil
+		// Check for qualified name (table.column)
+		table := ""
+		if p.match(TokenDot) {
+			if !p.canBeIdentifier() {
+				return nil, p.error("expected column name after '.'")
+			}
+			table = name
+			name = p.current.Value
+			p.advance()
+		}
+		
+		return &Identifier{Name: name, Table: table}, nil
 
 	case TokenParam:
 		paramStr := p.current.Value
@@ -1721,4 +1731,234 @@ func (s *DropIndexStmt) String() string {
 		return fmt.Sprintf("DROP INDEX %s ON %s", s.IndexName, s.TableName)
 	}
 	return fmt.Sprintf("DROP INDEX %s", s.IndexName)
+}
+
+// parseTableExpression parses a table expression which can be:
+// - Simple table reference: table_name [AS alias]
+// - Subquery: (SELECT ...) AS alias
+// - Join expression: table1 JOIN table2 ON condition
+// - Comma-separated tables: table1, table2, table3 (implicit CROSS JOIN)
+func (p *Parser) parseTableExpression() (TableExpression, error) {
+	// Parse the left side (can be a table reference or subquery)
+	left, err := p.parseTableOrSubquery()
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle both JOIN keywords and comma-separated tables
+	for {
+		if p.peekJoinKeyword() {
+			// Explicit JOIN syntax
+			joinType := p.parseJoinType()
+			
+			// Parse the right side table reference or subquery
+			right, err := p.parseTableOrSubquery()
+			if err != nil {
+				return nil, err
+			}
+
+			// Parse ON condition
+			var condition Expression
+			if p.match(TokenOn) {
+				condition, err = p.parseExpression()
+				if err != nil {
+					return nil, err
+				}
+			} else if joinType != CrossJoin {
+				// ON condition is required for all joins except CROSS JOIN
+				return nil, fmt.Errorf("expected ON condition for %s", joinType.String())
+			}
+
+			// Create join expression
+			left = &JoinExpr{
+				Left:      left,
+				Right:     right,
+				JoinType:  joinType,
+				Condition: condition,
+			}
+		} else if p.match(TokenComma) {
+			// Comma-separated tables (implicit CROSS JOIN)
+			right, err := p.parseTableOrSubquery()
+			if err != nil {
+				return nil, err
+			}
+
+			// Create CROSS JOIN for comma-separated tables
+			left = &JoinExpr{
+				Left:      left,
+				Right:     right,
+				JoinType:  CrossJoin,
+				Condition: nil,
+			}
+		} else {
+			// No more joins or commas
+			break
+		}
+	}
+
+	return left, nil
+}
+
+// parseTableOrSubquery parses either a table reference or a subquery
+func (p *Parser) parseTableOrSubquery() (TableExpression, error) {
+	if p.check(TokenLeftParen) {
+		// It's a subquery
+		p.advance() // consume '('
+		
+		// Parse the SELECT statement
+		subquery, err := p.parseSelect()
+		if err != nil {
+			return nil, err
+		}
+		
+		if !p.consume(TokenRightParen, "expected ')' after subquery") {
+			return nil, p.lastError()
+		}
+		
+		// Subquery in FROM must have an alias
+		var alias string
+		if p.match(TokenAs) {
+			if p.current.Type != TokenIdentifier {
+				return nil, p.error("expected alias after AS")
+			}
+			alias = p.current.Value
+			p.advance()
+		} else if p.current.Type == TokenIdentifier {
+			// Implicit alias (without AS keyword)
+			alias = p.current.Value
+			p.advance()
+		} else {
+			return nil, p.error("subquery in FROM must have an alias")
+		}
+		
+		return &SubqueryRef{
+			Query: subquery,
+			Alias: alias,
+		}, nil
+	}
+	
+	// It's a regular table reference
+	return p.parseTableRef()
+}
+
+// parseTableRef parses a simple table reference with optional alias
+func (p *Parser) parseTableRef() (*TableRef, error) {
+	if p.current.Type != TokenIdentifier {
+		return nil, fmt.Errorf("expected table name")
+	}
+
+	tableName := p.current.Value
+	p.advance()
+
+	// Check for optional alias
+	alias := ""
+	if p.match(TokenAs) {
+		if p.current.Type != TokenIdentifier {
+			return nil, fmt.Errorf("expected alias after AS")
+		}
+		alias = p.current.Value
+		p.advance()
+	} else if p.current.Type == TokenIdentifier {
+		// Implicit alias (without AS keyword)
+		alias = p.current.Value
+		p.advance()
+	}
+
+	return &TableRef{
+		TableName: tableName,
+		Alias:     alias,
+	}, nil
+}
+
+// peekJoinKeyword checks if the current token is a JOIN-related keyword
+func (p *Parser) peekJoinKeyword() bool {
+	switch p.current.Type {
+	case TokenJoin, TokenInner, TokenLeft, TokenRight, TokenFull, TokenCross:
+		return true
+	default:
+		return false
+	}
+}
+
+// parseJoinType parses the JOIN type from keywords
+func (p *Parser) parseJoinType() JoinType {
+	// Handle different JOIN syntaxes:
+	// - JOIN (defaults to INNER)
+	// - INNER JOIN
+	// - LEFT [OUTER] JOIN
+	// - RIGHT [OUTER] JOIN  
+	// - FULL [OUTER] JOIN
+	// - CROSS JOIN
+
+	if p.match(TokenCross) {
+		if !p.consume(TokenJoin, "expected JOIN after CROSS") {
+			// This shouldn't happen if peekJoinKeyword worked correctly
+			return InnerJoin
+		}
+		return CrossJoin
+	}
+
+	if p.match(TokenInner) {
+		if !p.consume(TokenJoin, "expected JOIN after INNER") {
+			return InnerJoin
+		}
+		return InnerJoin
+	}
+
+	if p.match(TokenLeft) {
+		p.match(TokenOuter) // Optional OUTER keyword
+		if !p.consume(TokenJoin, "expected JOIN after LEFT") {
+			return InnerJoin
+		}
+		return LeftJoin
+	}
+
+	if p.match(TokenRight) {
+		p.match(TokenOuter) // Optional OUTER keyword
+		if !p.consume(TokenJoin, "expected JOIN after RIGHT") {
+			return InnerJoin
+		}
+		return RightJoin
+	}
+
+	if p.match(TokenFull) {
+		p.match(TokenOuter) // Optional OUTER keyword
+		if !p.consume(TokenJoin, "expected JOIN after FULL") {
+			return InnerJoin
+		}
+		return FullJoin
+	}
+
+	// Default JOIN (without qualifier) is INNER JOIN
+	if p.match(TokenJoin) {
+		return InnerJoin
+	}
+
+	// This shouldn't happen if peekJoinKeyword worked correctly
+	return InnerJoin
+}
+
+// canBeIdentifier checks if a token can be used as an identifier.
+// This includes actual identifiers and keywords that can be used as column names.
+func (p *Parser) canBeIdentifier() bool {
+	// Most keywords can be used as identifiers in certain contexts
+	// This is especially true for column names after a dot (table.column)
+	switch p.current.Type {
+	case TokenIdentifier:
+		return true
+	// Common SQL keywords that are often used as column names
+	case TokenDate, TokenTimestamp, TokenYear, TokenMonth, TokenDay,
+		TokenHour, TokenMinute, TokenSecond:
+		return true
+	// Keywords that might be column names
+	case TokenKey, TokenIndex, TokenTable:
+		return true
+	default:
+		// In PostgreSQL and many other databases, most keywords can be used as identifiers
+		// when they're in a context where an identifier is expected
+		// Accept any token that has a non-empty value
+		return p.current.Value != "" && p.current.Type != TokenEOF && 
+			p.current.Type != TokenError && p.current.Type != TokenNumber &&
+			p.current.Type != TokenString && p.current.Type != TokenParam
+	}
 }

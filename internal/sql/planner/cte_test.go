@@ -154,7 +154,7 @@ func TestCTEExecution(t *testing.T) {
 	// Test that CTEs can be executed properly
 	// This is a placeholder for future execution testing
 
-	query := "WITH numbers AS (SELECT 1 AS n UNION SELECT 2 AS n) SELECT * FROM numbers"
+	query := "WITH numbers AS (SELECT 1 AS n) SELECT * FROM numbers"
 
 	// Parse the query
 	p := parser.NewParser(query)

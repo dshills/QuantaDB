@@ -96,7 +96,7 @@ func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) 
 	var plan LogicalPlan
 
 	// Handle SELECT without FROM clause (e.g., SELECT 1, SELECT 1+2)
-	if stmt.From == "" {
+	if stmt.From == nil {
 		// Create a dummy plan that returns a single row
 		// We'll use a special "dual" table concept similar to Oracle/MySQL
 		schema := &Schema{
@@ -106,30 +106,11 @@ func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) 
 		}
 		plan = NewLogicalValues([][]types.Value{{types.NewValue(int64(1))}}, schema)
 	} else {
-		// Get table from catalog
-		table, err := p.catalog.GetTable(defaultSchema, stmt.From)
+		// Build the FROM clause plan (handles simple tables and JOINs)
+		var err error
+		plan, err = p.planTableExpression(stmt.From)
 		if err != nil {
-			// If table doesn't exist in catalog, use a placeholder schema
-			// This allows tests to work without setting up catalog
-			schema := &Schema{
-				Columns: []Column{
-					{Name: "*", DataType: types.Unknown, Nullable: true},
-				},
-			}
-			plan = NewLogicalScan(stmt.From, stmt.From, schema)
-		} else {
-			// Build schema from table metadata
-			schema := &Schema{
-				Columns: make([]Column, len(table.Columns)),
-			}
-			for i, col := range table.Columns {
-				schema.Columns[i] = Column{
-					Name:     col.Name,
-					DataType: col.DataType,
-					Nullable: col.IsNullable,
-				}
-			}
-			plan = NewLogicalScan(stmt.From, stmt.From, schema)
+			return nil, err
 		}
 	}
 
@@ -510,6 +491,7 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 		// Try to resolve column type from catalog
 		// For now, we'll use Unknown type if we can't resolve it
 		return &ColumnRef{
+			TableAlias: e.Table,
 			ColumnName: e.Name,
 			ColumnType: types.Unknown,
 		}, nil
@@ -1120,4 +1102,119 @@ func (p *BasicPlanner) validateExpressionColumns(expr parser.Expression, table *
 		// For other expression types, no validation needed
 		return nil
 	}
+}
+
+// planTableExpression builds a logical plan from a table expression (simple table or JOIN)
+func (p *BasicPlanner) planTableExpression(tableExpr parser.TableExpression) (LogicalPlan, error) {
+	switch te := tableExpr.(type) {
+	case *parser.TableRef:
+		// Simple table reference
+		return p.planTableRef(te)
+		
+	case *parser.SubqueryRef:
+		// Subquery in FROM clause
+		subPlan, err := p.planSelect(te.Query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to plan subquery: %w", err)
+		}
+		// The subquery plan already has the correct schema
+		// We just need to use the alias for column references
+		return subPlan, nil
+		
+	case *parser.JoinExpr:
+		// JOIN expression
+		// Recursively plan left and right sides
+		leftPlan, err := p.planTableExpression(te.Left)
+		if err != nil {
+			return nil, err
+		}
+		
+		rightPlan, err := p.planTableExpression(te.Right)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Convert join type from parser to planner
+		var joinType JoinType
+		switch te.JoinType {
+		case parser.InnerJoin:
+			joinType = InnerJoin
+		case parser.LeftJoin:
+			joinType = LeftJoin
+		case parser.RightJoin:
+			joinType = RightJoin
+		case parser.FullJoin:
+			joinType = FullJoin
+		case parser.CrossJoin:
+			joinType = CrossJoin
+		default:
+			joinType = InnerJoin
+		}
+		
+		// Convert the join condition
+		var condition Expression
+		if te.Condition != nil {
+			condition, err = p.convertExpression(te.Condition)
+			if err != nil {
+				return nil, err
+			}
+		}
+		
+		// Compute the join schema (concatenate left and right schemas)
+		leftSchema := leftPlan.Schema()
+		rightSchema := rightPlan.Schema()
+		joinSchema := &Schema{
+			Columns: make([]Column, 0, len(leftSchema.Columns)+len(rightSchema.Columns)),
+		}
+		joinSchema.Columns = append(joinSchema.Columns, leftSchema.Columns...)
+		joinSchema.Columns = append(joinSchema.Columns, rightSchema.Columns...)
+		
+		// Create the logical join
+		join := NewLogicalJoin(leftPlan, rightPlan, joinType, condition, joinSchema)
+		
+		return join, nil
+		
+	default:
+		return nil, fmt.Errorf("unsupported table expression type: %T", tableExpr)
+	}
+}
+
+// planTableRef plans a simple table reference with optional alias
+func (p *BasicPlanner) planTableRef(ref *parser.TableRef) (LogicalPlan, error) {
+	// Get table from catalog
+	table, err := p.catalog.GetTable(defaultSchema, ref.TableName)
+	if err != nil {
+		// If table doesn't exist in catalog, use a placeholder schema
+		// This allows tests to work without setting up catalog
+		schema := &Schema{
+			Columns: []Column{
+				{Name: "*", DataType: types.Unknown, Nullable: true},
+			},
+		}
+		// Use alias if provided, otherwise use table name
+		alias := ref.Alias
+		if alias == "" {
+			alias = ref.TableName
+		}
+		return NewLogicalScan(ref.TableName, alias, schema), nil
+	}
+	
+	// Build schema from table metadata
+	schema := &Schema{
+		Columns: make([]Column, len(table.Columns)),
+	}
+	for i, col := range table.Columns {
+		schema.Columns[i] = Column{
+			Name:     col.Name,
+			DataType: col.DataType,
+			Nullable: col.IsNullable,
+		}
+	}
+	
+	// Use alias if provided, otherwise use table name
+	alias := ref.Alias
+	if alias == "" {
+		alias = ref.TableName
+	}
+	return NewLogicalScan(ref.TableName, alias, schema), nil
 }

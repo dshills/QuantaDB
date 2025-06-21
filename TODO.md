@@ -41,6 +41,17 @@
   - Support for nested CASE expressions
   - Integration with aggregate functions (TPC-H Q8 style)
 
+### JOIN Support (COMPLETED)
+- [x] **JOIN Syntax**: Full implementation of SQL JOIN operations
+  - Parser support for all standard JOIN types: INNER, LEFT, RIGHT, FULL, CROSS
+  - Support for explicit JOIN syntax with ON conditions
+  - Support for comma-separated tables (implicit CROSS JOIN)
+  - Table aliases with AS keyword or implicit
+  - Qualified column references (table.column)
+  - Subqueries in FROM clause with aliases
+  - Planner integration to build LogicalJoin from parsed AST
+  - Leveraged existing executor infrastructure (HashJoinOperator, NestedLoopJoinOperator, MergeJoinOperator)
+
 ## Phase 5: SQL Feature Completion (Next)
 
 ### Query Features (Required for TPC-H)
