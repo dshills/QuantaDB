@@ -1,0 +1,198 @@
+# PostgreSQL Wire Protocol Fix for lib/pq Compatibility
+
+## Apply this patch to internal/network/connection.go
+
+```go
+// In handleStartup() method, replace the authentication and parameter sending section:
+
+func (c *Connection) handleStartup() error {
+    c.logger.Debug("Entering handleStartup")
+
+    // First, read the message length (4 bytes)
+    lengthBuf := make([]byte, 4)
+    c.logger.Debug("About to read startup message length")
+    if _, err := io.ReadFull(c.reader, lengthBuf); err != nil {
+        c.logger.Debug("Failed to read startup message length", "error", err)
+        return fmt.Errorf("failed to read startup message length: %w", err)
+    }
+
+    length := int(binary.BigEndian.Uint32(lengthBuf))
+    if length < 8 {
+        return fmt.Errorf("invalid startup message length: %d", length)
+    }
+
+    // Read the rest of the message
+    msgBuf := make([]byte, length-4)
+    if _, err := io.ReadFull(c.reader, msgBuf); err != nil {
+        return fmt.Errorf("failed to read startup message: %w", err)
+    }
+
+    // Check the version/request code
+    version := binary.BigEndian.Uint32(msgBuf[:4])
+
+    c.logger.Debug("Startup message received", "length", length, "version", version)
+
+    if length == 8 && version == protocol.SSLRequestCode {
+        c.logger.Debug("SSL request detected")
+
+        // SSL request - respond with 'N' (no SSL support)
+        if c.server.config.WriteTimeout > 0 {
+            c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
+        }
+        if _, err := c.conn.Write([]byte{'N'}); err != nil {
+            return fmt.Errorf("failed to send SSL response: %w", err)
+        }
+
+        c.logger.Debug("SSL response sent (no SSL support)")
+
+        // IMPORTANT: Recursively call handleStartup to read the actual startup message
+        // The client will send a completely new startup message after SSL negotiation
+        return c.handleStartup()
+    }
+    
+    // Parse the startup message
+    if version != protocol.ProtocolVersion {
+        return fmt.Errorf("unsupported protocol version: %d", version)
+    }
+
+    // Create a reader with the full message (including length)
+    fullMsg := make([]byte, length)
+    copy(fullMsg[:4], lengthBuf)
+    copy(fullMsg[4:], msgBuf)
+    msgReader := bytes.NewReader(fullMsg)
+
+    // Use the standard protocol.ReadStartupMessage
+    params, err := protocol.ReadStartupMessage(msgReader)
+    if err != nil {
+        return fmt.Errorf("failed to parse startup message: %w", err)
+    }
+    c.params = params
+
+    c.logger.Info("Client connected",
+        "user", c.params["user"],
+        "database", c.params["database"],
+        "application", c.params["application_name"])
+
+    // Send authentication response
+    auth := &protocol.Authentication{
+        Type: protocol.AuthOK, // No authentication for now
+    }
+    if err := protocol.WriteMessage(c.writer, auth.ToMessage()); err != nil {
+        return err
+    }
+
+    // Send ALL REQUIRED parameter status messages in the correct order
+    // This is CRITICAL for lib/pq compatibility
+    parameters := []struct {
+        name  string
+        value string
+    }{
+        {"application_name", c.params["application_name"]}, // Can be empty string
+        {"client_encoding", "UTF8"},
+        {"DateStyle", "ISO, MDY"},
+        {"default_transaction_read_only", "off"},
+        {"in_hot_standby", "off"},
+        {"integer_datetimes", "on"},
+        {"IntervalStyle", "postgres"},
+        {"is_superuser", "off"},
+        {"server_encoding", "UTF8"},
+        {"server_version", "15.0"}, // Simple version, no "(QuantaDB 0.1.0)"
+        {"session_authorization", c.params["user"]},
+        {"standard_conforming_strings", "on"},
+        {"TimeZone", "UTC"},
+    }
+
+    for _, param := range parameters {
+        // Skip only if both name and value are empty
+        if param.name == "" && param.value == "" {
+            continue
+        }
+        
+        ps := &protocol.ParameterStatus{
+            Name:  param.name,
+            Value: param.value,
+        }
+        if err := protocol.WriteMessage(c.writer, ps.ToMessage()); err != nil {
+            return err
+        }
+    }
+
+    // Generate cryptographically secure secret key
+    if err := binary.Read(rand.Reader, binary.BigEndian, &c.secretKey); err != nil {
+        return fmt.Errorf("failed to generate secret key: %w", err)
+    }
+
+    // Send backend key data with valid process ID
+    keyData := &protocol.BackendKeyData{
+        ProcessID: c.id,
+        SecretKey: c.secretKey,
+    }
+    if err := protocol.WriteMessage(c.writer, keyData.ToMessage()); err != nil {
+        return err
+    }
+
+    // Send ready for query
+    ready := &protocol.ReadyForQuery{
+        Status: protocol.TxnStatusIdle,
+    }
+    if err := protocol.WriteMessage(c.writer, ready.ToMessage()); err != nil {
+        return err
+    }
+
+    // CRITICAL: Single flush at the end
+    // lib/pq expects all startup messages to arrive together
+    if err := c.writer.Flush(); err != nil {
+        return err
+    }
+
+    // Set state after successful startup
+    c.setState(StateReady)
+    
+    return nil
+}
+
+// Also fix the NewConnection to ensure valid process ID:
+func NewConnection(conn net.Conn, server *Server, connID uint32) *Connection {
+    // Ensure process ID is never 0
+    if connID == 0 {
+        connID = 1000
+    }
+    
+    return &Connection{
+        id:         connID,
+        conn:       conn,
+        reader:     bufio.NewReader(conn),
+        writer:     bufio.NewWriter(conn),
+        server:     server,
+        state:      StateStartup,
+        params:     make(map[string]string),
+        statements: make(map[string]*PreparedStatement),
+        portals:    make(map[string]*Portal),
+    }
+}
+```
+
+## Key Changes Made:
+
+1. **SSL Handling Fix**: After sending 'N' for SSL, recursively call `handleStartup()` to read a fresh startup message
+2. **Complete Parameter List**: Added all required parameters that PostgreSQL expects
+3. **Parameter Order**: Parameters are sent in a specific order matching PostgreSQL
+4. **Simple server_version**: Changed from "15.0 (QuantaDB 0.1.0)" to just "15.0"
+5. **Valid Process ID**: Ensure process ID is never 0
+6. **Single Flush**: All startup messages are buffered and sent in one flush
+
+## Testing:
+
+After applying this fix, lib/pq should connect successfully:
+
+```bash
+go run test/tpch/debug_connection.go
+```
+
+Should output:
+```
+Connecting with: host=localhost port=5432 user=postgres dbname=postgres sslmode=disable
+sql.Open succeeded, now pinging...
+Ping successful!
+Query result: 1
+```
