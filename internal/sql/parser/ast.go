@@ -451,6 +451,17 @@ func (f *FunctionCall) String() string {
 	return fmt.Sprintf("%s(%s%s)", f.Name, distinct, strings.Join(args, ", "))
 }
 
+// ExtractExpr represents an EXTRACT(field FROM expression) expression.
+type ExtractExpr struct {
+	Field string     // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+	From  Expression // The date/timestamp expression to extract from
+}
+
+func (e *ExtractExpr) expressionNode() {}
+func (e *ExtractExpr) String() string {
+	return fmt.Sprintf("EXTRACT(%s FROM %s)", e.Field, e.From.String())
+}
+
 // AnalyzeStmt represents an ANALYZE statement.
 type AnalyzeStmt struct {
 	TableName string
@@ -481,4 +492,45 @@ func (s *VacuumStmt) String() string {
 		return fmt.Sprintf("%s %s", cmd, s.TableName)
 	}
 	return cmd
+}
+
+// CaseExpr represents a CASE expression.
+// Supports both simple and searched CASE forms:
+// - Simple: CASE expr WHEN val1 THEN result1 WHEN val2 THEN result2 ELSE default END
+// - Searched: CASE WHEN cond1 THEN result1 WHEN cond2 THEN result2 ELSE default END
+type CaseExpr struct {
+	Expr     Expression    // nil for searched CASE
+	WhenList []WhenClause  // List of WHEN clauses
+	Else     Expression    // Optional ELSE expression
+}
+
+func (c *CaseExpr) expressionNode() {}
+func (c *CaseExpr) String() string {
+	var parts []string
+	parts = append(parts, "CASE")
+	
+	if c.Expr != nil {
+		parts = append(parts, c.Expr.String())
+	}
+	
+	for _, when := range c.WhenList {
+		parts = append(parts, when.String())
+	}
+	
+	if c.Else != nil {
+		parts = append(parts, "ELSE", c.Else.String())
+	}
+	
+	parts = append(parts, "END")
+	return strings.Join(parts, " ")
+}
+
+// WhenClause represents a WHEN condition THEN result clause in a CASE expression.
+type WhenClause struct {
+	Condition Expression // For searched CASE or value for simple CASE
+	Result    Expression // Result expression
+}
+
+func (w WhenClause) String() string {
+	return fmt.Sprintf("WHEN %s THEN %s", w.Condition.String(), w.Result.String())
 }

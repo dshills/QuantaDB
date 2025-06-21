@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
@@ -78,6 +79,17 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		// For now, return an error as we only support aggregate functions
 		return nil, fmt.Errorf("non-aggregate function calls not yet supported: %s", e.Name)
 
+	case *planner.ExtractExpr:
+		// Build evaluator for the FROM expression
+		fromEval, err := buildExprEvaluatorWithSchema(e.From, schema)
+		if err != nil {
+			return nil, err
+		}
+		return &extractEvaluator{
+			field:    e.Field,
+			fromEval: fromEval,
+		}, nil
+
 	case *planner.ParameterRef:
 		return &parameterRefEvaluator{
 			index:    e.Index,
@@ -140,6 +152,54 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 				not:        e.Not,
 			}, nil
 		}
+
+	case *planner.CaseExpr:
+		// Build evaluator for CASE expression
+		var caseEval ExprEvaluator
+		if e.Expr != nil {
+			// Simple CASE - build evaluator for the main expression
+			var err error
+			caseEval, err = buildExprEvaluatorWithSchema(e.Expr, schema)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build CASE expression evaluator: %w", err)
+			}
+		}
+
+		// Build evaluators for WHEN clauses
+		var whenEvals []caseWhenEvaluator
+		for i, when := range e.WhenList {
+			condEval, err := buildExprEvaluatorWithSchema(when.Condition, schema)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build WHEN condition evaluator %d: %w", i, err)
+			}
+
+			resultEval, err := buildExprEvaluatorWithSchema(when.Result, schema)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build THEN result evaluator %d: %w", i, err)
+			}
+
+			whenEvals = append(whenEvals, caseWhenEvaluator{
+				conditionEval: condEval,
+				resultEval:    resultEval,
+			})
+		}
+
+		// Build evaluator for ELSE clause
+		var elseEval ExprEvaluator
+		if e.Else != nil {
+			var err error
+			elseEval, err = buildExprEvaluatorWithSchema(e.Else, schema)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build ELSE evaluator: %w", err)
+			}
+		}
+
+		return &caseExprEvaluator{
+			caseEval:  caseEval,
+			whenEvals: whenEvals,
+			elseEval:  elseEval,
+			dataType:  e.Type,
+		}, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
@@ -275,13 +335,13 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 				switch b := b.(type) {
 				case int64:
 					if b == 0 {
-						return nil // Division by zero
+						return nil // Division by zero returns NULL per SQL standard
 					}
 					// Integer division promotes to float for consistency with SQL
 					return float64(a) / float64(b)
 				case float64:
 					if b == 0 {
-						return nil // Division by zero
+						return nil // Division by zero returns NULL per SQL standard
 					}
 					return float64(a) / b
 				}
@@ -289,12 +349,12 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 				switch b := b.(type) {
 				case int64:
 					if b == 0 {
-						return nil // Division by zero
+						return nil // Division by zero returns NULL per SQL standard
 					}
 					return a / float64(b)
 				case float64:
 					if b == 0 {
-						return nil // Division by zero
+						return nil // Division by zero returns NULL per SQL standard
 					}
 					return a / b
 				}
@@ -687,4 +747,126 @@ func (e *inValuesEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 	// Not found in the list
 	result := !e.not
 	return types.NewValue(result), nil
+}
+
+// extractEvaluator evaluates EXTRACT expressions.
+type extractEvaluator struct {
+	field    string        // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+	fromEval ExprEvaluator // The expression to extract from
+}
+
+func (e *extractEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// Evaluate the FROM expression
+	fromVal, err := e.fromEval.Eval(row, ctx)
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	if fromVal.IsNull() {
+		return types.NewNullValue(), nil
+	}
+
+	// Extract from time.Time value
+	timeVal, ok := fromVal.Data.(time.Time)
+	if !ok {
+		return types.NewNullValue(), fmt.Errorf("EXTRACT requires date/timestamp value, got %T", fromVal.Data)
+	}
+
+	// Extract the requested field
+	var result int32
+	switch e.field {
+	case "YEAR":
+		result = int32(timeVal.Year())
+	case "MONTH":
+		result = int32(timeVal.Month())
+	case "DAY":
+		result = int32(timeVal.Day())
+	case "HOUR":
+		result = int32(timeVal.Hour())
+	case "MINUTE":
+		result = int32(timeVal.Minute())
+	case "SECOND":
+		result = int32(timeVal.Second())
+	default:
+		return types.NewNullValue(), fmt.Errorf("unsupported EXTRACT field: %s", e.field)
+	}
+
+	return types.NewValue(result), nil
+}
+
+// caseWhenEvaluator holds evaluators for a WHEN clause.
+type caseWhenEvaluator struct {
+	conditionEval ExprEvaluator
+	resultEval    ExprEvaluator
+}
+
+// caseExprEvaluator evaluates CASE expressions.
+type caseExprEvaluator struct {
+	caseEval  ExprEvaluator        // nil for searched CASE
+	whenEvals []caseWhenEvaluator  // WHEN clauses
+	elseEval  ExprEvaluator        // ELSE clause (may be nil)
+	dataType  types.DataType
+}
+
+func (e *caseExprEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// For simple CASE, evaluate the main expression first
+	var mainValue types.Value
+	if e.caseEval != nil {
+		var err error
+		mainValue, err = e.caseEval.Eval(row, ctx)
+		if err != nil {
+			return types.NewNullValue(), fmt.Errorf("failed to evaluate CASE expression: %w", err)
+		}
+		
+		if mainValue.IsNull() {
+			// If the main expression is NULL, return NULL (or ELSE value)
+			if e.elseEval != nil {
+				return e.elseEval.Eval(row, ctx)
+			}
+			return types.NewNullValue(), nil
+		}
+	}
+	
+	// Evaluate WHEN clauses in order
+	for _, when := range e.whenEvals {
+		var matches bool
+		
+		if e.caseEval != nil {
+			// Simple CASE: compare mainValue with when condition
+			whenValue, err := when.conditionEval.Eval(row, ctx)
+			if err != nil {
+				return types.NewNullValue(), fmt.Errorf("failed to evaluate WHEN value: %w", err)
+			}
+			
+			if !whenValue.IsNull() && mainValue.Equal(whenValue) {
+				matches = true
+			}
+		} else {
+			// Searched CASE: evaluate condition as boolean
+			condValue, err := when.conditionEval.Eval(row, ctx)
+			if err != nil {
+				return types.NewNullValue(), fmt.Errorf("failed to evaluate WHEN condition: %w", err)
+			}
+			
+			if !condValue.IsNull() {
+				if condBool, ok := condValue.Data.(bool); ok {
+					matches = condBool
+				} else {
+					return types.NewNullValue(), fmt.Errorf("WHEN condition must evaluate to boolean, got %T", condValue.Data)
+				}
+			}
+		}
+		
+		if matches {
+			// Return the result for this WHEN clause
+			return when.resultEval.Eval(row, ctx)
+		}
+	}
+	
+	// No WHEN clause matched, return ELSE value or NULL
+	if e.elseEval != nil {
+		return e.elseEval.Eval(row, ctx)
+	}
+	
+	return types.NewNullValue(), nil
 }

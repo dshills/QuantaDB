@@ -218,3 +218,50 @@
 - [x] Common Table Expression (CTE) support - WITH clause parsing and planning
 - [x] EXISTS/IN predicate transformation to semi-joins - Integrated into optimizer
 
+## ✅ SQL Query Features for TPC-H (December 21, 2024)
+
+### Date/Time Support
+- [x] **Date Literals**: Support for date 'YYYY-MM-DD' syntax
+  - Added date literal parsing in SQL parser
+  - Date type already existed in types package with proper serialization
+  - Date comparisons work correctly using types.CompareValues
+  - Full test coverage including TPC-H query compatibility tests
+  - Integration with existing storage and executor layers
+
+- [x] **EXTRACT Function**: Full implementation of EXTRACT(field FROM date/timestamp)
+  - Parser support for EXTRACT(field FROM expression) syntax
+  - Support for all standard fields: YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+  - Planner expression type and conversion logic
+  - Executor evaluation with proper type handling and error cases
+  - Comprehensive test coverage for parsing and evaluation
+
+### SQL Expressions
+- [x] **CASE Expressions**: Full implementation of CASE WHEN expressions
+  - Simple CASE: CASE expr WHEN val1 THEN result1 ELSE default END
+  - Searched CASE: CASE WHEN cond1 THEN result1 ELSE default END
+  - Parser support with proper precedence handling
+  - Planner expression type with type inference
+  - Executor evaluation for both simple and searched forms
+  - Support for nested CASE expressions
+  - Integration with aggregate functions (TPC-H Q8 style)
+
+### Query Features
+- [x] **Aggregate Functions**: Full implementation of SUM, AVG, MIN, MAX, COUNT
+  - Parser support for function calls including COUNT(*) and COUNT(DISTINCT)
+  - Planner integration with aggregate operator pipeline
+  - Executor already had aggregate support, now fully connected
+  - Mixed numeric type operations (int64/float64) in expressions
+
+- [x] **GROUP BY and HAVING**: Complete support for grouping and filtering
+  - Parser support for GROUP BY and HAVING clauses
+  - Planner builds proper aggregate pipeline with grouping
+  - Integration with aggregate functions and expressions
+  - Multi-column grouping support
+
+- [x] **ORDER BY**: Multi-column ordering with ASC/DESC (was already implemented)
+
+### Test Coverage
+- [x] All individual feature tests passing (GROUP BY, HAVING, EXTRACT, CASE, date literals)
+- [x] TPC-H compatible feature tests created and passing
+- [x] Complex TPC-H queries fail due to missing JOIN support (expected)
+- [x] Integration tests verify end-to-end functionality

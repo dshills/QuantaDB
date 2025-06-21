@@ -24,12 +24,14 @@ type ExpressionVisitor interface {
 	VisitBinaryOp(expr *BinaryOp) error
 	VisitUnaryOp(expr *UnaryOp) error
 	VisitFunctionCall(expr *FunctionCall) error
+	VisitExtract(expr *ExtractExpr) error
 	VisitAggregate(expr *AggregateExpr) error
 	VisitStar(expr *Star) error
 	VisitParameterRef(expr *ParameterRef) error
 	VisitSubquery(expr *SubqueryExpr) error
 	VisitExists(expr *ExistsExpr) error
 	VisitIn(expr *InExpr) error
+	VisitCase(expr *CaseExpr) error
 }
 
 // ColumnRef represents a reference to a column.
@@ -279,6 +281,25 @@ func (f *FunctionCall) Accept(visitor ExpressionVisitor) error {
 	return visitor.VisitFunctionCall(f)
 }
 
+// ExtractExpr represents an EXTRACT expression.
+type ExtractExpr struct {
+	Field string     // YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
+	From  Expression // The date/timestamp expression to extract from
+	Type  types.DataType
+}
+
+func (e *ExtractExpr) String() string {
+	return fmt.Sprintf("EXTRACT(%s FROM %s)", e.Field, e.From.String())
+}
+
+func (e *ExtractExpr) DataType() types.DataType {
+	return e.Type
+}
+
+func (e *ExtractExpr) Accept(visitor ExpressionVisitor) error {
+	return visitor.VisitExtract(e)
+}
+
 // AggregateExpr represents an aggregate expression.
 type AggregateExpr struct {
 	Function AggregateFunc
@@ -431,4 +452,46 @@ func (i *InExpr) DataType() types.DataType {
 
 func (i *InExpr) Accept(visitor ExpressionVisitor) error {
 	return visitor.VisitIn(i)
+}
+
+// CaseExpr represents a CASE expression.
+type CaseExpr struct {
+	Expr     Expression   // nil for searched CASE
+	WhenList []WhenClause // List of WHEN clauses
+	Else     Expression   // Optional ELSE expression
+	Type     types.DataType
+}
+
+// WhenClause represents a WHEN condition THEN result clause.
+type WhenClause struct {
+	Condition Expression
+	Result    Expression
+}
+
+func (c *CaseExpr) String() string {
+	var parts []string
+	parts = append(parts, "CASE")
+	
+	if c.Expr != nil {
+		parts = append(parts, c.Expr.String())
+	}
+	
+	for _, when := range c.WhenList {
+		parts = append(parts, "WHEN", when.Condition.String(), "THEN", when.Result.String())
+	}
+	
+	if c.Else != nil {
+		parts = append(parts, "ELSE", c.Else.String())
+	}
+	
+	parts = append(parts, "END")
+	return strings.Join(parts, " ")
+}
+
+func (c *CaseExpr) DataType() types.DataType {
+	return c.Type
+}
+
+func (c *CaseExpr) Accept(visitor ExpressionVisitor) error {
+	return visitor.VisitCase(c)
 }

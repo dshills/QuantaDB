@@ -572,6 +572,20 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 		// Non-aggregate function - not implemented yet
 		return nil, fmt.Errorf("non-aggregate functions not implemented: %s", e.Name)
 
+	case *parser.ExtractExpr:
+		// Convert the FROM expression
+		fromExpr, err := p.convertExpression(e.From)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert EXTRACT FROM expression: %w", err)
+		}
+
+		// EXTRACT always returns an integer
+		return &ExtractExpr{
+			Field: e.Field,
+			From:  fromExpr,
+			Type:  types.Integer,
+		}, nil
+
 	case *parser.BinaryExpr:
 		left, err := p.convertExpression(e.Left)
 		if err != nil {
@@ -793,6 +807,72 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			Right:    right,
 			Operator: logicalOp,
 			Type:     types.Boolean,
+		}, nil
+
+	case *parser.CaseExpr:
+		// Convert CASE expression
+		var caseExpr Expression
+		if e.Expr != nil {
+			// Simple CASE
+			var err error
+			caseExpr, err = p.convertExpression(e.Expr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert CASE expression: %w", err)
+			}
+		}
+		
+		// Convert WHEN clauses
+		var whenList []WhenClause
+		var resultType types.DataType = types.Unknown
+		
+		for i, when := range e.WhenList {
+			condition, err := p.convertExpression(when.Condition)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert WHEN condition %d: %w", i, err)
+			}
+			
+			result, err := p.convertExpression(when.Result)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert THEN result %d: %w", i, err)
+			}
+			
+			// Use the first result's type as the expression type
+			// TODO: Type coercion for mixed types
+			if resultType == types.Unknown && result.DataType() != types.Unknown {
+				resultType = result.DataType()
+			}
+			
+			whenList = append(whenList, WhenClause{
+				Condition: condition,
+				Result:    result,
+			})
+		}
+		
+		// Convert ELSE clause
+		var elseExpr Expression
+		if e.Else != nil {
+			var err error
+			elseExpr, err = p.convertExpression(e.Else)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert ELSE expression: %w", err)
+			}
+			
+			// Update result type if needed
+			if resultType == types.Unknown && elseExpr.DataType() != types.Unknown {
+				resultType = elseExpr.DataType()
+			}
+		}
+		
+		// If we still don't know the type, default to text
+		if resultType == types.Unknown {
+			resultType = types.Text
+		}
+		
+		return &CaseExpr{
+			Expr:     caseExpr,
+			WhenList: whenList,
+			Else:     elseExpr,
+			Type:     resultType,
 		}, nil
 
 	default:

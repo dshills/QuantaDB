@@ -70,6 +70,15 @@ const (
 	TokenDate
 	TokenDecimal
 
+	// Functions and date parts
+	TokenExtract
+	TokenYear
+	TokenMonth
+	TokenDay
+	TokenHour
+	TokenMinute
+	TokenSecond
+
 	// Operators
 	TokenPlus
 	TokenMinus
@@ -87,6 +96,11 @@ const (
 	TokenBetween
 	TokenIs
 	TokenExists
+	TokenCase
+	TokenWhen
+	TokenThen
+	TokenElse
+	TokenEnd
 
 	// Delimiters
 	TokenLeftParen
@@ -153,6 +167,13 @@ var tokenStrings = map[TokenType]string{
 	TokenTimestamp:    "TIMESTAMP",
 	TokenDate:         "DATE",
 	TokenDecimal:      "DECIMAL",
+	TokenExtract:      "EXTRACT",
+	TokenYear:         "YEAR",
+	TokenMonth:        "MONTH",
+	TokenDay:          "DAY",
+	TokenHour:         "HOUR",
+	TokenMinute:       "MINUTE",
+	TokenSecond:       "SECOND",
 	TokenPlus:         "+",
 	TokenMinus:        "-",
 	TokenStar:         "*",
@@ -169,6 +190,11 @@ var tokenStrings = map[TokenType]string{
 	TokenBetween:      "BETWEEN",
 	TokenIs:           "IS",
 	TokenExists:       "EXISTS",
+	TokenCase:         "CASE",
+	TokenWhen:         "WHEN",
+	TokenThen:         "THEN",
+	TokenElse:         "ELSE",
+	TokenEnd:          "END",
 	TokenLeftParen:    "(",
 	TokenRightParen:   ")",
 	TokenComma:        ",",
@@ -252,6 +278,13 @@ var keywords = map[string]TokenType{
 	"DATE":      TokenDate,
 	"DECIMAL":   TokenDecimal,
 	"NUMERIC":   TokenDecimal,
+	"EXTRACT":   TokenExtract,
+	"YEAR":      TokenYear,
+	"MONTH":     TokenMonth,
+	"DAY":       TokenDay,
+	"HOUR":      TokenHour,
+	"MINUTE":    TokenMinute,
+	"SECOND":    TokenSecond,
 	"TRUE":      TokenTrue,
 	"FALSE":     TokenFalse,
 	"NULL":      TokenNull,
@@ -262,6 +295,11 @@ var keywords = map[string]TokenType{
 	"EXISTS":    TokenExists,
 	"VACUUM":    TokenVacuum,
 	"WITH":      TokenWith,
+	"CASE":      TokenCase,
+	"WHEN":      TokenWhen,
+	"THEN":      TokenThen,
+	"ELSE":      TokenElse,
+	"END":       TokenEnd,
 }
 
 // LookupKeyword returns the token type for a keyword.

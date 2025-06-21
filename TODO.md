@@ -23,16 +23,43 @@
 - [x] **Query Templates**: Queries 3, 5, 8, 10 implemented
 - [x] **Benchmark Runner**: Performance measurement framework
 
+### Date/Time Functions (COMPLETED)
+- [x] **EXTRACT Function**: Full implementation of EXTRACT(field FROM date/timestamp)
+  - Parser support for EXTRACT(field FROM expression) syntax
+  - Support for all standard fields: YEAR, MONTH, DAY, HOUR, MINUTE, SECOND  
+  - Planner expression type and conversion logic
+  - Executor evaluation with proper type handling and error cases
+  - Comprehensive test coverage for parsing and evaluation
+
+### SQL Expressions (COMPLETED)
+- [x] **CASE Expressions**: Full implementation of CASE WHEN expressions
+  - Simple CASE: CASE expr WHEN val1 THEN result1 ELSE default END
+  - Searched CASE: CASE WHEN cond1 THEN result1 ELSE default END
+  - Parser support with proper precedence handling
+  - Planner expression type with type inference
+  - Executor evaluation for both simple and searched forms
+  - Support for nested CASE expressions
+  - Integration with aggregate functions (TPC-H Q8 style)
+
 ## Phase 5: SQL Feature Completion (Next)
 
 ### Query Features (Required for TPC-H)
 - [ ] **Subqueries in SELECT**: Support scalar subqueries in projection list
-- [ ] **Aggregate Functions**: Implement SUM, AVG, MIN, MAX with proper type handling
-- [ ] **GROUP BY**: Support multi-column grouping and HAVING clause
-- [ ] **ORDER BY**: Implement multi-column ordering with ASC/DESC
-- [ ] **Date Functions**: EXTRACT, date arithmetic, interval types
+- [x] **Aggregate Functions**: Implement SUM, AVG, MIN, MAX with proper type handling (COMPLETED)
+  - Parser support for function calls including COUNT(*) and COUNT(DISTINCT)
+  - Planner integration with aggregate operator pipeline
+  - Executor already had aggregate support, now fully connected
+  - Mixed numeric type operations (int64/float64) in expressions
+- [x] **GROUP BY**: Support multi-column grouping and HAVING clause (COMPLETED)
+  - Parser support for GROUP BY and HAVING clauses
+  - Planner builds proper aggregate pipeline with grouping
+  - Integration with aggregate functions and expressions
+- [x] **ORDER BY**: Implement multi-column ordering with ASC/DESC (COMPLETED - was already implemented)
+- [x] **Date Literals**: Support for date 'YYYY-MM-DD' syntax (COMPLETED)
+- [x] **EXTRACT Function**: Support EXTRACT(field FROM date/timestamp) for YEAR, MONTH, DAY, HOUR, MINUTE, SECOND (COMPLETED)
+- [ ] **Date Arithmetic**: Date arithmetic operations and interval types
 - [ ] **String Functions**: SUBSTRING, string concatenation (||)
-- [ ] **CASE Expressions**: Implement CASE WHEN for conditional logic
+- [x] **CASE Expressions**: Implement CASE WHEN for conditional logic (COMPLETED)
 - [ ] **IN/NOT IN**: Support for value lists and subqueries
 - [ ] **EXISTS/NOT EXISTS**: Correlated subquery support
 

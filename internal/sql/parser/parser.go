@@ -42,6 +42,12 @@ func (p *Parser) Parse() (Statement, error) {
 	return stmt, nil
 }
 
+// ParseExpression parses a single expression (for testing).
+func (p *Parser) ParseExpression() (Expression, error) {
+	p.advance() // Start with the first token
+	return p.parseExpression()
+}
+
 // ParseMultiple parses multiple SQL statements separated by semicolons.
 func (p *Parser) ParseMultiple() ([]Statement, error) {
 	var statements []Statement
@@ -1266,6 +1272,142 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	case TokenNull:
 		p.advance()
 		return &Literal{Value: types.NullValue(types.Unknown)}, nil
+
+	case TokenDate:
+		// Handle date literal: date 'YYYY-MM-DD'
+		p.advance()
+		if p.current.Type != TokenString {
+			return nil, p.error("expected string literal after DATE")
+		}
+		dateStr := p.current.Value
+		p.advance()
+		
+		// Parse the date string
+		dateValue, err := types.ParseDate(dateStr)
+		if err != nil {
+			return nil, p.error(fmt.Sprintf("invalid date literal: %v", err))
+		}
+		return &Literal{Value: dateValue}, nil
+
+	case TokenTimestamp:
+		// Handle timestamp literal: timestamp 'YYYY-MM-DD HH:MM:SS'
+		p.advance()
+		if p.current.Type != TokenString {
+			return nil, p.error("expected string literal after TIMESTAMP")
+		}
+		timestampStr := p.current.Value
+		p.advance()
+		
+		// Parse the timestamp string
+		timestampValue, err := types.ParseTimestamp(timestampStr)
+		if err != nil {
+			return nil, p.error(fmt.Sprintf("invalid timestamp literal: %v", err))
+		}
+		return &Literal{Value: timestampValue}, nil
+
+	case TokenExtract:
+		// Handle EXTRACT(field FROM expression)
+		p.advance() // consume 'EXTRACT'
+		
+		if !p.consume(TokenLeftParen, "expected '(' after EXTRACT") {
+			return nil, p.lastError()
+		}
+		
+		// Parse the field (YEAR, MONTH, DAY, etc.)
+		if p.current.Type != TokenYear && p.current.Type != TokenMonth && 
+		   p.current.Type != TokenDay && p.current.Type != TokenHour &&
+		   p.current.Type != TokenMinute && p.current.Type != TokenSecond {
+			return nil, p.error("expected date field (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND) in EXTRACT")
+		}
+		
+		field := p.current.Value
+		p.advance()
+		
+		if !p.consume(TokenFrom, "expected 'FROM' in EXTRACT expression") {
+			return nil, p.lastError()
+		}
+		
+		// Parse the source expression
+		fromExpr, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		
+		if !p.consume(TokenRightParen, "expected ')' after EXTRACT expression") {
+			return nil, p.lastError()
+		}
+		
+		return &ExtractExpr{
+			Field: strings.ToUpper(field),
+			From:  fromExpr,
+		}, nil
+
+	case TokenCase:
+		// Handle CASE expression
+		p.advance() // consume 'CASE'
+		
+		var expr Expression
+		var whenList []WhenClause
+		var elseExpr Expression
+		
+		// Check if this is a simple CASE (CASE expr WHEN...) or searched CASE (CASE WHEN...)
+		if p.current.Type != TokenWhen {
+			// Simple CASE - parse the expression after CASE
+			var err error
+			expr, err = p.parseComparison() // Parse at comparison level to avoid infinite recursion
+			if err != nil {
+				return nil, err
+			}
+		}
+		
+		// Parse WHEN clauses
+		for p.current.Type == TokenWhen {
+			p.advance() // consume 'WHEN'
+			
+			// Parse the condition
+			condition, err := p.parseComparison() // Parse at comparison level for conditions
+			if err != nil {
+				return nil, err
+			}
+			
+			if !p.consume(TokenThen, "expected 'THEN' after WHEN condition") {
+				return nil, p.lastError()
+			}
+			
+			// Parse the result
+			result, err := p.parseComparison() // Parse at comparison level for results
+			if err != nil {
+				return nil, err
+			}
+			
+			whenList = append(whenList, WhenClause{
+				Condition: condition,
+				Result:    result,
+			})
+		}
+		
+		if len(whenList) == 0 {
+			return nil, p.error("CASE expression must have at least one WHEN clause")
+		}
+		
+		// Parse optional ELSE clause
+		if p.match(TokenElse) {
+			var err error
+			elseExpr, err = p.parseComparison() // Parse at comparison level
+			if err != nil {
+				return nil, err
+			}
+		}
+		
+		if !p.consume(TokenEnd, "expected 'END' to close CASE expression") {
+			return nil, p.lastError()
+		}
+		
+		return &CaseExpr{
+			Expr:     expr,
+			WhenList: whenList,
+			Else:     elseExpr,
+		}, nil
 
 	case TokenIdentifier:
 		name := p.current.Value

@@ -94,6 +94,7 @@ QuantaDB/
 - Run tests before committing, fix any errors
 - Update TODO.md before committing work to git
 - Use second-opinion to review commits
+- Use second-opinion to analyze uncomitted work before commit
 
 ## Memory Management
 
