@@ -19,6 +19,7 @@ type Optimizer struct {
 func NewOptimizer() *Optimizer {
 	return &Optimizer{
 		rules: []OptimizationRule{
+			&SubqueryDecorrelation{}, // Apply early to convert subqueries to joins
 			&PredicatePushdown{},
 			&ProjectionPushdown{},
 			&ConstantFolding{},
@@ -36,6 +37,7 @@ func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
 	return &Optimizer{
 		catalog: cat,
 		rules: []OptimizationRule{
+			&SubqueryDecorrelation{}, // Apply early to convert subqueries to joins
 			&PredicatePushdown{},
 			&ProjectionPushdown{},
 			&ConstantFolding{},

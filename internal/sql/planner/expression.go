@@ -27,6 +27,9 @@ type ExpressionVisitor interface {
 	VisitAggregate(expr *AggregateExpr) error
 	VisitStar(expr *Star) error
 	VisitParameterRef(expr *ParameterRef) error
+	VisitSubquery(expr *SubqueryExpr) error
+	VisitExists(expr *ExistsExpr) error
+	VisitIn(expr *InExpr) error
 }
 
 // ColumnRef represents a reference to a column.
@@ -353,4 +356,78 @@ func (s *Star) DataType() types.DataType {
 
 func (s *Star) Accept(visitor ExpressionVisitor) error {
 	return visitor.VisitStar(s)
+}
+
+// SubqueryExpr represents a subquery expression.
+type SubqueryExpr struct {
+	Subplan LogicalPlan
+	Type    types.DataType
+}
+
+func (s *SubqueryExpr) String() string {
+	return fmt.Sprintf("(%s)", s.Subplan.String())
+}
+
+func (s *SubqueryExpr) DataType() types.DataType {
+	return s.Type
+}
+
+func (s *SubqueryExpr) Accept(visitor ExpressionVisitor) error {
+	return visitor.VisitSubquery(s)
+}
+
+// ExistsExpr represents an EXISTS expression.
+type ExistsExpr struct {
+	Subquery *SubqueryExpr
+	Not      bool
+}
+
+func (e *ExistsExpr) String() string {
+	if e.Not {
+		return fmt.Sprintf("NOT EXISTS %s", e.Subquery.String())
+	}
+	return fmt.Sprintf("EXISTS %s", e.Subquery.String())
+}
+
+func (e *ExistsExpr) DataType() types.DataType {
+	return types.Boolean
+}
+
+func (e *ExistsExpr) Accept(visitor ExpressionVisitor) error {
+	return visitor.VisitExists(e)
+}
+
+// InExpr represents an IN expression.
+type InExpr struct {
+	Expr     Expression
+	Values   []Expression  // Either Values or Subquery is set
+	Subquery *SubqueryExpr // Either Values or Subquery is set
+	Not      bool
+}
+
+func (i *InExpr) String() string {
+	if i.Subquery != nil {
+		if i.Not {
+			return fmt.Sprintf("%s NOT IN %s", i.Expr.String(), i.Subquery.String())
+		}
+		return fmt.Sprintf("%s IN %s", i.Expr.String(), i.Subquery.String())
+	}
+
+	var values []string
+	for _, v := range i.Values {
+		values = append(values, v.String())
+	}
+
+	if i.Not {
+		return fmt.Sprintf("%s NOT IN (%s)", i.Expr.String(), strings.Join(values, ", "))
+	}
+	return fmt.Sprintf("%s IN (%s)", i.Expr.String(), strings.Join(values, ", "))
+}
+
+func (i *InExpr) DataType() types.DataType {
+	return types.Boolean
+}
+
+func (i *InExpr) Accept(visitor ExpressionVisitor) error {
+	return visitor.VisitIn(i)
 }

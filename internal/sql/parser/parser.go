@@ -76,6 +76,8 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseInsert()
 	case TokenSelect:
 		return p.parseSelect()
+	case TokenWith:
+		return p.parseWithSelect() // CTE SELECT statement
 	case TokenUpdate:
 		return p.parseUpdate()
 	case TokenDelete:
@@ -445,6 +447,65 @@ func (p *Parser) parseInsert() (*InsertStmt, error) {
 }
 
 // parseSelect parses a SELECT statement.
+// parseWithSelect parses a SELECT statement that starts with a WITH clause.
+func (p *Parser) parseWithSelect() (*SelectStmt, error) {
+	if !p.consume(TokenWith, "expected WITH") {
+		return nil, p.lastError()
+	}
+
+	// Parse CTE definitions
+	var ctes []CommonTableExpr
+	for {
+		// Parse CTE name
+		if p.current.Type != TokenIdentifier {
+			return nil, p.error("expected CTE name")
+		}
+		cteName := p.current.Value
+		p.advance()
+
+		// Expect AS
+		if !p.consume(TokenAs, "expected AS") {
+			return nil, p.lastError()
+		}
+
+		// Expect opening parenthesis
+		if !p.consume(TokenLeftParen, "expected '('") {
+			return nil, p.lastError()
+		}
+
+		// Parse the CTE query (recursive call to parseSelect)
+		cteQuery, err := p.parseSelect()
+		if err != nil {
+			return nil, err
+		}
+
+		// Expect closing parenthesis
+		if !p.consume(TokenRightParen, "expected ')'") {
+			return nil, p.lastError()
+		}
+
+		ctes = append(ctes, CommonTableExpr{
+			Name:  cteName,
+			Query: cteQuery,
+		})
+
+		// Check for more CTEs
+		if !p.match(TokenComma) {
+			break
+		}
+	}
+
+	// Now parse the main SELECT statement
+	mainQuery, err := p.parseSelect()
+	if err != nil {
+		return nil, err
+	}
+
+	// Add CTEs to the main query
+	mainQuery.With = ctes
+	return mainQuery, nil
+}
+
 func (p *Parser) parseSelect() (*SelectStmt, error) {
 	if !p.consume(TokenSelect, "expected SELECT") {
 		return nil, p.lastError()

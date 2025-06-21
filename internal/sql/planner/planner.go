@@ -88,6 +88,11 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 
 // planSelect converts a SELECT statement to a logical plan.
 func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) {
+	// If there are CTEs, plan them first
+	if len(stmt.With) > 0 {
+		return p.planWithClause(stmt)
+	}
+
 	var plan LogicalPlan
 
 	// Handle SELECT without FROM clause (e.g., SELECT 1, SELECT 1+2)
@@ -129,6 +134,43 @@ func (p *BasicPlanner) planSelect(stmt *parser.SelectStmt) (LogicalPlan, error) 
 	}
 
 	return p.buildSelectPlan(plan, stmt)
+}
+
+// planWithClause plans a SELECT statement with CTEs.
+func (p *BasicPlanner) planWithClause(stmt *parser.SelectStmt) (LogicalPlan, error) {
+	// Plan each CTE
+	var ctes []LogicalCTE
+	for _, cte := range stmt.With {
+		// Plan the CTE query
+		ctePlan, err := p.planSelect(cte.Query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to plan CTE %s: %w", cte.Name, err)
+		}
+
+		// Create the logical CTE node
+		logicalCTE := LogicalCTE{
+			basePlan: basePlan{
+				children: []Plan{ctePlan},
+				schema:   ctePlan.Schema(),
+			},
+			Name: cte.Name,
+			Plan: ctePlan,
+		}
+		ctes = append(ctes, logicalCTE)
+	}
+
+	// Plan the main query (temporarily removing CTEs to avoid recursion)
+	mainStmt := *stmt   // Copy the statement
+	mainStmt.With = nil // Clear CTEs for main query planning
+
+	mainPlan, err := p.planSelect(&mainStmt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to plan main query: %w", err)
+	}
+
+	// Create the WITH clause node
+	withClause := NewLogicalWithClause(ctes, mainPlan, mainPlan.Schema())
+	return withClause, nil
 }
 
 // buildSelectPlan builds the rest of the SELECT plan after the table scan.
@@ -494,6 +536,137 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 		return &ParameterRef{
 			Index: e.Index,
 			Type:  types.Unknown, // Type will be inferred during bind
+		}, nil
+
+	case *parser.SubqueryExpr:
+		// Plan the subquery
+		subplan, err := p.planSelect(e.Query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to plan subquery: %w", err)
+		}
+
+		// Determine result type from subquery schema
+		schema := subplan.Schema()
+		var resultType types.DataType = types.Unknown
+		if schema != nil && len(schema.Columns) == 1 {
+			resultType = schema.Columns[0].DataType
+		}
+
+		return &SubqueryExpr{
+			Subplan: subplan,
+			Type:    resultType,
+		}, nil
+
+	case *parser.ExistsExpr:
+		// Convert the subquery
+		subqueryExpr, err := p.convertExpression(e.Subquery)
+		if err != nil {
+			return nil, err
+		}
+
+		subquery, ok := subqueryExpr.(*SubqueryExpr)
+		if !ok {
+			return nil, fmt.Errorf("expected SubqueryExpr for EXISTS")
+		}
+
+		return &ExistsExpr{
+			Subquery: subquery,
+			Not:      e.Not,
+		}, nil
+
+	case *parser.InExpr:
+		// Convert the left expression
+		expr, err := p.convertExpression(e.Expr)
+		if err != nil {
+			return nil, err
+		}
+
+		if e.Subquery != nil {
+			// IN with subquery
+			subqueryExpr, err := p.convertExpression(e.Subquery)
+			if err != nil {
+				return nil, err
+			}
+
+			subquery, ok := subqueryExpr.(*SubqueryExpr)
+			if !ok {
+				return nil, fmt.Errorf("expected SubqueryExpr for IN")
+			}
+
+			return &InExpr{
+				Expr:     expr,
+				Subquery: subquery,
+				Not:      e.Not,
+			}, nil
+		} else {
+			// IN with value list
+			var values []Expression
+			for _, value := range e.Values {
+				valueExpr, err := p.convertExpression(value)
+				if err != nil {
+					return nil, err
+				}
+				values = append(values, valueExpr)
+			}
+
+			return &InExpr{
+				Expr:   expr,
+				Values: values,
+				Not:    e.Not,
+			}, nil
+		}
+
+	case *parser.BetweenExpr:
+		// Convert all expressions
+		expr, err := p.convertExpression(e.Expr)
+		if err != nil {
+			return nil, err
+		}
+
+		lower, err := p.convertExpression(e.Lower)
+		if err != nil {
+			return nil, err
+		}
+
+		upper, err := p.convertExpression(e.Upper)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert BETWEEN to equivalent comparison: expr >= lower AND expr <= upper
+		// For NOT BETWEEN: expr < lower OR expr > upper
+		var op1, op2 BinaryOperator
+		var logicalOp BinaryOperator
+
+		if e.Not {
+			op1 = OpLess
+			op2 = OpGreater
+			logicalOp = OpOr
+		} else {
+			op1 = OpGreaterEqual
+			op2 = OpLessEqual
+			logicalOp = OpAnd
+		}
+
+		left := &BinaryOp{
+			Left:     expr,
+			Right:    lower,
+			Operator: op1,
+			Type:     types.Boolean,
+		}
+
+		right := &BinaryOp{
+			Left:     expr,
+			Right:    upper,
+			Operator: op2,
+			Type:     types.Boolean,
+		}
+
+		return &BinaryOp{
+			Left:     left,
+			Right:    right,
+			Operator: logicalOp,
+			Type:     types.Boolean,
 		}, nil
 
 	default:

@@ -119,6 +119,11 @@ func (v Value) Type() DataType {
 	}
 }
 
+// Equal returns true if two values are equal
+func (v Value) Equal(other Value) bool {
+	return CompareValues(v, other) == 0
+}
+
 // CompareValues compares two values, handling NULLs
 // NULL is considered less than any non-NULL value
 func CompareValues(a, b Value) int {

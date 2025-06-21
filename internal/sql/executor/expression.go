@@ -84,6 +84,63 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 			dataType: e.Type,
 		}, nil
 
+	case *planner.SubqueryExpr:
+		// For now, we'll create a placeholder that will be built later
+		// when we have access to the executor context
+		return &subqueryEvaluator{
+			subplan:  e.Subplan,
+			dataType: e.Type,
+		}, nil
+
+	case *planner.ExistsExpr:
+		// Build evaluator for the subquery
+		subqueryEval, err := buildExprEvaluatorWithSchema(e.Subquery, schema)
+		if err != nil {
+			return nil, err
+		}
+
+		return &existsEvaluator{
+			subqueryEval: subqueryEval,
+			not:          e.Not,
+		}, nil
+
+	case *planner.InExpr:
+		// Build evaluator for the left expression
+		exprEval, err := buildExprEvaluatorWithSchema(e.Expr, schema)
+		if err != nil {
+			return nil, err
+		}
+
+		if e.Subquery != nil {
+			// IN with subquery
+			subqueryEval, err := buildExprEvaluatorWithSchema(e.Subquery, schema)
+			if err != nil {
+				return nil, err
+			}
+
+			return &inSubqueryEvaluator{
+				exprEval:     exprEval,
+				subqueryEval: subqueryEval,
+				not:          e.Not,
+			}, nil
+		} else {
+			// IN with value list
+			var valueEvals []ExprEvaluator
+			for _, value := range e.Values {
+				valueEval, err := buildExprEvaluatorWithSchema(value, schema)
+				if err != nil {
+					return nil, err
+				}
+				valueEvals = append(valueEvals, valueEval)
+			}
+
+			return &inValuesEvaluator{
+				exprEval:   exprEval,
+				valueEvals: valueEvals,
+				not:        e.Not,
+			}, nil
+		}
+
 	default:
 		return nil, fmt.Errorf("unsupported expression type: %T", expr)
 	}
@@ -413,4 +470,166 @@ func (e *parameterRefEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, e
 
 	// Return the parameter value (convert 1-based to 0-based index)
 	return ctx.Params[e.index-1], nil
+}
+
+// subqueryEvaluator evaluates scalar subqueries.
+type subqueryEvaluator struct {
+	subplan     planner.LogicalPlan
+	subOperator *SubqueryOperator
+	dataType    types.DataType
+}
+
+func (e *subqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// Build the subquery operator lazily
+	if e.subOperator == nil {
+		// We need access to the executor to build the operator
+		// For now, return an error - this will be fixed in the next iteration
+		return types.NewNullValue(), fmt.Errorf("subquery evaluation not yet implemented - needs executor integration")
+	}
+
+	// Open the subquery operator if not already open
+	if !e.subOperator.isOpen {
+		err := e.subOperator.Open(ctx)
+		if err != nil {
+			return types.NewNullValue(), err
+		}
+	}
+
+	// Get the scalar result
+	result, err := e.subOperator.GetScalarResult()
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	if result == nil {
+		return types.NewNullValue(), nil
+	}
+
+	return *result, nil
+}
+
+// existsEvaluator evaluates EXISTS expressions.
+type existsEvaluator struct {
+	subqueryEval ExprEvaluator
+	not          bool
+}
+
+func (e *existsEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// For EXISTS, we need to check if the subquery returns any rows
+	// This is a simplified implementation - in practice we'd optimize this
+
+	// The subqueryEval should be a subqueryEvaluator
+	subEval, ok := e.subqueryEval.(*subqueryEvaluator)
+	if !ok {
+		return types.NewNullValue(), fmt.Errorf("expected subqueryEvaluator for EXISTS")
+	}
+
+	// Open the subquery operator if not already open
+	if !subEval.subOperator.isOpen {
+		err := subEval.subOperator.Open(ctx)
+		if err != nil {
+			return types.NewNullValue(), err
+		}
+	}
+
+	// Check if subquery has any results
+	hasResults, err := subEval.subOperator.HasResults()
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	result := hasResults
+	if e.not {
+		result = !result
+	}
+
+	return types.NewValue(result), nil
+}
+
+// inSubqueryEvaluator evaluates IN expressions with subqueries.
+type inSubqueryEvaluator struct {
+	exprEval     ExprEvaluator
+	subqueryEval ExprEvaluator
+	not          bool
+}
+
+func (e *inSubqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// Evaluate the left expression
+	leftVal, err := e.exprEval.Eval(row, ctx)
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	if leftVal.IsNull() {
+		return types.NewNullValue(), nil
+	}
+
+	// The subqueryEval should be a subqueryEvaluator
+	subEval, ok := e.subqueryEval.(*subqueryEvaluator)
+	if !ok {
+		return types.NewNullValue(), fmt.Errorf("expected subqueryEvaluator for IN")
+	}
+
+	// Open the subquery operator if not already open
+	if !subEval.subOperator.isOpen {
+		err := subEval.subOperator.Open(ctx)
+		if err != nil {
+			return types.NewNullValue(), err
+		}
+	}
+
+	// Check if the subquery contains the value
+	contains, err := subEval.subOperator.ContainsValue(leftVal)
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	result := contains
+	if e.not {
+		result = !result
+	}
+
+	return types.NewValue(result), nil
+}
+
+// inValuesEvaluator evaluates IN expressions with value lists.
+type inValuesEvaluator struct {
+	exprEval   ExprEvaluator
+	valueEvals []ExprEvaluator
+	not        bool
+}
+
+func (e *inValuesEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// Evaluate the left expression
+	leftVal, err := e.exprEval.Eval(row, ctx)
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	if leftVal.IsNull() {
+		return types.NewNullValue(), nil
+	}
+
+	// Check against each value in the list
+	for _, valueEval := range e.valueEvals {
+		rightVal, err := valueEval.Eval(row, ctx)
+		if err != nil {
+			return types.NewNullValue(), err
+		}
+
+		if !rightVal.IsNull() && leftVal.Equal(rightVal) {
+			result := true
+			if e.not {
+				result = false
+			}
+			return types.NewValue(result), nil
+		}
+	}
+
+	// Not found in the list
+	result := false
+	if e.not {
+		result = true
+	}
+	return types.NewValue(result), nil
 }

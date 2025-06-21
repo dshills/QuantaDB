@@ -141,6 +141,7 @@ func (s *InsertStmt) String() string {
 
 // SelectStmt represents a SELECT statement.
 type SelectStmt struct {
+	With    []CommonTableExpr // CTE definitions
 	Columns []SelectColumn
 	From    string
 	Where   Expression
@@ -149,9 +150,24 @@ type SelectStmt struct {
 	Offset  *int
 }
 
+// CommonTableExpr represents a Common Table Expression (CTE).
+type CommonTableExpr struct {
+	Name  string      // Name of the CTE
+	Query *SelectStmt // The query that defines the CTE
+}
+
 func (s *SelectStmt) statementNode() {}
 func (s *SelectStmt) String() string {
 	var parts []string
+
+	// WITH clause (CTEs)
+	if len(s.With) > 0 {
+		var ctes []string
+		for _, cte := range s.With {
+			ctes = append(ctes, fmt.Sprintf("%s AS (%s)", cte.Name, cte.Query.String()))
+		}
+		parts = append(parts, fmt.Sprintf("WITH %s", strings.Join(ctes, ", ")))
+	}
 
 	// SELECT clause
 	var cols []string //nolint:prealloc

@@ -245,3 +245,63 @@ func NewLogicalValues(rows [][]types.Value, schema *Schema) *LogicalValues {
 		Rows: rows,
 	}
 }
+
+// LogicalCTE represents a Common Table Expression (CTE).
+type LogicalCTE struct {
+	basePlan
+	Name string      // Name of the CTE
+	Plan LogicalPlan // The plan that defines the CTE
+}
+
+func (c *LogicalCTE) logicalNode() {}
+
+func (c *LogicalCTE) String() string {
+	return fmt.Sprintf("CTE(%s)", c.Name)
+}
+
+// NewLogicalCTE creates a new logical CTE node.
+func NewLogicalCTE(name string, plan LogicalPlan, schema *Schema) *LogicalCTE {
+	return &LogicalCTE{
+		basePlan: basePlan{
+			children: []Plan{plan},
+			schema:   schema,
+		},
+		Name: name,
+		Plan: plan,
+	}
+}
+
+// LogicalWithClause represents a WITH clause containing multiple CTEs.
+type LogicalWithClause struct {
+	basePlan
+	CTEs []LogicalCTE // The CTE definitions
+	Main LogicalPlan  // The main query
+}
+
+func (w *LogicalWithClause) logicalNode() {}
+
+func (w *LogicalWithClause) String() string {
+	var cteNames []string
+	for _, cte := range w.CTEs {
+		cteNames = append(cteNames, cte.Name)
+	}
+	return fmt.Sprintf("WITH(%s)", strings.Join(cteNames, ", "))
+}
+
+// NewLogicalWithClause creates a new logical WITH clause node.
+func NewLogicalWithClause(ctes []LogicalCTE, main LogicalPlan, schema *Schema) *LogicalWithClause {
+	children := make([]Plan, len(ctes)+1)
+	for i, cte := range ctes {
+		children[i] = &cte
+	}
+	children[len(ctes)] = main
+
+	return &LogicalWithClause{
+		basePlan: basePlan{
+			children: children,
+			schema:   schema,
+		},
+		CTEs: ctes,
+		Main: main,
+	}
+}
