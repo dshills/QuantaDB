@@ -317,13 +317,21 @@ func (c *ComparisonExpr) String() string {
 
 // InExpr represents an IN expression.
 type InExpr struct {
-	Expr   Expression
-	Values []Expression
-	Not    bool
+	Expr     Expression
+	Values   []Expression  // Either Values or Subquery is set
+	Subquery *SubqueryExpr // Either Values or Subquery is set
+	Not      bool
 }
 
 func (i *InExpr) expressionNode() {}
 func (i *InExpr) String() string {
+	if i.Subquery != nil {
+		if i.Not {
+			return fmt.Sprintf("%s NOT IN %s", i.Expr.String(), i.Subquery.String())
+		}
+		return fmt.Sprintf("%s IN %s", i.Expr.String(), i.Subquery.String())
+	}
+
 	var values []string //nolint:prealloc
 	for _, v := range i.Values {
 		values = append(values, v.String())
@@ -363,6 +371,30 @@ func (i *IsNullExpr) String() string {
 		return fmt.Sprintf("%s IS NOT NULL", i.Expr.String())
 	}
 	return fmt.Sprintf("%s IS NULL", i.Expr.String())
+}
+
+// SubqueryExpr represents a subquery expression.
+type SubqueryExpr struct {
+	Query *SelectStmt
+}
+
+func (s *SubqueryExpr) expressionNode() {}
+func (s *SubqueryExpr) String() string {
+	return fmt.Sprintf("(%s)", s.Query.String())
+}
+
+// ExistsExpr represents an EXISTS expression.
+type ExistsExpr struct {
+	Subquery *SubqueryExpr
+	Not      bool
+}
+
+func (e *ExistsExpr) expressionNode() {}
+func (e *ExistsExpr) String() string {
+	if e.Not {
+		return fmt.Sprintf("NOT EXISTS %s", e.Subquery.String())
+	}
+	return fmt.Sprintf("EXISTS %s", e.Subquery.String())
 }
 
 // AnalyzeStmt represents an ANALYZE statement.

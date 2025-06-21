@@ -129,10 +129,336 @@ type ProjectionPushdown struct{}
 
 // Apply pushes projections down through the plan tree.
 func (p *ProjectionPushdown) Apply(plan LogicalPlan) (LogicalPlan, bool) {
-	// TODO: Implement projection pushdown
-	// This would track which columns are actually needed and push
-	// projections down to eliminate unnecessary columns early
+	// For projection pushdown, we want to push projections through operators
+	// to reduce data flow as early as possible
+
+	switch node := plan.(type) {
+	case *LogicalProject:
+		// Try to push this projection down through its child
+		if len(node.Children()) == 0 {
+			return plan, false
+		}
+
+		child := node.Children()[0].(LogicalPlan)
+		requiredCols := node.RequiredColumns()
+
+		// If projection uses star (*), don't push down
+		if requiredCols.HasStar() {
+			return plan, false
+		}
+
+		// Try to push through different operators
+		switch c := child.(type) {
+		case *LogicalFilter:
+			// Push projection through filter
+			// Need to include columns used by filter predicate
+			filterCols := c.RequiredColumns()
+			combinedCols := requiredCols.Clone()
+			combinedCols.AddAll(filterCols)
+
+			// Create projection below filter
+			if len(c.Children()) > 0 {
+				filterChild := c.Children()[0].(LogicalPlan)
+
+				// Don't add projection if child is already a projection with same or fewer columns
+				if existingProj, ok := filterChild.(*LogicalProject); ok {
+					existingCols := existingProj.RequiredColumns()
+					if !combinedCols.HasStar() && existingCols.Size() <= combinedCols.Size() {
+						// Child projection already limits columns sufficiently
+						return plan, false
+					}
+				}
+
+				// Only add projection if it reduces columns significantly
+				if !p.shouldInsertProjection(filterChild, combinedCols) {
+					return plan, false
+				}
+
+				newProj := p.createProjection(filterChild, combinedCols)
+				newFilter := NewLogicalFilter(newProj, c.Predicate)
+				return NewLogicalProject(newFilter, node.Projections, node.Aliases, node.schema), true
+			}
+
+		case *LogicalSort:
+			// Push projection through sort
+			// Need to include columns used by sort
+			sortCols := c.RequiredColumns()
+			combinedCols := requiredCols.Clone()
+			combinedCols.AddAll(sortCols)
+
+			// Create projection below sort
+			if len(c.Children()) > 0 {
+				sortChild := c.Children()[0].(LogicalPlan)
+				// Don't add projection if child is already a projection with same or fewer columns
+				if existingProj, ok := sortChild.(*LogicalProject); ok {
+					existingCols := existingProj.RequiredColumns()
+					if !combinedCols.HasStar() && existingCols.Size() <= combinedCols.Size() {
+						return plan, false
+					}
+				}
+
+				// Only add projection if it reduces columns significantly
+				if !p.shouldInsertProjection(sortChild, combinedCols) {
+					return plan, false
+				}
+
+				newProj := p.createProjection(sortChild, combinedCols)
+				newSort := NewLogicalSort(newProj, c.OrderBy)
+				return NewLogicalProject(newSort, node.Projections, node.Aliases, node.schema), true
+			}
+
+		case *LogicalJoin:
+			// Push projections to both sides of join
+			// Need columns for join condition plus output columns
+			joinCols := c.RequiredColumns()
+
+			// Determine which columns are needed from each side
+			leftSchema := c.Children()[0].Schema()
+			rightSchema := c.Children()[1].Schema()
+
+			leftRequired := NewColumnSet()
+			rightRequired := NewColumnSet()
+
+			// Add columns needed for join condition
+			for col := range joinCols.columns {
+				if columnExistsInSchema(col.ColumnName, leftSchema) {
+					leftRequired.Add(col)
+				}
+				if columnExistsInSchema(col.ColumnName, rightSchema) {
+					rightRequired.Add(col)
+				}
+			}
+
+			// Add columns needed for final projection
+			for col := range requiredCols.columns {
+				if col.TableAlias == "" {
+					// Unqualified column - check both schemas
+					if columnExistsInSchema(col.ColumnName, leftSchema) {
+						leftRequired.Add(col)
+					}
+					if columnExistsInSchema(col.ColumnName, rightSchema) {
+						rightRequired.Add(col)
+					}
+				} else {
+					// Qualified column - add to appropriate side
+					// This is simplified - in practice we'd track table aliases better
+					if columnExistsInSchema(col.ColumnName, leftSchema) {
+						leftRequired.Add(col)
+					}
+					if columnExistsInSchema(col.ColumnName, rightSchema) {
+						rightRequired.Add(col)
+					}
+				}
+			}
+
+			// Create projections for both sides if beneficial
+			leftChild := c.Children()[0].(LogicalPlan)
+			rightChild := c.Children()[1].(LogicalPlan)
+
+			modified := false
+			if !leftRequired.HasStar() && leftRequired.Size() < len(leftSchema.Columns) {
+				leftChild = p.createProjection(leftChild, leftRequired)
+				modified = true
+			}
+			if !rightRequired.HasStar() && rightRequired.Size() < len(rightSchema.Columns) {
+				rightChild = p.createProjection(rightChild, rightRequired)
+				modified = true
+			}
+
+			if modified {
+				newJoin := NewLogicalJoin(leftChild, rightChild, c.JoinType, c.Condition, c.schema)
+				return NewLogicalProject(newJoin, node.Projections, node.Aliases, node.schema), true
+			}
+		}
+
+		// Recursively apply to children
+		newChild, changed := p.Apply(child)
+		if changed {
+			return NewLogicalProject(newChild, node.Projections, node.Aliases, node.schema), true
+		}
+
+	case *LogicalAggregate:
+		// For aggregates, push projection below to only read needed columns
+		if len(node.Children()) > 0 {
+			requiredCols := node.RequiredColumns()
+			child := node.Children()[0].(LogicalPlan)
+
+			if !requiredCols.HasStar() && p.shouldInsertProjection(child, requiredCols) {
+				newChild := p.createProjection(child, requiredCols)
+				return NewLogicalAggregate(newChild, node.GroupBy, node.Aggregates, node.schema), true
+			}
+		}
+
+	default:
+		// For other nodes, recursively apply to children
+		children := plan.Children()
+		newChildren := make([]Plan, len(children))
+		changed := false
+
+		for i, child := range children {
+			if childLogical, ok := child.(LogicalPlan); ok {
+				newChild, childChanged := p.Apply(childLogical)
+				newChildren[i] = newChild
+				if childChanged {
+					changed = true
+				}
+			} else {
+				newChildren[i] = child
+			}
+		}
+
+		if changed {
+			return p.rebuildWithChildren(plan, newChildren), true
+		}
+	}
+
 	return plan, false
+}
+
+// shouldInsertProjection determines if projection would be beneficial
+func (p *ProjectionPushdown) shouldInsertProjection(node LogicalPlan, required *ColumnSet) bool {
+	// Don't project if we need all columns
+	if required.HasStar() {
+		return false
+	}
+
+	// Don't add projection immediately after another projection
+	if _, ok := node.(*LogicalProject); ok {
+		return false
+	}
+
+	// Don't project after operations that already limit columns
+	switch node.(type) {
+	case *LogicalAggregate:
+		// Aggregate already limits columns to GROUP BY + aggregates
+		return false
+	case *LogicalValues:
+		// Values generates specific columns
+		return false
+	}
+
+	// Get schema to see how many columns are available
+	schema := node.Schema()
+	if schema == nil || len(schema.Columns) == 0 {
+		return false
+	}
+
+	// Insert projection if we're eliminating significant columns
+	requiredCount := required.Size()
+	availableCount := len(schema.Columns)
+
+	// Project if we're using less than 80% of available columns
+	// OR eliminating at least 1 column
+	if requiredCount < int(float64(availableCount)*0.8) ||
+		availableCount-requiredCount >= 1 {
+		return true
+	}
+
+	// Always project after joins to eliminate join columns
+	if _, ok := node.(*LogicalJoin); ok && !required.HasStar() {
+		return true
+	}
+
+	// Project after table scans if eliminating many columns
+	if _, ok := node.(*LogicalScan); ok {
+		if requiredCount < availableCount/2 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// createProjection creates a new projection node with required columns
+func (p *ProjectionPushdown) createProjection(child LogicalPlan, required *ColumnSet) LogicalPlan {
+	schema := child.Schema()
+	if schema == nil {
+		return child
+	}
+
+	// Build projection expressions for required columns
+	projExprs := make([]Expression, 0)
+	projAliases := make([]string, 0)
+
+	// Get required columns in deterministic order
+	requiredCols := required.ToSlice()
+
+	// Map to track which schema columns we've included
+	includedCols := make(map[string]bool)
+
+	// Add required columns
+	for _, reqCol := range requiredCols {
+		// Find matching column in schema
+		for _, schemaCol := range schema.Columns {
+			if schemaCol.Name == reqCol.ColumnName {
+				if !includedCols[schemaCol.Name] {
+					projExprs = append(projExprs, &ColumnRef{
+						TableAlias: reqCol.TableAlias,
+						ColumnName: reqCol.ColumnName,
+					})
+					projAliases = append(projAliases, "")
+					includedCols[schemaCol.Name] = true
+				}
+				break
+			}
+		}
+	}
+
+	// Build output schema
+	newSchema := &Schema{
+		Columns: make([]Column, len(projExprs)),
+	}
+	for i, expr := range projExprs {
+		if colRef, ok := expr.(*ColumnRef); ok {
+			// Find type from original schema
+			for _, col := range schema.Columns {
+				if col.Name == colRef.ColumnName {
+					newSchema.Columns[i] = Column{
+						Name:     col.Name,
+						DataType: col.DataType,
+						Nullable: col.Nullable,
+					}
+					break
+				}
+			}
+		}
+	}
+
+	return NewLogicalProject(child, projExprs, projAliases, newSchema)
+}
+
+// rebuildWithChildren creates a new node with updated children
+func (p *ProjectionPushdown) rebuildWithChildren(node LogicalPlan, children []Plan) LogicalPlan {
+	switch n := node.(type) {
+	case *LogicalFilter:
+		if len(children) > 0 {
+			return NewLogicalFilter(children[0].(LogicalPlan), n.Predicate)
+		}
+	case *LogicalProject:
+		if len(children) > 0 {
+			return NewLogicalProject(children[0].(LogicalPlan), n.Projections, n.Aliases, n.schema)
+		}
+	case *LogicalSort:
+		if len(children) > 0 {
+			return NewLogicalSort(children[0].(LogicalPlan), n.OrderBy)
+		}
+	case *LogicalLimit:
+		if len(children) > 0 {
+			return NewLogicalLimit(children[0].(LogicalPlan), n.Limit, n.Offset)
+		}
+	case *LogicalJoin:
+		if len(children) >= 2 {
+			return NewLogicalJoin(children[0].(LogicalPlan), children[1].(LogicalPlan),
+				n.JoinType, n.Condition, n.schema)
+		}
+	case *LogicalAggregate:
+		if len(children) > 0 {
+			return NewLogicalAggregate(children[0].(LogicalPlan), n.GroupBy, n.Aggregates, n.schema)
+		}
+	}
+
+	// Return original node if we can't rebuild
+	return node
 }
 
 // ConstantFolding evaluates constant expressions at planning time.

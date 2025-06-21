@@ -904,7 +904,30 @@ func (p *Parser) parseAnd() (Expression, error) {
 
 // parseNot parses NOT expressions.
 func (p *Parser) parseNot() (Expression, error) {
+	// Handle NOT EXISTS
 	if p.match(TokenNot) {
+		// Check for NOT EXISTS
+		if p.match(TokenExists) {
+			if !p.consume(TokenLeftParen, "expected '(' after EXISTS") {
+				return nil, p.lastError()
+			}
+
+			subquery, err := p.parseSelect()
+			if err != nil {
+				return nil, err
+			}
+
+			if !p.consume(TokenRightParen, "expected ')' after subquery") {
+				return nil, p.lastError()
+			}
+
+			return &ExistsExpr{
+				Subquery: &SubqueryExpr{Query: subquery},
+				Not:      true,
+			}, nil
+		}
+
+		// General NOT expression
 		expr, err := p.parseNot()
 		if err != nil {
 			return nil, err
@@ -912,6 +935,27 @@ func (p *Parser) parseNot() (Expression, error) {
 		return &UnaryExpr{
 			Operator: TokenNot,
 			Expr:     expr,
+		}, nil
+	}
+
+	// Handle EXISTS without NOT
+	if p.match(TokenExists) {
+		if !p.consume(TokenLeftParen, "expected '(' after EXISTS") {
+			return nil, p.lastError()
+		}
+
+		subquery, err := p.parseSelect()
+		if err != nil {
+			return nil, err
+		}
+
+		if !p.consume(TokenRightParen, "expected ')' after subquery") {
+			return nil, p.lastError()
+		}
+
+		return &ExistsExpr{
+			Subquery: &SubqueryExpr{Query: subquery},
+			Not:      false,
 		}, nil
 	}
 
@@ -952,34 +996,44 @@ func (p *Parser) parseComparison() (Expression, error) {
 		}, nil
 	}
 
-	// Handle IN
-	if p.match(TokenIn) {
-		if !p.consume(TokenLeftParen, "expected '(' after IN") {
-			return nil, p.lastError()
+	// Handle NOT IN and NOT BETWEEN
+	if p.match(TokenNot) {
+		if p.match(TokenIn) {
+			// Parse NOT IN
+			return p.parseInExpression(expr, true)
 		}
 
-		var values []Expression
-		for {
-			val, err := p.parseExpression()
+		if p.match(TokenBetween) {
+			// Parse NOT BETWEEN
+			lower, err := p.parseTerm()
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, val)
 
-			if !p.match(TokenComma) {
-				break
+			if !p.consume(TokenAnd, "expected AND in NOT BETWEEN expression") {
+				return nil, p.lastError()
 			}
+
+			upper, err := p.parseTerm()
+			if err != nil {
+				return nil, err
+			}
+
+			return &BetweenExpr{
+				Expr:  expr,
+				Lower: lower,
+				Upper: upper,
+				Not:   true,
+			}, nil
 		}
 
-		if !p.consume(TokenRightParen, "expected ')'") {
-			return nil, p.lastError()
-		}
+		// If NOT is not followed by IN or BETWEEN, it's an error at this position
+		return nil, p.error("unexpected NOT")
+	}
 
-		return &InExpr{
-			Expr:   expr,
-			Values: values,
-			Not:    false,
-		}, nil
+	// Handle IN
+	if p.match(TokenIn) {
+		return p.parseInExpression(expr, false)
 	}
 
 	// Handle BETWEEN
@@ -1151,6 +1205,22 @@ func (p *Parser) parsePrimary() (Expression, error) {
 
 	case TokenLeftParen:
 		p.advance()
+
+		// Check if it's a subquery by looking for SELECT
+		if p.check(TokenSelect) {
+			subquery, err := p.parseSelect()
+			if err != nil {
+				return nil, err
+			}
+
+			if !p.consume(TokenRightParen, "expected ')' after subquery") {
+				return nil, p.lastError()
+			}
+
+			return &SubqueryExpr{Query: subquery}, nil
+		}
+
+		// Otherwise, parse as regular parenthesized expression
 		expr, err := p.parseExpression()
 		if err != nil {
 			return nil, err
@@ -1235,6 +1305,55 @@ func (p *Parser) lastError() error {
 		return p.errors[len(p.errors)-1]
 	}
 	return NewParseError("unknown parse error", 0, 0)
+}
+
+// parseInExpression parses IN expressions with either value lists or subqueries
+func (p *Parser) parseInExpression(expr Expression, not bool) (Expression, error) {
+	if !p.consume(TokenLeftParen, "expected '(' after IN") {
+		return nil, p.lastError()
+	}
+
+	// Check if it's a subquery by looking for SELECT
+	if p.check(TokenSelect) {
+		subquery, err := p.parseSelect()
+		if err != nil {
+			return nil, err
+		}
+
+		if !p.consume(TokenRightParen, "expected ')' after subquery") {
+			return nil, p.lastError()
+		}
+
+		return &InExpr{
+			Expr:     expr,
+			Subquery: &SubqueryExpr{Query: subquery},
+			Not:      not,
+		}, nil
+	}
+
+	// Otherwise, parse value list
+	var values []Expression
+	for {
+		val, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, val)
+
+		if !p.match(TokenComma) {
+			break
+		}
+	}
+
+	if !p.consume(TokenRightParen, "expected ')'") {
+		return nil, p.lastError()
+	}
+
+	return &InExpr{
+		Expr:   expr,
+		Values: values,
+		Not:    not,
+	}, nil
 }
 
 // Additional AST node definitions.

@@ -82,6 +82,7 @@ const (
 	TokenIn
 	TokenBetween
 	TokenIs
+	TokenExists
 
 	// Delimiters
 	TokenLeftParen
@@ -159,6 +160,7 @@ var tokenStrings = map[TokenType]string{
 	TokenIn:           "IN",
 	TokenBetween:      "BETWEEN",
 	TokenIs:           "IS",
+	TokenExists:       "EXISTS",
 	TokenLeftParen:    "(",
 	TokenRightParen:   ")",
 	TokenComma:        ",",
@@ -246,6 +248,7 @@ var keywords = map[string]TokenType{
 	"IN":        TokenIn,
 	"BETWEEN":   TokenBetween,
 	"IS":        TokenIs,
+	"EXISTS":    TokenExists,
 	"VACUUM":    TokenVacuum,
 }
 

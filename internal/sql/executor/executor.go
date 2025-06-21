@@ -267,11 +267,11 @@ func (e *BasicExecutor) buildCompositeIndexScanOperator(plan *planner.CompositeI
 	// Use the new constructor that supports pushed predicates
 	if plan.PushedPredicates != nil {
 		return NewCompositeIndexScanOperatorWithPredicates(
-			table, plan.Index, indexMgr, e.storage, 
+			table, plan.Index, indexMgr, e.storage,
 			plan.StartValues, plan.EndValues, plan.PushedPredicates,
 		), nil
 	}
-	
+
 	return NewCompositeIndexScanOperator(table, plan.Index, indexMgr, e.storage, plan.StartValues, plan.EndValues), nil
 }
 

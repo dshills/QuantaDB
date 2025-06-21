@@ -34,6 +34,15 @@ type LogicalPlan interface {
 	logicalNode()
 }
 
+// RequiredColumnsAnalyzer computes required columns for plan nodes
+type RequiredColumnsAnalyzer interface {
+	// RequiredColumns returns columns this node needs from its children
+	RequiredColumns() *ColumnSet
+
+	// RequiredInputColumns returns columns needed from specific child
+	RequiredInputColumns(childIndex int) *ColumnSet
+}
+
 // PhysicalPlan represents a physical plan node.
 type PhysicalPlan interface {
 	Plan
