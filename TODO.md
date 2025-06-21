@@ -55,7 +55,11 @@
 ## Phase 5: SQL Feature Completion (Next)
 
 ### Query Features (Required for TPC-H)
-- [ ] **Subqueries in SELECT**: Support scalar subqueries in projection list
+- [x] **Subqueries in SELECT**: Support scalar subqueries in projection list (COMPLETED)
+  - Modified expression building to pass executor reference for subquery building
+  - Connected subqueryEvaluator to build SubqueryOperator from logical plan
+  - Fixed planner to handle aggregates without GROUP BY clause
+  - Added int32 support to AVG and SUM aggregate functions
 - [x] **Aggregate Functions**: Implement SUM, AVG, MIN, MAX with proper type handling (COMPLETED)
   - Parser support for function calls including COUNT(*) and COUNT(DISTINCT)
   - Planner integration with aggregate operator pipeline

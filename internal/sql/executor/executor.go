@@ -343,7 +343,7 @@ func (e *BasicExecutor) buildProjectOperator(plan *planner.LogicalProject, ctx *
 	projections := make([]ExprEvaluator, len(plan.Projections))
 	childSchema := child.Schema()
 	for i, expr := range plan.Projections {
-		eval, err := buildExprEvaluatorWithSchema(expr, childSchema)
+		eval, err := buildExprEvaluatorWithExecutor(expr, childSchema, e)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build projection %d: %w", i, err)
 		}
@@ -372,7 +372,7 @@ func (e *BasicExecutor) buildSortOperator(plan *planner.LogicalSort, ctx *ExecCo
 	orderBy := make([]OrderByExpr, len(plan.OrderBy))
 	childSchema := child.Schema()
 	for i, orderExpr := range plan.OrderBy {
-		eval, err := buildExprEvaluatorWithSchema(orderExpr.Expr, childSchema)
+		eval, err := buildExprEvaluatorWithExecutor(orderExpr.Expr, childSchema, e)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ORDER BY expression %d: %w", i, err)
 		}
@@ -425,7 +425,7 @@ func (e *BasicExecutor) buildJoinOperator(plan *planner.LogicalJoin, ctx *ExecCo
 		combinedSchema.Columns = append(combinedSchema.Columns, leftSchema.Columns...)
 		combinedSchema.Columns = append(combinedSchema.Columns, rightSchema.Columns...)
 
-		predicate, err = buildExprEvaluatorWithSchema(plan.Condition, combinedSchema)
+		predicate, err = buildExprEvaluatorWithExecutor(plan.Condition, combinedSchema, e)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build join predicate: %w", err)
 		}
@@ -489,12 +489,12 @@ func (e *BasicExecutor) chooseJoinAlgorithm(left, right Operator, plan *planner.
 			leftExpr := &planner.ColumnRef{ColumnName: leftKeys[0]}
 			rightExpr := &planner.ColumnRef{ColumnName: rightKeys[0]}
 
-			leftEval, err := buildExprEvaluatorWithSchema(leftExpr, left.Schema())
+			leftEval, err := buildExprEvaluatorWithExecutor(leftExpr, left.Schema(), e)
 			if err != nil {
 				return nil, err
 			}
 
-			rightEval, err := buildExprEvaluatorWithSchema(rightExpr, right.Schema())
+			rightEval, err := buildExprEvaluatorWithExecutor(rightExpr, right.Schema(), e)
 			if err != nil {
 				return nil, err
 			}
@@ -532,14 +532,14 @@ func (e *BasicExecutor) buildSemiAntiJoin(left, right Operator, plan *planner.Lo
 
 		for i, leftKey := range leftKeys {
 			leftExpr := &planner.ColumnRef{ColumnName: leftKey}
-			leftEval, err := buildExprEvaluatorWithSchema(leftExpr, left.Schema())
+			leftEval, err := buildExprEvaluatorWithExecutor(leftExpr, left.Schema(), e)
 			if err != nil {
 				return nil, err
 			}
 			leftEvals[i] = leftEval
 
 			rightExpr := &planner.ColumnRef{ColumnName: rightKeys[i]}
-			rightEval, err := buildExprEvaluatorWithSchema(rightExpr, right.Schema())
+			rightEval, err := buildExprEvaluatorWithExecutor(rightExpr, right.Schema(), e)
 			if err != nil {
 				return nil, err
 			}
@@ -660,7 +660,7 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 	childSchema := child.Schema()
 	groupBy := make([]ExprEvaluator, len(plan.GroupBy))
 	for i, expr := range plan.GroupBy {
-		eval, err := buildExprEvaluatorWithSchema(expr, childSchema)
+		eval, err := buildExprEvaluatorWithExecutor(expr, childSchema, e)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build GROUP BY expression %d: %w", i, err)
 		}
@@ -696,7 +696,7 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 		// Build expression evaluator for the argument
 		var argEval ExprEvaluator
 		if len(aggExpr.Args) > 0 {
-			argEval, err = buildExprEvaluatorWithSchema(aggExpr.Args[0], childSchema)
+			argEval, err = buildExprEvaluatorWithExecutor(aggExpr.Args[0], childSchema, e)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build aggregate argument %d: %w", i, err)
 			}

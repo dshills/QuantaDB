@@ -21,6 +21,11 @@ func buildExprEvaluator(expr planner.Expression) (ExprEvaluator, error) {
 
 // buildExprEvaluatorWithSchema builds an evaluator with a known schema for column resolution.
 func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (ExprEvaluator, error) {
+	return buildExprEvaluatorWithExecutor(expr, schema, nil)
+}
+
+// buildExprEvaluatorWithExecutor builds an evaluator with schema and executor for subquery support.
+func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, executor *BasicExecutor) (ExprEvaluator, error) {
 	switch e := expr.(type) {
 	case *planner.Literal:
 		return &literalEvaluator{value: e.Value}, nil
@@ -45,11 +50,11 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		}, nil
 
 	case *planner.BinaryOp:
-		left, err := buildExprEvaluatorWithSchema(e.Left, schema)
+		left, err := buildExprEvaluatorWithExecutor(e.Left, schema, executor)
 		if err != nil {
 			return nil, err
 		}
-		right, err := buildExprEvaluatorWithSchema(e.Right, schema)
+		right, err := buildExprEvaluatorWithExecutor(e.Right, schema, executor)
 		if err != nil {
 			return nil, err
 		}
@@ -61,7 +66,7 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		}, nil
 
 	case *planner.UnaryOp:
-		operand, err := buildExprEvaluatorWithSchema(e.Expr, schema)
+		operand, err := buildExprEvaluatorWithExecutor(e.Expr, schema, executor)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +86,7 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 
 	case *planner.ExtractExpr:
 		// Build evaluator for the FROM expression
-		fromEval, err := buildExprEvaluatorWithSchema(e.From, schema)
+		fromEval, err := buildExprEvaluatorWithExecutor(e.From, schema, executor)
 		if err != nil {
 			return nil, err
 		}
@@ -97,16 +102,16 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		}, nil
 
 	case *planner.SubqueryExpr:
-		// For now, we'll create a placeholder that will be built later
-		// when we have access to the executor context
+		// Create a subquery evaluator with the executor reference
 		return &subqueryEvaluator{
 			subplan:  e.Subplan,
 			dataType: e.Type,
+			executor: executor,
 		}, nil
 
 	case *planner.ExistsExpr:
 		// Build evaluator for the subquery
-		subqueryEval, err := buildExprEvaluatorWithSchema(e.Subquery, schema)
+		subqueryEval, err := buildExprEvaluatorWithExecutor(e.Subquery, schema, executor)
 		if err != nil {
 			return nil, err
 		}
@@ -118,14 +123,14 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 
 	case *planner.InExpr:
 		// Build evaluator for the left expression
-		exprEval, err := buildExprEvaluatorWithSchema(e.Expr, schema)
+		exprEval, err := buildExprEvaluatorWithExecutor(e.Expr, schema, executor)
 		if err != nil {
 			return nil, err
 		}
 
 		if e.Subquery != nil {
 			// IN with subquery
-			subqueryEval, err := buildExprEvaluatorWithSchema(e.Subquery, schema)
+			subqueryEval, err := buildExprEvaluatorWithExecutor(e.Subquery, schema, executor)
 			if err != nil {
 				return nil, err
 			}
@@ -159,7 +164,7 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		if e.Expr != nil {
 			// Simple CASE - build evaluator for the main expression
 			var err error
-			caseEval, err = buildExprEvaluatorWithSchema(e.Expr, schema)
+			caseEval, err = buildExprEvaluatorWithExecutor(e.Expr, schema, executor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build CASE expression evaluator: %w", err)
 			}
@@ -168,12 +173,12 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		// Build evaluators for WHEN clauses
 		var whenEvals []caseWhenEvaluator
 		for i, when := range e.WhenList {
-			condEval, err := buildExprEvaluatorWithSchema(when.Condition, schema)
+			condEval, err := buildExprEvaluatorWithExecutor(when.Condition, schema, executor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build WHEN condition evaluator %d: %w", i, err)
 			}
 
-			resultEval, err := buildExprEvaluatorWithSchema(when.Result, schema)
+			resultEval, err := buildExprEvaluatorWithExecutor(when.Result, schema, executor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build THEN result evaluator %d: %w", i, err)
 			}
@@ -188,7 +193,7 @@ func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (Expr
 		var elseEval ExprEvaluator
 		if e.Else != nil {
 			var err error
-			elseEval, err = buildExprEvaluatorWithSchema(e.Else, schema)
+			elseEval, err = buildExprEvaluatorWithExecutor(e.Else, schema, executor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build ELSE evaluator: %w", err)
 			}
@@ -595,14 +600,24 @@ type subqueryEvaluator struct {
 	subplan     planner.LogicalPlan
 	subOperator *SubqueryOperator
 	dataType    types.DataType
+	executor    *BasicExecutor
 }
 
 func (e *subqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
 	// Build the subquery operator lazily
 	if e.subOperator == nil {
-		// We need access to the executor to build the operator
-		// For now, return an error - this will be fixed in the next iteration
-		return types.NewNullValue(), fmt.Errorf("subquery evaluation not yet implemented - needs executor integration")
+		if e.executor == nil {
+			return types.NewNullValue(), fmt.Errorf("executor not available for subquery evaluation")
+		}
+		
+		// Build the physical operator from the logical plan
+		physicalOp, err := e.executor.buildOperator(e.subplan, ctx)
+		if err != nil {
+			return types.NewNullValue(), fmt.Errorf("failed to build subquery operator: %w", err)
+		}
+		
+		// Wrap in a SubqueryOperator (true for scalar subquery)
+		e.subOperator = NewSubqueryOperator(physicalOp, true)
 	}
 
 	// Open the subquery operator if not already open

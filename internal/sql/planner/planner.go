@@ -165,22 +165,26 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 		plan = NewLogicalFilter(plan, predicate)
 	}
 
-	// Handle GROUP BY and aggregates
-	if len(stmt.GroupBy) > 0 {
-		// Convert GROUP BY expressions
-		groupByExprs := make([]Expression, len(stmt.GroupBy))
-		for i, expr := range stmt.GroupBy {
-			groupByExpr, err := p.convertExpression(expr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert GROUP BY expression %d: %w", i, err)
-			}
-			groupByExprs[i] = groupByExpr
-		}
+	// Check if we have aggregates in the SELECT clause
+	aggregates, nonAggregates, aliases, err := p.extractAggregates(stmt.Columns)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process select columns: %w", err)
+	}
 
-		// Convert SELECT columns to check for aggregates
-		aggregates, nonAggregates, aliases, err := p.extractAggregates(stmt.Columns)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process select columns: %w", err)
+	// Handle GROUP BY and aggregates
+	if len(stmt.GroupBy) > 0 || len(aggregates) > 0 {
+
+		// Convert GROUP BY expressions if present
+		var groupByExprs []Expression
+		if len(stmt.GroupBy) > 0 {
+			groupByExprs = make([]Expression, len(stmt.GroupBy))
+			for i, expr := range stmt.GroupBy {
+				groupByExpr, err := p.convertExpression(expr)
+				if err != nil {
+					return nil, fmt.Errorf("failed to convert GROUP BY expression %d: %w", i, err)
+				}
+				groupByExprs[i] = groupByExpr
+			}
 		}
 
 		// Build aggregate schema

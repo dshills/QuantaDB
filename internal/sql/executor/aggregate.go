@@ -280,6 +280,8 @@ func (f *SumFunction) Accumulate(state AggregateState, value types.Value) error 
 	if !value.IsNull() {
 		s.isNull = false
 		switch v := value.Data.(type) {
+		case int32:
+			s.sum += float64(v)
 		case int64:
 			s.sum += float64(v)
 		case float64:
@@ -319,6 +321,9 @@ func (f *AvgFunction) Accumulate(state AggregateState, value types.Value) error 
 	s := state.(*avgState)
 	if !value.IsNull() {
 		switch v := value.Data.(type) {
+		case int32:
+			s.sum += float64(v)
+			s.count++
 		case int64:
 			s.sum += float64(v)
 			s.count++

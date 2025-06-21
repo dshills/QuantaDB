@@ -210,6 +210,95 @@ func TestSQLIntegration(t *testing.T) {
 				ctx.Stats.RowsRead, ctx.Stats.RowsReturned, ctx.Stats.BytesRead)
 		})
 	}
+
+	// Test scalar subquery in SELECT separately for detailed validation
+	t.Run("Scalar subquery in SELECT", func(t *testing.T) {
+		sql := "SELECT name, (SELECT AVG(salary) FROM employees) as avg_salary, salary FROM employees"
+
+		// Parse
+		p := parser.NewParser(sql)
+		stmt, err := p.Parse()
+		if err != nil {
+			t.Fatalf("Failed to parse SQL: %v", err)
+		}
+
+		// Plan query
+		queryPlan, err := plan.Plan(stmt)
+		if err != nil {
+			t.Fatalf("Failed to plan query: %v", err)
+		}
+
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		if err != nil {
+			t.Fatalf("Failed to begin transaction: %v", err)
+		}
+		defer transaction.Rollback()
+
+		// Execute query
+		ctx := &executor.ExecContext{
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &executor.ExecStats{},
+		}
+
+		result, err := exec.Execute(queryPlan, ctx)
+		if err != nil {
+			t.Fatalf("Failed to execute query: %v", err)
+		}
+		defer result.Close()
+
+		// Verify results
+		rowCount := 0
+		expectedAvgSalary := float64(92000) // (100000 + 80000 + 120000 + 70000 + 90000) / 5
+		for {
+			row, err := result.Next()
+			if err != nil {
+				t.Fatalf("Error getting next row: %v", err)
+			}
+			if row == nil {
+				break
+			}
+			rowCount++
+
+			// Log the row for debugging
+			t.Logf("Row %d: %v", rowCount, row.Values)
+
+			// Verify that the subquery result (avg_salary) is correct
+			if len(row.Values) < 3 {
+				t.Fatalf("Expected at least 3 columns, got %d", len(row.Values))
+			}
+
+			avgSalaryVal := row.Values[1]
+			if avgSalaryVal.IsNull() {
+				t.Error("avg_salary should not be null")
+			} else {
+				// AVG returns a float64
+				if avgSalaryFloat, ok := avgSalaryVal.Data.(float64); ok {
+					if avgSalaryFloat != expectedAvgSalary {
+						t.Errorf("Expected avg_salary = %.2f, got %.2f", expectedAvgSalary, avgSalaryFloat)
+					}
+				} else {
+					t.Fatalf("Expected avg_salary to be float64, got %T", avgSalaryVal.Data)
+				}
+			}
+
+			// Verify salary column is present
+			salaryVal := row.Values[2]
+			if _, err := salaryVal.AsInt(); err != nil {
+				t.Fatalf("Failed to get salary as int: %v", err)
+			}
+		}
+
+		// Should have all 5 rows without WHERE clause
+		if rowCount != 5 {
+			t.Errorf("Expected 5 rows, got %d", rowCount)
+		}
+	})
 }
 
 // TestEndToEndQuery tests a complete query execution with proper row format.
@@ -255,35 +344,23 @@ func TestEndToEndQuery(t *testing.T) {
 			t.Fatalf("Failed to create table in storage: %v", err)
 		}
 
-		// Insert test users using storage backend
-		testUsers := []struct {
-			id   int
-			name string
-			age  int
-		}{
-			{1, "Alice", 28},
-			{2, "Bob", 22},
-			{3, "Charlie", 35},
-			{4, "David", 40},
-			{5, "Eve", 18},
-		}
-
-		for _, user := range testUsers {
+		// Insert test data
+		for i := 1; i <= 10; i++ {
 			row := &executor.Row{
 				Values: []types.Value{
-					types.NewIntegerValue(int32(user.id)),
-					types.NewTextValue(user.name),
-					types.NewIntegerValue(int32(user.age)),
+					types.NewIntegerValue(int32(i)),
+					types.NewTextValue("user" + string(rune(64+i))),
+					types.NewIntegerValue(int32(20 + i)),
 				},
 			}
 
 			_, err := storageBackend.InsertRow(table.ID, row)
 			if err != nil {
-				t.Fatalf("Failed to insert user: %v", err)
+				t.Fatalf("Failed to insert row: %v", err)
 			}
 		}
 
-		// For this test, we'll simulate what would happen with proper integration
+		// Test query
 		sql := "SELECT name, age FROM users WHERE age > 25 ORDER BY age DESC LIMIT 10"
 
 		// Parse
@@ -294,8 +371,7 @@ func TestEndToEndQuery(t *testing.T) {
 		}
 
 		// Plan
-		plnr := planner.NewBasicPlannerWithCatalog(cat)
-		plan, err := plnr.Plan(stmt)
+		plan, err := planner.NewBasicPlannerWithCatalog(cat).Plan(stmt)
 		if err != nil {
 			t.Fatalf("Failed to plan: %v", err)
 		}
