@@ -565,6 +565,30 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 		stmt.Where = expr
 	}
 
+	// Parse optional GROUP BY clause
+	if p.match(TokenGroupBy) {
+		for {
+			expr, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			stmt.GroupBy = append(stmt.GroupBy, expr)
+			
+			if !p.match(TokenComma) {
+				break
+			}
+		}
+		
+		// Parse optional HAVING clause
+		if p.match(TokenHaving) {
+			expr, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			stmt.Having = expr
+		}
+	}
+
 	// Parse optional ORDER BY clause
 	if p.match(TokenOrderBy) {
 		for {
@@ -1246,6 +1270,51 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	case TokenIdentifier:
 		name := p.current.Value
 		p.advance()
+		
+		// Check if it's a function call
+		if p.check(TokenLeftParen) {
+			p.advance() // consume '('
+			
+			var args []Expression
+			distinct := false
+			
+			// Handle COUNT(*) special case
+			if strings.ToUpper(name) == "COUNT" && p.check(TokenStar) {
+				p.advance() // consume '*'
+				args = append(args, &Star{})
+			} else {
+				// Check for DISTINCT keyword
+				if p.match(TokenDistinct) {
+					distinct = true
+				}
+				
+				// Parse function arguments
+				if !p.check(TokenRightParen) {
+					for {
+						arg, err := p.parseExpression()
+						if err != nil {
+							return nil, err
+						}
+						args = append(args, arg)
+						
+						if !p.match(TokenComma) {
+							break
+						}
+					}
+				}
+			}
+			
+			if !p.consume(TokenRightParen, "expected ')' after function arguments") {
+				return nil, p.lastError()
+			}
+			
+			return &FunctionCall{
+				Name:     strings.ToUpper(name),
+				Args:     args,
+				Distinct: distinct,
+			}, nil
+		}
+		
 		return &Identifier{Name: name}, nil
 
 	case TokenParam:

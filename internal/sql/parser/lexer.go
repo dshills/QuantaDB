@@ -186,7 +186,7 @@ func (l *Lexer) readIdentifier() Token {
 	value := l.input[start:l.position]
 	tokenType := LookupKeyword(strings.ToUpper(value))
 
-	// Special handling for ORDER BY
+	// Special handling for ORDER BY and GROUP BY
 	if strings.ToUpper(value) == "ORDER" {
 		l.skipWhitespace()
 		if l.position < len(l.input)-1 && strings.ToUpper(l.input[l.position:l.position+2]) == "BY" {
@@ -194,6 +194,16 @@ func (l *Lexer) readIdentifier() Token {
 			l.column += 2
 			tokenType = TokenOrderBy
 			value = "ORDER BY"
+		} else {
+			tokenType = TokenIdentifier
+		}
+	} else if strings.ToUpper(value) == "GROUP" {
+		l.skipWhitespace()
+		if l.position < len(l.input)-1 && strings.ToUpper(l.input[l.position:l.position+2]) == "BY" {
+			l.position += 2
+			l.column += 2
+			tokenType = TokenGroupBy
+			value = "GROUP BY"
 		} else {
 			tokenType = TokenIdentifier
 		}

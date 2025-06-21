@@ -184,12 +184,83 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 		plan = NewLogicalFilter(plan, predicate)
 	}
 
-	// Add projections
-	projections, aliases, projSchema, err := p.convertSelectColumns(stmt.Columns)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert select columns: %w", err)
+	// Handle GROUP BY and aggregates
+	if len(stmt.GroupBy) > 0 {
+		// Convert GROUP BY expressions
+		groupByExprs := make([]Expression, len(stmt.GroupBy))
+		for i, expr := range stmt.GroupBy {
+			groupByExpr, err := p.convertExpression(expr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert GROUP BY expression %d: %w", i, err)
+			}
+			groupByExprs[i] = groupByExpr
+		}
+
+		// Convert SELECT columns to check for aggregates
+		aggregates, nonAggregates, aliases, err := p.extractAggregates(stmt.Columns)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process select columns: %w", err)
+		}
+
+		// Build aggregate schema
+		aggSchema := p.buildAggregateSchema(groupByExprs, aggregates, nonAggregates, aliases)
+
+		// Create aggregate node
+		plan = NewLogicalAggregate(plan, groupByExprs, aggregates, aggSchema)
+
+		// Add HAVING clause if present
+		if stmt.Having != nil {
+			having, err := p.convertExpression(stmt.Having)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert HAVING clause: %w", err)
+			}
+			plan = NewLogicalFilter(plan, having)
+		}
+
+		// Project final columns if needed
+		if len(nonAggregates) > 0 {
+			// Need final projection to include non-aggregate expressions
+			finalProjections := make([]Expression, 0, len(groupByExprs)+len(aggregates)+len(nonAggregates))
+			finalAliases := make([]string, 0, len(groupByExprs)+len(aggregates)+len(nonAggregates))
+
+			// Add group by columns
+			for i := range groupByExprs {
+				finalProjections = append(finalProjections, &ColumnRef{
+					ColumnName: fmt.Sprintf("group_%d", i),
+					ColumnType: types.Unknown,
+				})
+				finalAliases = append(finalAliases, "")
+			}
+
+			// Add aggregate columns
+			for _, agg := range aggregates {
+				name := agg.Alias
+				if name == "" {
+					name = fmt.Sprintf("agg_%s", agg.Function.String())
+				}
+				finalProjections = append(finalProjections, &ColumnRef{
+					ColumnName: name,
+					ColumnType: agg.Type,
+				})
+				finalAliases = append(finalAliases, agg.Alias)
+			}
+
+			// Add non-aggregate expressions
+			finalProjections = append(finalProjections, nonAggregates...)
+			for range nonAggregates {
+				finalAliases = append(finalAliases, "")
+			}
+
+			plan = NewLogicalProject(plan, finalProjections, finalAliases, nil)
+		}
+	} else {
+		// No GROUP BY - normal projection
+		projections, aliases, projSchema, err := p.convertSelectColumns(stmt.Columns)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert select columns: %w", err)
+		}
+		plan = NewLogicalProject(plan, projections, aliases, projSchema)
 	}
-	plan = NewLogicalProject(plan, projections, aliases, projSchema)
 
 	// Add ORDER BY if present
 	if len(stmt.OrderBy) > 0 {
@@ -445,6 +516,61 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 
 	case *parser.Star:
 		return &Star{}, nil
+
+	case *parser.FunctionCall:
+		// Check if it's an aggregate function
+		if isAggregateFunction(e.Name) {
+			// Convert arguments
+			args := make([]Expression, len(e.Args))
+			for i, arg := range e.Args {
+				converted, err := p.convertExpression(arg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to convert function argument %d: %w", i, err)
+				}
+				args[i] = converted
+			}
+
+			// Determine result type based on function
+			var resultType types.DataType
+			switch e.Name {
+			case "COUNT":
+				resultType = types.BigInt
+			case "SUM", "AVG":
+				resultType = types.Decimal(20, 6)
+			case "MIN", "MAX":
+				// Result type depends on input - use Unknown for now
+				resultType = types.Unknown
+			default:
+				resultType = types.Unknown
+			}
+
+			// Create aggregate expression
+			var function AggregateFunc
+			switch e.Name {
+			case "COUNT":
+				function = AggCount
+			case "SUM":
+				function = AggSum
+			case "AVG":
+				function = AggAvg
+			case "MIN":
+				function = AggMin
+			case "MAX":
+				function = AggMax
+			default:
+				return nil, fmt.Errorf("unknown aggregate function: %s", e.Name)
+			}
+
+			return &AggregateExpr{
+				Function: function,
+				Args:     args,
+				Distinct: e.Distinct,
+				Type:     resultType,
+			}, nil
+		}
+
+		// Non-aggregate function - not implemented yet
+		return nil, fmt.Errorf("non-aggregate functions not implemented: %s", e.Name)
 
 	case *parser.BinaryExpr:
 		left, err := p.convertExpression(e.Left)
@@ -811,6 +937,69 @@ func (p *BasicPlanner) optimize(plan LogicalPlan) LogicalPlan {
 		return p.optimizer.Optimize(plan)
 	}
 	return plan
+}
+
+// isAggregateFunction checks if a function name is an aggregate function.
+func isAggregateFunction(name string) bool {
+	switch name {
+	case "COUNT", "SUM", "AVG", "MIN", "MAX":
+		return true
+	default:
+		return false
+	}
+}
+
+// extractAggregates separates aggregate and non-aggregate expressions from SELECT columns.
+func (p *BasicPlanner) extractAggregates(columns []parser.SelectColumn) ([]AggregateExpr, []Expression, []string, error) {
+	var aggregates []AggregateExpr
+	var nonAggregates []Expression
+	var aliases []string
+
+	for _, col := range columns {
+		expr, err := p.convertExpression(col.Expr)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		if aggExpr, ok := expr.(*AggregateExpr); ok {
+			aggExpr.Alias = col.Alias
+			aggregates = append(aggregates, *aggExpr)
+		} else {
+			nonAggregates = append(nonAggregates, expr)
+			aliases = append(aliases, col.Alias)
+		}
+	}
+
+	return aggregates, nonAggregates, aliases, nil
+}
+
+// buildAggregateSchema builds the output schema for an aggregate operation.
+func (p *BasicPlanner) buildAggregateSchema(groupBy []Expression, aggregates []AggregateExpr, nonAggregates []Expression, aliases []string) *Schema {
+	columns := make([]Column, 0, len(groupBy)+len(aggregates))
+
+	// Add GROUP BY columns
+	for i, expr := range groupBy {
+		columns = append(columns, Column{
+			Name:     fmt.Sprintf("group_%d", i),
+			DataType: expr.DataType(),
+			Nullable: true,
+		})
+	}
+
+	// Add aggregate columns
+	for _, agg := range aggregates {
+		name := agg.Alias
+		if name == "" {
+			name = fmt.Sprintf("agg_%s", agg.Function.String())
+		}
+		columns = append(columns, Column{
+			Name:     name,
+			DataType: agg.Type,
+			Nullable: true,
+		})
+	}
+
+	return &Schema{Columns: columns}
 }
 
 // validateExpressionColumns validates that all column references in an expression exist in the table

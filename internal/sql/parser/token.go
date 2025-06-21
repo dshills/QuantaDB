@@ -31,7 +31,10 @@ const (
 	TokenAnd
 	TokenOr
 	TokenNot
+	TokenDistinct
 	TokenOrderBy
+	TokenGroupBy
+	TokenHaving
 	TokenAsc
 	TokenDesc
 	TokenLimit
@@ -114,7 +117,10 @@ var tokenStrings = map[TokenType]string{
 	TokenAnd:          "AND",
 	TokenOr:           "OR",
 	TokenNot:          "NOT",
+	TokenDistinct:     "DISTINCT",
 	TokenOrderBy:      "ORDER BY",
+	TokenGroupBy:      "GROUP BY",
+	TokenHaving:       "HAVING",
 	TokenAsc:          "ASC",
 	TokenDesc:         "DESC",
 	TokenLimit:        "LIMIT",
@@ -208,8 +214,11 @@ var keywords = map[string]TokenType{
 	"AND":       TokenAnd,
 	"OR":        TokenOr,
 	"NOT":       TokenNot,
+	"DISTINCT":  TokenDistinct,
 	"ORDER":     TokenOrderBy,
 	"BY":        TokenOrderBy,
+	"GROUP":     TokenGroupBy,
+	"HAVING":    TokenHaving,
 	"ASC":       TokenAsc,
 	"DESC":      TokenDesc,
 	"LIMIT":     TokenLimit,

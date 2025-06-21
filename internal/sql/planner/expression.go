@@ -285,6 +285,7 @@ type AggregateExpr struct {
 	Args     []Expression
 	Distinct bool
 	Type     types.DataType
+	Alias    string
 }
 
 // AggregateFunc represents an aggregate function.

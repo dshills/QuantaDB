@@ -145,6 +145,8 @@ type SelectStmt struct {
 	Columns []SelectColumn
 	From    string
 	Where   Expression
+	GroupBy []Expression
+	Having  Expression
 	OrderBy []OrderByClause
 	Limit   *int
 	Offset  *int
@@ -184,6 +186,20 @@ func (s *SelectStmt) String() string {
 	// WHERE clause
 	if s.Where != nil {
 		parts = append(parts, fmt.Sprintf("WHERE %s", s.Where.String()))
+	}
+
+	// GROUP BY clause
+	if len(s.GroupBy) > 0 {
+		var groupCols []string
+		for _, g := range s.GroupBy {
+			groupCols = append(groupCols, g.String())
+		}
+		parts = append(parts, fmt.Sprintf("GROUP BY %s", strings.Join(groupCols, ", ")))
+	}
+
+	// HAVING clause
+	if s.Having != nil {
+		parts = append(parts, fmt.Sprintf("HAVING %s", s.Having.String()))
 	}
 
 	// ORDER BY clause
@@ -411,6 +427,28 @@ func (e *ExistsExpr) String() string {
 		return fmt.Sprintf("NOT EXISTS %s", e.Subquery.String())
 	}
 	return fmt.Sprintf("EXISTS %s", e.Subquery.String())
+}
+
+// FunctionCall represents a function call expression.
+type FunctionCall struct {
+	Name     string
+	Args     []Expression
+	Distinct bool // For aggregate functions like COUNT(DISTINCT x)
+}
+
+func (f *FunctionCall) expressionNode() {}
+func (f *FunctionCall) String() string {
+	var args []string
+	for _, arg := range f.Args {
+		args = append(args, arg.String())
+	}
+	
+	distinct := ""
+	if f.Distinct {
+		distinct = "DISTINCT "
+	}
+	
+	return fmt.Sprintf("%s(%s%s)", f.Name, distinct, strings.Join(args, ", "))
 }
 
 // AnalyzeStmt represents an ANALYZE statement.

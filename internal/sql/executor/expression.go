@@ -209,11 +209,17 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
 			case int64:
-				if b, ok := b.(int64); ok {
+				switch b := b.(type) {
+				case int64:
 					return a + b
+				case float64:
+					return float64(a) + b
 				}
 			case float64:
-				if b, ok := b.(float64); ok {
+				switch b := b.(type) {
+				case int64:
+					return a + float64(b)
+				case float64:
 					return a + b
 				}
 			}
@@ -224,11 +230,17 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
 			case int64:
-				if b, ok := b.(int64); ok {
+				switch b := b.(type) {
+				case int64:
 					return a - b
+				case float64:
+					return float64(a) - b
 				}
 			case float64:
-				if b, ok := b.(float64); ok {
+				switch b := b.(type) {
+				case int64:
+					return a - float64(b)
+				case float64:
 					return a - b
 				}
 			}
@@ -239,11 +251,17 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
 			case int64:
-				if b, ok := b.(int64); ok {
+				switch b := b.(type) {
+				case int64:
 					return a * b
+				case float64:
+					return float64(a) * b
 				}
 			case float64:
-				if b, ok := b.(float64); ok {
+				switch b := b.(type) {
+				case int64:
+					return a * float64(b)
+				case float64:
 					return a * b
 				}
 			}
@@ -254,14 +272,27 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
 			switch a := a.(type) {
 			case int64:
-				if b, ok := b.(int64); ok {
+				switch b := b.(type) {
+				case int64:
 					if b == 0 {
 						return nil // Division by zero
 					}
-					return a / b
+					// Integer division promotes to float for consistency with SQL
+					return float64(a) / float64(b)
+				case float64:
+					if b == 0 {
+						return nil // Division by zero
+					}
+					return float64(a) / b
 				}
 			case float64:
-				if b, ok := b.(float64); ok {
+				switch b := b.(type) {
+				case int64:
+					if b == 0 {
+						return nil // Division by zero
+					}
+					return a / float64(b)
+				case float64:
 					if b == 0 {
 						return nil // Division by zero
 					}
@@ -363,13 +394,40 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 
 	switch l := left.Data.(type) {
 	case int64:
-		if r, ok := right.Data.(int64); ok {
+		switch r := right.Data.(type) {
+		case int64:
 			if l < r {
 				cmp = -1
 			} else if l > r {
 				cmp = 1
 			}
-		} else {
+		case float64:
+			lf := float64(l)
+			if lf < r {
+				cmp = -1
+			} else if lf > r {
+				cmp = 1
+			}
+		default:
+			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+		}
+
+	case float64:
+		switch r := right.Data.(type) {
+		case int64:
+			rf := float64(r)
+			if l < rf {
+				cmp = -1
+			} else if l > rf {
+				cmp = 1
+			}
+		case float64:
+			if l < r {
+				cmp = -1
+			} else if l > r {
+				cmp = 1
+			}
+		default:
 			return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
 		}
 
