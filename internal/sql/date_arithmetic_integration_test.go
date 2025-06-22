@@ -95,14 +95,8 @@ func TestDateArithmeticIntegration(t *testing.T) {
 			},
 		}
 
-		// Begin transaction
-		tx, err := txnManager.Begin()
-		if err != nil {
-			t.Fatalf("Failed to begin transaction: %v", err)
-		}
-
 		// Insert the row
-		err = storageBackend.InsertRow(table, row, tx)
+		_, err = storageBackend.InsertRow(table.ID, row)
 		if err != nil {
 			t.Fatalf("Failed to insert row: %v", err)
 		}
@@ -183,32 +177,21 @@ func TestDateArithmeticIntegration(t *testing.T) {
 			}
 
 			// Plan
-			pl := planner.New(cat)
+			pl := planner.NewBasicPlannerWithCatalog(cat)
 			plan, err := pl.Plan(stmt)
 			if err != nil {
 				t.Fatalf("Failed to plan query: %v", err)
 			}
 
-			// Build physical plan
-			builder := executor.NewPlanBuilder(storageBackend, txnManager)
-			physicalPlan, err := builder.Build(plan, nil)
-			if err != nil {
-				t.Fatalf("Failed to build physical plan: %v", err)
-			}
-
 			// Execute
-			ctx := context.Background()
-			exec := executor.NewQueryExecutor(physicalPlan)
-
-			// Begin transaction for query
-			tx, err := txnManager.Begin()
-			if err != nil {
-				t.Fatalf("Failed to begin transaction: %v", err)
+			exec := executor.NewBasicExecutor(cat, nil)
+			exec.SetStorageBackend(storageBackend)
+			execCtx := &executor.ExecContext{
+				Catalog: cat,
 			}
-			defer tx.Rollback()
 
 			// Execute query
-			rows, err := exec.Execute(ctx, tx)
+			rows, err := exec.Execute(plan, execCtx)
 			if err != nil {
 				t.Fatalf("Failed to execute query: %v", err)
 			}

@@ -257,7 +257,7 @@ func (i *InsertOperator) convertValueToColumnType(value types.Value, col *catalo
 			return types.Value{}, fmt.Errorf("cannot convert %T to DOUBLE", v)
 		}
 
-	case "INTEGER":
+	case typeINTEGER:
 		// Convert to int32
 		switch v := value.Data.(type) {
 		case int32:
@@ -289,7 +289,7 @@ func (i *InsertOperator) convertValueToColumnType(value types.Value, col *catalo
 			return types.Value{}, fmt.Errorf("cannot convert %T to INTEGER", v)
 		}
 
-	case "BIGINT":
+	case typeBIGINT:
 		// Convert to int64
 		switch v := value.Data.(type) {
 		case int64:

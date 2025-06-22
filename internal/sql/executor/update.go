@@ -233,7 +233,7 @@ func isTypeCompatible(dataType types.DataType, value types.Value) bool {
 		case int16, int, int32:
 			return true
 		}
-	case "TEXT", "VARCHAR", "CHAR":
+	case typeTEXT, typeVARCHAR, typeCHAR:
 		_, ok := value.Data.(string)
 		return ok
 	case "BOOLEAN":

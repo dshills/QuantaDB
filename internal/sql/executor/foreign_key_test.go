@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -8,18 +9,27 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/storage"
-	"github.com/dshills/QuantaDB/internal/txn"
 )
 
 func TestForeignKeyConstraints(t *testing.T) {
 	// Create storage and catalog
-	st := storage.NewMemoryStorage()
 	cat := catalog.NewMemoryCatalog()
 
+	// Create disk manager and buffer pool for disk storage
+	diskMgr, err := storage.NewDiskManager("test_foreign_key.db")
+	if err != nil {
+		t.Fatalf("Failed to create disk manager: %v", err)
+	}
+	defer func() {
+		diskMgr.Close()
+		os.Remove("test_foreign_key.db")
+	}()
+	bufferPool := storage.NewBufferPool(diskMgr, 1024) // 1024 pages
+
 	// Create planner and executor
-	p := planner.NewBasicPlanner(cat)
+	p := planner.NewBasicPlannerWithCatalog(cat)
 	exec := NewBasicExecutor(cat, nil)
-	storageBackend := NewStorageBackend(st, nil, nil)
+	storageBackend := NewDiskStorageBackend(bufferPool, cat)
 	exec.SetStorageBackend(storageBackend)
 
 	// Create execution context
@@ -45,15 +55,11 @@ func TestForeignKeyConstraints(t *testing.T) {
 		t.Fatalf("Failed to plan CREATE TABLE customers: %v", err)
 	}
 
-	op, err := exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build CREATE TABLE customers operator: %v", err)
-	}
-
-	_, err = op.Next()
+	result, err := exec.Execute(plan, ctx)
 	if err != nil {
 		t.Fatalf("Failed to execute CREATE TABLE customers: %v", err)
 	}
+	result.Close()
 
 	// Insert some customers
 	insertCustomers := `INSERT INTO customers (id, name) VALUES (1, 'Alice'), (2, 'Bob')`
@@ -68,15 +74,11 @@ func TestForeignKeyConstraints(t *testing.T) {
 		t.Fatalf("Failed to plan INSERT customers: %v", err)
 	}
 
-	op, err = exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build INSERT customers operator: %v", err)
-	}
-
-	_, err = op.Next()
+	result, err = exec.Execute(plan, ctx)
 	if err != nil {
 		t.Fatalf("Failed to execute INSERT customers: %v", err)
 	}
+	result.Close()
 
 	// Create child table (orders) with foreign key
 	createOrders := `CREATE TABLE orders (
@@ -96,15 +98,11 @@ func TestForeignKeyConstraints(t *testing.T) {
 		t.Fatalf("Failed to plan CREATE TABLE orders: %v", err)
 	}
 
-	op, err = exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build CREATE TABLE orders operator: %v", err)
-	}
-
-	_, err = op.Next()
+	result, err = exec.Execute(plan, ctx)
 	if err != nil {
 		t.Fatalf("Failed to execute CREATE TABLE orders: %v", err)
 	}
+	result.Close()
 
 	// Test 1: Insert valid order (should succeed)
 	insertValidOrder := `INSERT INTO orders (id, customer_id, amount) VALUES (1, 1, 100.00)`
@@ -119,14 +117,11 @@ func TestForeignKeyConstraints(t *testing.T) {
 		t.Fatalf("Failed to plan INSERT valid order: %v", err)
 	}
 
-	op, err = exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build INSERT valid order operator: %v", err)
-	}
-
-	_, err = op.Next()
+	result, err = exec.Execute(plan, ctx)
 	if err != nil {
 		t.Errorf("Failed to insert valid order: %v", err)
+	} else {
+		result.Close()
 	}
 
 	// Test 2: Insert order with non-existent customer (should fail)
@@ -142,13 +137,9 @@ func TestForeignKeyConstraints(t *testing.T) {
 		t.Fatalf("Failed to plan INSERT invalid order: %v", err)
 	}
 
-	op, err = exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build INSERT invalid order operator: %v", err)
-	}
-
-	_, err = op.Next()
+	result, err = exec.Execute(plan, ctx)
 	if err == nil {
+		result.Close()
 		t.Error("Expected foreign key violation error, but insert succeeded")
 	} else if !containsString(err.Error(), "foreign key") {
 		t.Errorf("Expected foreign key violation error, got: %v", err)
@@ -167,26 +158,33 @@ func TestForeignKeyConstraints(t *testing.T) {
 		t.Fatalf("Failed to plan INSERT null order: %v", err)
 	}
 
-	op, err = exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build INSERT null order operator: %v", err)
-	}
-
-	_, err = op.Next()
+	result, err = exec.Execute(plan, ctx)
 	if err != nil {
 		t.Errorf("Failed to insert order with NULL customer_id: %v", err)
+	} else {
+		result.Close()
 	}
 }
 
 func TestForeignKeyCascadeDelete(t *testing.T) {
 	// Create storage and catalog
-	st := storage.NewMemoryStorage()
 	cat := catalog.NewMemoryCatalog()
 
+	// Create disk manager and buffer pool for disk storage
+	diskMgr, err := storage.NewDiskManager("test_cascade_delete.db")
+	if err != nil {
+		t.Fatalf("Failed to create disk manager: %v", err)
+	}
+	defer func() {
+		diskMgr.Close()
+		os.Remove("test_cascade_delete.db")
+	}()
+	bufferPool := storage.NewBufferPool(diskMgr, 1024) // 1024 pages
+
 	// Create planner and executor
-	p := planner.NewBasicPlanner(cat)
+	p := planner.NewBasicPlannerWithCatalog(cat)
 	exec := NewBasicExecutor(cat, nil)
-	storageBackend := NewStorageBackend(st, nil, nil)
+	storageBackend := NewDiskStorageBackend(bufferPool, cat)
 	exec.SetStorageBackend(storageBackend)
 
 	// Create execution context
@@ -202,7 +200,8 @@ func TestForeignKeyCascadeDelete(t *testing.T) {
 		name VARCHAR(100) NOT NULL
 	)`
 
-	executeSQL(t, createDepartments, p, exec, ctx)
+	result := executeSQL(t, createDepartments, p, exec, ctx)
+	result.Close()
 
 	// Create child table with CASCADE DELETE
 	createEmployees := `CREATE TABLE employees (
@@ -212,17 +211,21 @@ func TestForeignKeyCascadeDelete(t *testing.T) {
 		FOREIGN KEY (dept_id) REFERENCES departments (id) ON DELETE CASCADE
 	)`
 
-	executeSQL(t, createEmployees, p, exec, ctx)
+	result = executeSQL(t, createEmployees, p, exec, ctx)
+	result.Close()
 
 	// Insert test data
-	executeSQL(t, `INSERT INTO departments (id, name) VALUES (1, 'Engineering')`, p, exec, ctx)
-	executeSQL(t, `INSERT INTO employees (id, name, dept_id) VALUES (1, 'Alice', 1), (2, 'Bob', 1)`, p, exec, ctx)
+	result = executeSQL(t, `INSERT INTO departments (id, name) VALUES (1, 'Engineering')`, p, exec, ctx)
+	result.Close()
+	result = executeSQL(t, `INSERT INTO employees (id, name, dept_id) VALUES (1, 'Alice', 1), (2, 'Bob', 1)`, p, exec, ctx)
+	result.Close()
 
 	// Delete department (should cascade delete employees)
-	executeSQL(t, `DELETE FROM departments WHERE id = 1`, p, exec, ctx)
+	result = executeSQL(t, `DELETE FROM departments WHERE id = 1`, p, exec, ctx)
+	result.Close()
 
 	// Verify employees were deleted
-	result := executeSQL(t, `SELECT COUNT(*) FROM employees WHERE dept_id = 1`, p, exec, ctx)
+	result = executeSQL(t, `SELECT COUNT(*) FROM employees WHERE dept_id = 1`, p, exec, ctx)
 	row, err := result.Next()
 	if err != nil {
 		t.Fatalf("Failed to get count: %v", err)
@@ -236,13 +239,23 @@ func TestForeignKeyCascadeDelete(t *testing.T) {
 
 func TestCheckConstraints(t *testing.T) {
 	// Create storage and catalog
-	st := storage.NewMemoryStorage()
 	cat := catalog.NewMemoryCatalog()
 
+	// Create disk manager and buffer pool for disk storage
+	diskMgr, err := storage.NewDiskManager("test_check_constraints.db")
+	if err != nil {
+		t.Fatalf("Failed to create disk manager: %v", err)
+	}
+	defer func() {
+		diskMgr.Close()
+		os.Remove("test_check_constraints.db")
+	}()
+	bufferPool := storage.NewBufferPool(diskMgr, 1024) // 1024 pages
+
 	// Create planner and executor
-	p := planner.NewBasicPlanner(cat)
+	p := planner.NewBasicPlannerWithCatalog(cat)
 	exec := NewBasicExecutor(cat, nil)
-	storageBackend := NewStorageBackend(st, nil, nil)
+	storageBackend := NewDiskStorageBackend(bufferPool, cat)
 	exec.SetStorageBackend(storageBackend)
 
 	// Create execution context
@@ -260,60 +273,54 @@ func TestCheckConstraints(t *testing.T) {
 		CHECK (price > 0)
 	)`
 
-	executeSQL(t, createProducts, p, exec, ctx)
+	result := executeSQL(t, createProducts, p, exec, ctx)
+	result.Close()
 
 	// Test 1: Insert valid product (should succeed)
-	executeSQL(t, `INSERT INTO products (id, name, price) VALUES (1, 'Widget', 10.00)`, p, exec, ctx)
+	result = executeSQL(t, `INSERT INTO products (id, name, price) VALUES (1, 'Widget', 10.00)`, p, exec, ctx)
+	result.Close()
 
 	// Test 2: Insert product with negative price (should fail)
-	stmt, err := parser.NewParser(`INSERT INTO products (id, name, price) VALUES (2, 'Gadget', -5.00)`).Parse()
-	if err != nil {
-		t.Fatalf("Failed to parse INSERT: %v", err)
+	stmt2, err2 := parser.NewParser(`INSERT INTO products (id, name, price) VALUES (2, 'Gadget', -5.00)`).Parse()
+	if err2 != nil {
+		t.Fatalf("Failed to parse INSERT: %v", err2)
 	}
 
-	plan, err := p.Plan(stmt)
-	if err != nil {
-		t.Fatalf("Failed to plan INSERT: %v", err)
+	plan2, err2 := p.Plan(stmt2)
+	if err2 != nil {
+		t.Fatalf("Failed to plan INSERT: %v", err2)
 	}
 
-	op, err := exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build INSERT operator: %v", err)
-	}
-
-	_, err = op.Next()
-	if err == nil {
+	result2, err2 := exec.Execute(plan2, ctx)
+	if err2 == nil {
+		result2.Close()
 		t.Error("Expected check constraint violation error, but insert succeeded")
-	} else if !containsString(err.Error(), "check constraint") {
-		t.Errorf("Expected check constraint violation error, got: %v", err)
+	} else if !containsString(err2.Error(), "check constraint") {
+		t.Errorf("Expected check constraint violation error, got: %v", err2)
 	}
 
 	// Test 3: Insert product with zero price (should fail)
-	stmt, err = parser.NewParser(`INSERT INTO products (id, name, price) VALUES (3, 'Thing', 0.00)`).Parse()
-	if err != nil {
-		t.Fatalf("Failed to parse INSERT: %v", err)
+	stmt3, err3 := parser.NewParser(`INSERT INTO products (id, name, price) VALUES (3, 'Thing', 0.00)`).Parse()
+	if err3 != nil {
+		t.Fatalf("Failed to parse INSERT: %v", err3)
 	}
 
-	plan, err = p.Plan(stmt)
-	if err != nil {
-		t.Fatalf("Failed to plan INSERT: %v", err)
+	plan3, err3 := p.Plan(stmt3)
+	if err3 != nil {
+		t.Fatalf("Failed to plan INSERT: %v", err3)
 	}
 
-	op, err = exec.Build(plan, ctx)
-	if err != nil {
-		t.Fatalf("Failed to build INSERT operator: %v", err)
-	}
-
-	_, err = op.Next()
-	if err == nil {
+	result3, err3 := exec.Execute(plan3, ctx)
+	if err3 == nil {
+		result3.Close()
 		t.Error("Expected check constraint violation error, but insert succeeded")
-	} else if !containsString(err.Error(), "check constraint") {
-		t.Errorf("Expected check constraint violation error, got: %v", err)
+	} else if !containsString(err3.Error(), "check constraint") {
+		t.Errorf("Expected check constraint violation error, got: %v", err3)
 	}
 }
 
 // Helper function to execute SQL and return result
-func executeSQL(t *testing.T, sql string, p planner.Planner, exec *BasicExecutor, ctx *ExecContext) Operator {
+func executeSQL(t *testing.T, sql string, p planner.Planner, exec *BasicExecutor, ctx *ExecContext) Result {
 	stmt, err := parser.NewParser(sql).Parse()
 	if err != nil {
 		t.Fatalf("Failed to parse SQL: %v", err)
@@ -324,12 +331,12 @@ func executeSQL(t *testing.T, sql string, p planner.Planner, exec *BasicExecutor
 		t.Fatalf("Failed to plan SQL: %v", err)
 	}
 
-	op, err := exec.Build(plan, ctx)
+	result, err := exec.Execute(plan, ctx)
 	if err != nil {
-		t.Fatalf("Failed to build operator: %v", err)
+		t.Fatalf("Failed to execute SQL: %v", err)
 	}
 
-	return op
+	return result
 }
 
 func containsString(s, substr string) bool {

@@ -740,15 +740,15 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 		var funcName string
 		switch aggExpr.Function {
 		case planner.AggCount:
-			funcName = "COUNT"
+			funcName = AggregateCOUNT
 		case planner.AggSum:
-			funcName = "SUM"
+			funcName = AggregateSUM
 		case planner.AggAvg:
-			funcName = "AVG"
+			funcName = AggregateAVG
 		case planner.AggMin:
-			funcName = "MIN"
+			funcName = AggregateMIN
 		case planner.AggMax:
-			funcName = "MAX"
+			funcName = AggregateMAX
 		default:
 			return nil, fmt.Errorf("unsupported aggregate function: %v", aggExpr.Function)
 		}

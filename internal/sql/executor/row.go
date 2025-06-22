@@ -11,19 +11,14 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
-// Constants for SQL data types to avoid repetition
+// Additional data type constants not in constants.go
 const (
 	typeBOOLEAN   = "BOOLEAN"
-	typeINTEGER   = "INTEGER"
-	typeBIGINT    = "BIGINT"
 	typeSMALLINT  = "SMALLINT"
 	typeDECIMAL   = "DECIMAL"
 	typeFLOAT     = "FLOAT"
 	typeDOUBLE    = "DOUBLE"
 	typeREAL      = "REAL"
-	typeTEXT      = "TEXT"
-	typeVARCHAR   = "VARCHAR"
-	typeCHAR      = "CHAR"
 	typeTIMESTAMP = "TIMESTAMP"
 	typeDATE      = "DATE"
 )
