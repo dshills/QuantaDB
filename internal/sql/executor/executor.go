@@ -792,14 +792,16 @@ func (e *BasicExecutor) buildCreateIndexOperator(plan *planner.LogicalCreateInde
 
 // buildDropTableOperator builds a DROP TABLE operator.
 func (e *BasicExecutor) buildDropTableOperator(plan *planner.LogicalDropTable, ctx *ExecContext) (Operator, error) {
-	_ = plan // Will be used when DROP TABLE is implemented
-	_ = ctx  // Will be used when DROP TABLE is implemented
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
 
-	// For now, return an error as DROP TABLE is not implemented
-	return nil, fmt.Errorf("DROP TABLE not yet implemented")
+	return NewDropTableOperator(
+		plan.SchemaName,
+		plan.TableName,
+		ctx.Catalog,
+		e.storage,
+	), nil
 }
 
 // buildDropIndexOperator builds a DROP INDEX operator.

@@ -76,6 +76,46 @@
   - Proper NULL handling: NULL IN anything = NULL, correct three-valued logic
   - Integration with parser_expression.go for direct expression evaluation
   - Comprehensive test coverage for all cases including edge cases
+- [x] **EXISTS/NOT EXISTS Expressions**: Correlated subquery support
+  - Parser support for EXISTS (subquery) and NOT EXISTS (subquery) syntax
+  - Complete AST node (ExistsExpr) with Subquery and Not fields
+  - Planner conversion from parser.ExistsExpr to planner.ExistsExpr
+  - Executor existsEvaluator with SubqueryOperator integration
+  - Support for both simple EXISTS and correlated EXISTS patterns
+  - SubqueryDecorrelation optimization: EXISTS → SEMI JOIN, NOT EXISTS → ANTI JOIN
+  - Integration with parser_expression.go (error for subquery evaluation as expected)
+  - Fixed ProjectionPushdown optimizer to handle nil schemas in join operations
+  - Comprehensive test coverage for parsing, planning, and optimization
+- [x] **Parameterized Queries**: Support $1, $2 style parameters for lib/pq compatibility
+  - Parser support for ParameterRef AST nodes with $1, $2, etc. syntax  
+  - Complete parameter type inference from query context
+  - ParameterSubstitutor for replacing placeholders with actual values
+  - Support for parameter substitution in all logical plan types (Filter, Project, Sort, Join)
+  - Binary and text format parameter value parsing from wire protocol
+  - PostgreSQL-compatible boolean parsing ('t'/'f' format)
+  - Parameter count validation and out-of-range error handling
+  - Integration with network layer for Parse/Bind message handling
+  - Comprehensive test coverage for parsing, substitution, and wire protocol integration
+- [x] **Extended Query Protocol**: Parse/Bind/Execute message flow
+  - Complete Parse message handling with SQL parsing and parameter type inference
+  - Bind message handling with parameter value parsing and portal creation
+  - Execute message support with result set streaming and row limits
+  - ParameterDescription and RowDescription message generation
+  - Support for both named and unnamed statements/portals
+  - Close message handling for statement and portal cleanup
+  - ExtendedQuerySession for managing prepared statements and portals
+  - Parameter format handling (text/binary) in Bind messages
+  - Result format handling for Execute responses
+  - Full integration with planner and executor pipeline through parameter substitution
+- [x] **Data Type Serialization**: Fix int64 vs int32 issues in protocol
+  - Fixed parser to create int32 values for integers within int32 range (±2,147,483,647)
+  - Updated parameter parsing to use int32 for PostgreSQL INTEGER type consistency
+  - Fixed parameter value parsing with proper bounds checking for INTEGER type
+  - Updated all tests to expect int32 instead of int64 for standard integer values
+  - Maintained int64 support for values requiring BIGINT (outside int32 range)
+  - Ensured string serialization consistency between int32 and int64 values
+  - Fixed wire protocol data type consistency for PostgreSQL compatibility
+  - All integer literals now properly map to PostgreSQL INTEGER (int32) by default
 
 ### JOIN Support (COMPLETED)
 - [x] **JOIN Syntax**: Full implementation of SQL JOIN operations
@@ -110,17 +150,25 @@
 - [x] **String Functions**: SUBSTRING, string concatenation (||) (COMPLETED)
 - [x] **CASE Expressions**: Implement CASE WHEN for conditional logic (COMPLETED)
 - [x] **IN/NOT IN**: Support for value lists and subqueries (COMPLETED)
-- [ ] **EXISTS/NOT EXISTS**: Correlated subquery support
+- [x] **EXISTS/NOT EXISTS**: Correlated subquery support (COMPLETED)
 
 ### Protocol & Client Compatibility
-- [ ] **Parameterized Queries**: Support $1, $2 style parameters (required by lib/pq)
-- [ ] **Extended Query Protocol**: Parse/Bind/Execute message flow
-- [ ] **Data Type Serialization**: Fix int64 vs int32 issues in protocol
+- [x] **Parameterized Queries**: Support $1, $2 style parameters (required by lib/pq) (COMPLETED)
+- [x] **Extended Query Protocol**: Parse/Bind/Execute message flow (COMPLETED)
+- [x] **Data Type Serialization**: Fix int64 vs int32 issues in protocol (COMPLETED)
 - [ ] **COPY Protocol**: Bulk data loading support
 - [ ] **Prepared Statements**: Named statement caching
 
 ### SQL DDL Features
-- [ ] **DROP TABLE**: Implement table deletion
+- [x] **DROP TABLE**: Implement table deletion
+  - Parser support for DROP TABLE syntax (already existed)
+  - Planner support with LogicalDropTable plan type (already existed)
+  - Executor DropTableOperator implementation with storage integration
+  - Proper error handling for non-existent tables
+  - Integration with catalog to remove table metadata
+  - Integration with storage backend to remove table data
+  - Comprehensive test coverage for unit and integration testing
+  - End-to-end testing with PostgreSQL wire protocol
 - [ ] **ALTER TABLE**: Add/drop columns, change data types
 - [ ] **CREATE INDEX**: B+Tree index creation (integrate with planner)
 - [ ] **Foreign Keys**: Referential integrity constraints
