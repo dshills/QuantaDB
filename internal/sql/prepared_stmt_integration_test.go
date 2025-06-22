@@ -70,12 +70,10 @@ func TestPreparedStatementIntegration(t *testing.T) {
 		if _, exists := ctx.PreparedStatements["stmt1"]; !exists {
 			t.Fatal("prepared statement 'stmt1' not found")
 		}
-
 	})
 
 	// Test DEALLOCATE statement
 	t.Run("DEALLOCATE", func(t *testing.T) {
-
 		sql := "DEALLOCATE stmt1"
 
 		// Parse
@@ -121,7 +119,6 @@ func TestPreparedStatementIntegration(t *testing.T) {
 
 	// Test EXECUTE statement (should fail as not fully implemented)
 	t.Run("EXECUTE", func(t *testing.T) {
-
 		// First prepare a statement
 		prepareSQL := "PREPARE stmt2 AS SELECT 1"
 		p := parser.NewParser(prepareSQL)

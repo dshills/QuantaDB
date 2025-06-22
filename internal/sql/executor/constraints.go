@@ -140,7 +140,6 @@ func (cv *SimpleConstraintValidator) validateForeignKey(table *catalog.Table, ro
 			found = true
 			break
 		}
-
 	}
 
 	if !found {
@@ -201,7 +200,6 @@ func (cv *SimpleConstraintValidator) checkReferencingTables(table *catalog.Table
 	}
 
 	for _, refTable := range tables {
-
 		// Check each constraint in the referencing table
 		for _, constraint := range refTable.Constraints {
 			fk, ok := constraint.(*catalog.ForeignKeyConstraint)

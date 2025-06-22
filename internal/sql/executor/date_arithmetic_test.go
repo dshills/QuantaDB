@@ -151,7 +151,7 @@ func compareDateValues(a, b types.Value) bool {
 		}
 	case types.Interval:
 		if bVal, ok := b.Data.(types.Interval); ok {
-			return aVal.Months == bVal.Months && aVal.Days == bVal.Days && aVal.Seconds == bVal.Seconds
+			return aVal.Months == bVal.Months && aVal.Days == bVal.Days && aVal.Duration == bVal.Duration
 		}
 	default:
 		return a.Equal(b)

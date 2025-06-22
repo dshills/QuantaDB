@@ -59,7 +59,7 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 
 	// Create evaluation context once for parameter evaluation
 	var evalCtx *evalContext
-	if ctx.Params != nil && len(ctx.Params) > 0 {
+	if len(ctx.Params) > 0 {
 		// Convert []*catalog.Column to []catalog.Column
 		columns := make([]catalog.Column, len(i.table.Columns))
 		for colIdx, col := range i.table.Columns {
@@ -101,7 +101,8 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 				value = evalResult
 			case *parser.UnaryExpr:
 				// Handle unary expressions (e.g., -123, +456)
-				if e.Operator == parser.TokenMinus {
+				switch e.Operator {
+				case parser.TokenMinus:
 					// Only handle negative literals for now
 					if literal, ok := e.Expr.(*parser.Literal); ok {
 						switch v := literal.Value.Data.(type) {
@@ -123,14 +124,14 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 					} else {
 						return fmt.Errorf("unary expressions only supported for literal values, got %T", e.Expr)
 					}
-				} else if e.Operator == parser.TokenPlus {
+				case parser.TokenPlus:
 					// Unary plus is a no-op
 					if literal, ok := e.Expr.(*parser.Literal); ok {
 						value = literal.Value
 					} else {
 						return fmt.Errorf("unary expressions only supported for literal values, got %T", e.Expr)
 					}
-				} else {
+				default:
 					return fmt.Errorf("unsupported unary operator: %v", e.Operator)
 				}
 			default:

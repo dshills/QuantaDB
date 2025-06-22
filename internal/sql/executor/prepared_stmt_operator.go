@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
@@ -44,7 +45,7 @@ func (op *PrepareOperator) Open(ctx *ExecContext) error {
 // Next executes the PREPARE statement.
 func (op *PrepareOperator) Next() (*Row, error) {
 	if op.done {
-		return nil, nil
+		return nil, io.EOF
 	}
 
 	op.done = true
@@ -81,9 +82,8 @@ func (op *PrepareOperator) Close() error {
 // ExecuteOperator handles EXECUTE statements.
 type ExecuteOperator struct {
 	baseOperator
-	plan     *planner.LogicalExecute
-	subOp    Operator
-	executed bool
+	plan  *planner.LogicalExecute
+	subOp Operator
 }
 
 // NewExecuteOperator creates a new EXECUTE operator.
@@ -181,7 +181,7 @@ func (op *DeallocateOperator) Open(ctx *ExecContext) error {
 // Next executes the DEALLOCATE statement.
 func (op *DeallocateOperator) Next() (*Row, error) {
 	if op.done {
-		return nil, nil
+		return nil, io.EOF
 	}
 
 	op.done = true

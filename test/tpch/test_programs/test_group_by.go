@@ -1,10 +1,13 @@
+//go:build ignore
+
 package main
 
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/lib/pq"
 	"log"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {

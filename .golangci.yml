@@ -10,6 +10,14 @@ run:
   tests: true
   # Skip vendor, third party, etc.
   skip-dirs-use-default: true
+  # Skip directories with multiple main functions
+  skip-dirs:
+    - cmd/test-tools
+    - test
+  # Or use exclude patterns
+  exclude-dirs:
+    - cmd/test-tools
+    - test
 
 # Linter settings
 linters:

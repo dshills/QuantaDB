@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -41,7 +42,7 @@ func (op *SubqueryOperator) Next() (*Row, error) {
 	if op.cached {
 		if op.isScalar {
 			if op.result == nil {
-				return nil, nil // EOF
+				return nil, io.EOF
 			}
 			// Return a row with the scalar value
 			row := &Row{

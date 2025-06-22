@@ -44,9 +44,9 @@ func (t *intervalType) Compare(a, b Value) int {
 	}
 
 	// Finally seconds
-	if aVal.Seconds < bVal.Seconds {
+	if aVal.Duration < bVal.Duration {
 		return -1
-	} else if aVal.Seconds > bVal.Seconds {
+	} else if aVal.Duration > bVal.Duration {
 		return 1
 	}
 
@@ -66,7 +66,7 @@ func (t *intervalType) Serialize(v Value) ([]byte, error) {
 	buf := make([]byte, 16)
 	binary.BigEndian.PutUint32(buf[0:4], uint32(val.Months))
 	binary.BigEndian.PutUint32(buf[4:8], uint32(val.Days))
-	binary.BigEndian.PutUint64(buf[8:16], uint64(val.Seconds))
+	binary.BigEndian.PutUint64(buf[8:16], uint64(val.Duration))
 	return buf, nil
 }
 
@@ -84,9 +84,9 @@ func (t *intervalType) Deserialize(data []byte) (Value, error) {
 	seconds := time.Duration(binary.BigEndian.Uint64(data[8:16]))
 
 	return NewValue(Interval{
-		Months:  months,
-		Days:    days,
-		Seconds: seconds,
+		Months:   months,
+		Days:     days,
+		Duration: seconds,
 	}), nil
 }
 
@@ -99,7 +99,7 @@ func (t *intervalType) IsValid(v Value) bool {
 }
 
 func (t *intervalType) Zero() Value {
-	return NewValue(Interval{Months: 0, Days: 0, Seconds: 0})
+	return NewValue(Interval{Months: 0, Days: 0, Duration: 0})
 }
 
 // IntervalField represents the fields in an interval
@@ -118,17 +118,17 @@ const (
 // PostgreSQL intervals have months and days as separate components because
 // months have varying numbers of days
 type Interval struct {
-	Months  int32         // Total months (years are stored as months)
-	Days    int32         // Total days
-	Seconds time.Duration // Total seconds (including hours, minutes, seconds, microseconds)
+	Months   int32         // Total months (years are stored as months)
+	Days     int32         // Total days
+	Duration time.Duration // Total duration (including hours, minutes, seconds, microseconds)
 }
 
 // NewInterval creates a new interval
 func NewInterval(months, days int32, seconds time.Duration) Interval {
 	return Interval{
-		Months:  months,
-		Days:    days,
-		Seconds: seconds,
+		Months:   months,
+		Days:     days,
+		Duration: seconds,
 	}
 }
 
@@ -155,34 +155,34 @@ func NewIntervalFromField(field IntervalField, value int64) Interval {
 // Add adds two intervals
 func (i Interval) Add(other Interval) Interval {
 	return Interval{
-		Months:  i.Months + other.Months,
-		Days:    i.Days + other.Days,
-		Seconds: i.Seconds + other.Seconds,
+		Months:   i.Months + other.Months,
+		Days:     i.Days + other.Days,
+		Duration: i.Duration + other.Duration,
 	}
 }
 
 // Subtract subtracts an interval from another
 func (i Interval) Subtract(other Interval) Interval {
 	return Interval{
-		Months:  i.Months - other.Months,
-		Days:    i.Days - other.Days,
-		Seconds: i.Seconds - other.Seconds,
+		Months:   i.Months - other.Months,
+		Days:     i.Days - other.Days,
+		Duration: i.Duration - other.Duration,
 	}
 }
 
 // Negate returns the negative of an interval
 func (i Interval) Negate() Interval {
 	return Interval{
-		Months:  -i.Months,
-		Days:    -i.Days,
-		Seconds: -i.Seconds,
+		Months:   -i.Months,
+		Days:     -i.Days,
+		Duration: -i.Duration,
 	}
 }
 
 // Multiply multiplies an interval by a scalar
 func (i Interval) Multiply(factor float64) Interval {
 	// Convert everything to the smallest unit for multiplication
-	totalSeconds := float64(i.Months)*30*24*3600 + float64(i.Days)*24*3600 + i.Seconds.Seconds()
+	totalSeconds := float64(i.Months)*30*24*3600 + float64(i.Days)*24*3600 + i.Duration.Seconds()
 	totalSeconds *= factor
 
 	// Convert back to interval components
@@ -194,15 +194,15 @@ func (i Interval) Multiply(factor float64) Interval {
 	totalSeconds -= float64(days) * 24 * 3600
 
 	return Interval{
-		Months:  months,
-		Days:    days,
-		Seconds: time.Duration(totalSeconds * float64(time.Second)),
+		Months:   months,
+		Days:     days,
+		Duration: time.Duration(totalSeconds * float64(time.Second)),
 	}
 }
 
 // String returns a string representation of the interval
 func (i Interval) String() string {
-	if i.Months == 0 && i.Days == 0 && i.Seconds == 0 {
+	if i.Months == 0 && i.Days == 0 && i.Duration == 0 {
 		return "00:00:00"
 	}
 
@@ -224,10 +224,10 @@ func (i Interval) String() string {
 		parts = append(parts, fmt.Sprintf("%d days", i.Days))
 	}
 
-	if i.Seconds != 0 {
-		hours := int(i.Seconds.Hours())
-		minutes := int(i.Seconds.Minutes()) % 60
-		seconds := int(i.Seconds.Seconds()) % 60
+	if i.Duration != 0 {
+		hours := int(i.Duration.Hours())
+		minutes := int(i.Duration.Minutes()) % 60
+		seconds := int(i.Duration.Seconds()) % 60
 		if hours > 0 || minutes > 0 || seconds > 0 {
 			parts = append(parts, fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds))
 		}
@@ -249,7 +249,7 @@ func (i Interval) String() string {
 
 // IsZero returns true if the interval is zero
 func (i Interval) IsZero() bool {
-	return i.Months == 0 && i.Days == 0 && i.Seconds == 0
+	return i.Months == 0 && i.Days == 0 && i.Duration == 0
 }
 
 // NewIntervalValue creates a new INTERVAL value
@@ -275,8 +275,8 @@ func (i Interval) AddToTime(t time.Time) time.Time {
 	}
 
 	// Add seconds
-	if i.Seconds != 0 {
-		t = t.Add(i.Seconds)
+	if i.Duration != 0 {
+		t = t.Add(i.Duration)
 	}
 
 	return t
@@ -295,8 +295,8 @@ func (i Interval) SubtractFromTime(t time.Time) time.Time {
 	}
 
 	// Subtract seconds
-	if i.Seconds != 0 {
-		t = t.Add(-i.Seconds)
+	if i.Duration != 0 {
+		t = t.Add(-i.Duration)
 	}
 
 	return t
@@ -313,8 +313,8 @@ func TimeDifference(t1, t2 time.Time) Interval {
 	seconds := duration - time.Duration(days)*24*time.Hour
 
 	return Interval{
-		Months:  0, // We don't calculate months for simple differences
-		Days:    days,
-		Seconds: seconds,
+		Months:   0, // We don't calculate months for simple differences
+		Days:     days,
+		Duration: seconds,
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/dshills/QuantaDB/internal/index"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
-	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 // IndexScanOperator executes index scans to retrieve rows.
@@ -26,6 +25,7 @@ type IndexScanOperator struct {
 	position         int
 	keyEncoder       *index.KeyEncoder
 	isOpen           bool
+	scanHelper       *indexScanHelper
 }
 
 // NewIndexScanOperator creates a new index scan operator.
@@ -92,6 +92,9 @@ func (op *IndexScanOperator) Open(ctx *ExecContext) error {
 			return fmt.Errorf("failed to build predicate evaluator: %w", err)
 		}
 	}
+
+	// Create scan helper
+	op.scanHelper = newIndexScanHelper(op.storage, op.predicateEval, ctx, op.table.ID)
 
 	// Get the actual index implementation
 	var err error
@@ -170,39 +173,13 @@ func (op *IndexScanOperator) Next() (*Row, error) {
 		entry := op.entries[op.position]
 		op.position++
 
-		// Convert index entry RowID to storage RowID
-		// The index entry RowID should contain the row location
-		rowID, err := op.decodeRowID(entry.RowID)
+		// Process the index entry using the helper
+		row, skip, err := op.scanHelper.processIndexEntry(entry)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode row ID from index entry: %w", err)
+			return nil, err
 		}
-
-		// Fetch the actual row from storage
-		row, err := op.storage.GetRow(op.table.ID, rowID, op.ctx.SnapshotTS)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch row from storage: %w", err)
-		}
-
-		// Evaluate pushed predicates if any
-		if op.predicateEval != nil {
-			// Evaluate the predicate
-			result, err := op.predicateEval.Eval(row, op.ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to evaluate pushed predicate: %w", err)
-			}
-
-			// Skip this row if predicate is false or NULL
-			boolResult, err := result.AsBool()
-			if err != nil || !boolResult {
-				// Continue to next row
-				continue
-			}
-		}
-
-		// Update statistics
-		if op.ctx.Stats != nil {
-			op.ctx.Stats.RowsRead++
-			// Note: BytesRead not tracked for index scans since we don't have direct access to row size
+		if skip {
+			continue
 		}
 
 		return row, nil
@@ -243,26 +220,4 @@ func (op *IndexScanOperator) evaluateExpression(expr planner.Expression) (types.
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type in index key: %T", expr)
 	}
-}
-
-// decodeRowID converts an index entry value to a RowID.
-func (op *IndexScanOperator) decodeRowID(value []byte) (RowID, error) {
-	// For now, assume the value directly contains the RowID
-	// This is a simplified implementation - in a real system, you might need
-	// more sophisticated encoding/decoding based on your storage format
-
-	if len(value) < 6 { // PageID (4 bytes) + SlotID (2 bytes)
-		return RowID{}, fmt.Errorf("invalid row ID value length: %d", len(value))
-	}
-
-	// Decode PageID (4 bytes, little endian)
-	pageID := uint32(value[0]) | uint32(value[1])<<8 | uint32(value[2])<<16 | uint32(value[3])<<24
-
-	// Decode SlotID (2 bytes, little endian)
-	slotID := uint16(value[4]) | uint16(value[5])<<8
-
-	return RowID{
-		PageID: storage.PageID(pageID),
-		SlotID: slotID,
-	}, nil
 }

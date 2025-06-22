@@ -6,7 +6,6 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/index"
 	"github.com/dshills/QuantaDB/internal/sql/types"
-	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 // BitmapIndexScanOperator scans an index and builds a bitmap of matching row IDs.
@@ -98,7 +97,7 @@ func (op *BitmapIndexScanOperator) buildBitmap() error {
 
 	// Add all matching row IDs to the bitmap
 	for _, entry := range entries {
-		rowID, err := op.decodeRowID(entry.RowID)
+		rowID, err := decodeRowID(entry.RowID)
 		if err != nil {
 			return fmt.Errorf("failed to decode row ID: %w", err)
 		}
@@ -130,22 +129,4 @@ func (op *BitmapIndexScanOperator) Close() error {
 	op.isOpen = false
 	op.bitmap.Clear()
 	return nil
-}
-
-// decodeRowID converts an index entry row ID to an executor RowID.
-func (op *BitmapIndexScanOperator) decodeRowID(value []byte) (RowID, error) {
-	if len(value) != 6 {
-		return RowID{}, fmt.Errorf("invalid row ID length: expected 6, got %d", len(value))
-	}
-
-	// Decode PageID (4 bytes, little endian)
-	pageID := uint32(value[0]) | uint32(value[1])<<8 | uint32(value[2])<<16 | uint32(value[3])<<24
-
-	// Decode SlotID (2 bytes, little endian)
-	slotID := uint16(value[4]) | uint16(value[5])<<8
-
-	return RowID{
-		PageID: storage.PageID(pageID),
-		SlotID: slotID,
-	}, nil
 }

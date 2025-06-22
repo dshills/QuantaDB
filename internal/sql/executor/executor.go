@@ -1012,17 +1012,17 @@ func (e *BasicExecutor) buildCopyOperator(plan *planner.LogicalCopy, ctx *ExecCo
 }
 
 // buildPrepareOperator builds a PREPARE operator.
-func (e *BasicExecutor) buildPrepareOperator(plan *planner.LogicalPrepare, ctx *ExecContext) (Operator, error) {
+func (e *BasicExecutor) buildPrepareOperator(plan *planner.LogicalPrepare, _ *ExecContext) (Operator, error) {
 	return NewPrepareOperator(plan), nil
 }
 
 // buildExecuteOperator builds an EXECUTE operator.
-func (e *BasicExecutor) buildExecuteOperator(plan *planner.LogicalExecute, ctx *ExecContext) (Operator, error) {
+func (e *BasicExecutor) buildExecuteOperator(plan *planner.LogicalExecute, _ *ExecContext) (Operator, error) {
 	return NewExecuteOperator(plan), nil
 }
 
 // buildDeallocateOperator builds a DEALLOCATE operator.
-func (e *BasicExecutor) buildDeallocateOperator(plan *planner.LogicalDeallocate, ctx *ExecContext) (Operator, error) {
+func (e *BasicExecutor) buildDeallocateOperator(plan *planner.LogicalDeallocate, _ *ExecContext) (Operator, error) {
 	return NewDeallocateOperator(plan), nil
 }
 

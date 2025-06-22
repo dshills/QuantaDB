@@ -8,7 +8,6 @@ import (
 )
 
 func TestCaseExpressionIntegration(t *testing.T) {
-
 	// Test query with CASE expression
 	query := `
 		SELECT 

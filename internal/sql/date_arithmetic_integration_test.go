@@ -1,7 +1,6 @@
 package sql
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -100,12 +99,6 @@ func TestDateArithmeticIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to insert row: %v", err)
 		}
-
-		// Commit transaction
-		err = tx.Commit()
-		if err != nil {
-			t.Fatalf("Failed to commit transaction: %v", err)
-		}
 	}
 
 	// Define test queries
@@ -159,7 +152,7 @@ func TestDateArithmeticIntegration(t *testing.T) {
 					return
 				}
 				interval := rows[0].Values[0].Data.(types.Interval)
-				if interval.Days != 3 || interval.Months != 0 || interval.Seconds != 0 {
+				if interval.Days != 3 || interval.Months != 0 || interval.Duration != 0 {
 					t.Errorf("expected 3 days, got %v", interval)
 				}
 			},
@@ -191,10 +184,24 @@ func TestDateArithmeticIntegration(t *testing.T) {
 			}
 
 			// Execute query
-			rows, err := exec.Execute(plan, execCtx)
+			result, err := exec.Execute(plan, execCtx)
 			if err != nil {
 				t.Fatalf("Failed to execute query: %v", err)
 			}
+
+			// Convert result to rows
+			var rows []*executor.Row
+			for {
+				row, err := result.Next()
+				if err != nil {
+					t.Fatalf("Error getting next row: %v", err)
+				}
+				if row == nil {
+					break
+				}
+				rows = append(rows, row)
+			}
+			result.Close()
 
 			// Check row count
 			if len(rows) != test.expected {

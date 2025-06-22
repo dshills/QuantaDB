@@ -340,7 +340,7 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 		}
 
 		// Evaluate optional length
-		var length int = len(str) - start // Default to rest of string
+		length := len(str) - start // Default to rest of string
 		if e.Length != nil {
 			lengthVal, err := evaluateExpression(e.Length, ctx)
 			if err != nil {

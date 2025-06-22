@@ -52,9 +52,6 @@ func (tm *BasicTransactionManager) HandleRollback(ctx context.Context, connCtx *
 func (tm *BasicTransactionManager) EndTransaction(commit bool, tag string, connCtx *ConnectionContext) error {
 	if connCtx.CurrentTxn == nil {
 		// No transaction active - send warning but continue
-		if commit {
-			tag = "WARNING"
-		}
 		return tm.protocolHandler.SendReadyForQuery('I') // I = idle (no transaction)
 	}
 

@@ -319,177 +319,30 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		if result, ok := e.evalDateArithmetic(leftVal, rightVal, true); ok {
 			return result, nil
 		}
-
-		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
-			switch a := a.(type) {
-			case int32:
-				switch b := b.(type) {
-				case int32:
-					return a + b
-				case int64:
-					return int64(a) + b
-				case float64:
-					return float64(a) + b
-				}
-			case int64:
-				switch b := b.(type) {
-				case int32:
-					return a + int64(b)
-				case int64:
-					return a + b
-				case float64:
-					return float64(a) + b
-				}
-			case float64:
-				switch b := b.(type) {
-				case int32:
-					return a + float64(b)
-				case int64:
-					return a + float64(b)
-				case float64:
-					return a + b
-				}
-			}
-			return nil
-		})
+		return e.evalArithmetic(leftVal, rightVal, e.createArithmeticOp(func(a, b int32) interface{} { return a + b },
+			func(a, b int64) interface{} { return a + b },
+			func(a, b float64) interface{} { return a + b }))
 
 	case planner.OpSubtract:
 		// Check for date/interval arithmetic first
 		if result, ok := e.evalDateArithmetic(leftVal, rightVal, false); ok {
 			return result, nil
 		}
-
-		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
-			switch a := a.(type) {
-			case int32:
-				switch b := b.(type) {
-				case int32:
-					return a - b
-				case int64:
-					return int64(a) - b
-				case float64:
-					return float64(a) - b
-				}
-			case int64:
-				switch b := b.(type) {
-				case int32:
-					return a - int64(b)
-				case int64:
-					return a - b
-				case float64:
-					return float64(a) - b
-				}
-			case float64:
-				switch b := b.(type) {
-				case int32:
-					return a - float64(b)
-				case int64:
-					return a - float64(b)
-				case float64:
-					return a - b
-				}
-			}
-			return nil
-		})
+		return e.evalArithmetic(leftVal, rightVal, e.createArithmeticOp(func(a, b int32) interface{} { return a - b },
+			func(a, b int64) interface{} { return a - b },
+			func(a, b float64) interface{} { return a - b }))
 
 	case planner.OpMultiply:
-		// Check for interval * scalar
-		if interval, ok := leftVal.Data.(types.Interval); ok {
-			var factor float64
-			switch v := rightVal.Data.(type) {
-			case int32:
-				factor = float64(v)
-			case int64:
-				factor = float64(v)
-			case float64:
-				factor = v
-			default:
-				return types.NewNullValue(), fmt.Errorf("interval can only be multiplied by a number")
-			}
-			return types.NewValue(interval.Multiply(factor)), nil
+		// Check for interval multiplication (interval * scalar or scalar * interval)
+		if result, ok := e.evalIntervalMultiply(leftVal, rightVal); ok {
+			return result, nil
 		}
-		// Check for scalar * interval (commutative)
-		if interval, ok := rightVal.Data.(types.Interval); ok {
-			var factor float64
-			switch v := leftVal.Data.(type) {
-			case int32:
-				factor = float64(v)
-			case int64:
-				factor = float64(v)
-			case float64:
-				factor = v
-			default:
-				return types.NewNullValue(), fmt.Errorf("interval can only be multiplied by a number")
-			}
-			return types.NewValue(interval.Multiply(factor)), nil
-		}
-
-		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
-			switch a := a.(type) {
-			case int32:
-				switch b := b.(type) {
-				case int32:
-					return a * b
-				case int64:
-					return int64(a) * b
-				case float64:
-					return float64(a) * b
-				}
-			case int64:
-				switch b := b.(type) {
-				case int32:
-					return a * int64(b)
-				case int64:
-					return a * b
-				case float64:
-					return float64(a) * b
-				}
-			case float64:
-				switch b := b.(type) {
-				case int32:
-					return a * float64(b)
-				case int64:
-					return a * float64(b)
-				case float64:
-					return a * b
-				}
-			}
-			return nil
-		})
+		return e.evalArithmetic(leftVal, rightVal, e.createArithmeticOp(func(a, b int32) interface{} { return a * b },
+			func(a, b int64) interface{} { return a * b },
+			func(a, b float64) interface{} { return a * b }))
 
 	case planner.OpDivide:
-		return e.evalArithmetic(leftVal, rightVal, func(a, b interface{}) interface{} {
-			switch a := a.(type) {
-			case int64:
-				switch b := b.(type) {
-				case int64:
-					if b == 0 {
-						return nil // Division by zero returns NULL per SQL standard
-					}
-					// Integer division promotes to float for consistency with SQL
-					return float64(a) / float64(b)
-				case float64:
-					if b == 0 {
-						return nil // Division by zero returns NULL per SQL standard
-					}
-					return float64(a) / b
-				}
-			case float64:
-				switch b := b.(type) {
-				case int64:
-					if b == 0 {
-						return nil // Division by zero returns NULL per SQL standard
-					}
-					return a / float64(b)
-				case float64:
-					if b == 0 {
-						return nil // Division by zero returns NULL per SQL standard
-					}
-					return a / b
-				}
-			}
-			return nil
-		})
+		return e.evalArithmetic(leftVal, rightVal, e.createDivisionOp())
 
 	// Comparison operators
 	case planner.OpEqual:
@@ -573,6 +426,132 @@ func (e *binaryOpEvaluator) evalArithmetic(left, right types.Value, op func(a, b
 		return types.NewNullValue(), fmt.Errorf("type mismatch in arithmetic operation")
 	}
 	return types.NewValue(result), nil
+}
+
+// createArithmeticOp creates a generic arithmetic operation function that handles type conversions.
+// It takes type-specific operation functions for int32, int64, and float64.
+func (e *binaryOpEvaluator) createArithmeticOp(
+	int32Op func(a, b int32) interface{},
+	int64Op func(a, b int64) interface{},
+	float64Op func(a, b float64) interface{},
+) func(a, b interface{}) interface{} {
+	return func(a, b interface{}) interface{} {
+		switch a := a.(type) {
+		case int32:
+			switch b := b.(type) {
+			case int32:
+				return int32Op(a, b)
+			case int64:
+				return int64Op(int64(a), b)
+			case float64:
+				return float64Op(float64(a), b)
+			}
+		case int64:
+			switch b := b.(type) {
+			case int32:
+				return int64Op(a, int64(b))
+			case int64:
+				return int64Op(a, b)
+			case float64:
+				return float64Op(float64(a), b)
+			}
+		case float64:
+			switch b := b.(type) {
+			case int32:
+				return float64Op(a, float64(b))
+			case int64:
+				return float64Op(a, float64(b))
+			case float64:
+				return float64Op(a, b)
+			}
+		}
+		return nil
+	}
+}
+
+// createDivisionOp creates a division operation function that handles type conversions and division by zero.
+// Division always promotes to float64 for consistency with SQL standards.
+func (e *binaryOpEvaluator) createDivisionOp() func(a, b interface{}) interface{} {
+	return func(a, b interface{}) interface{} {
+		// Convert both operands to float64
+		var dividend, divisor float64
+		var ok bool
+
+		switch v := a.(type) {
+		case int32:
+			dividend = float64(v)
+			ok = true
+		case int64:
+			dividend = float64(v)
+			ok = true
+		case float64:
+			dividend = v
+			ok = true
+		}
+		if !ok {
+			return nil
+		}
+
+		switch v := b.(type) {
+		case int32:
+			divisor = float64(v)
+			ok = true
+		case int64:
+			divisor = float64(v)
+			ok = true
+		case float64:
+			divisor = v
+			ok = true
+		}
+		if !ok {
+			return nil
+		}
+
+		// Check for division by zero
+		if divisor == 0 {
+			return nil // Division by zero returns NULL per SQL standard
+		}
+
+		return dividend / divisor
+	}
+}
+
+// evalIntervalMultiply handles interval multiplication operations.
+// Returns (result, true) if this is an interval multiplication, (nil, false) otherwise.
+func (e *binaryOpEvaluator) evalIntervalMultiply(left, right types.Value) (types.Value, bool) {
+	// Helper function to extract numeric factor
+	extractFactor := func(val types.Value) (float64, bool) {
+		switch v := val.Data.(type) {
+		case int32:
+			return float64(v), true
+		case int64:
+			return float64(v), true
+		case float64:
+			return v, true
+		default:
+			return 0, false
+		}
+	}
+
+	// Check for interval * scalar
+	if interval, ok := left.Data.(types.Interval); ok {
+		if factor, ok := extractFactor(right); ok {
+			return types.NewValue(interval.Multiply(factor)), true
+		}
+		// Return error wrapped in Value to maintain interface consistency
+		return types.NewNullValue(), true
+	}
+
+	// Check for scalar * interval (commutative)
+	if interval, ok := right.Data.(types.Interval); ok {
+		if factor, ok := extractFactor(left); ok {
+			return types.NewValue(interval.Multiply(factor)), true
+		}
+		// Return error wrapped in Value to maintain interface consistency
+		return types.NewNullValue(), true
+	}
+
+	return types.Value{}, false
 }
 
 // evalDateArithmetic evaluates date/time arithmetic operations.
@@ -1132,7 +1111,7 @@ func (e *substringEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, erro
 	}
 
 	// Evaluate optional length
-	var length int = len(str) - start // Default to rest of string
+	length := len(str) - start // Default to rest of string
 	if e.lengthEval != nil {
 		lengthVal, err := e.lengthEval.Eval(row, ctx)
 		if err != nil {

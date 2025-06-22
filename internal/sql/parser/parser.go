@@ -988,9 +988,7 @@ func (p *Parser) parseAlterTableAdd(tableName string) (*AlterTableStmt, error) {
 	}
 
 	// COLUMN keyword is optional
-	if p.match(TokenColumn) {
-		// Column keyword consumed
-	}
+	p.match(TokenColumn) // Consume if present
 
 	// Parse column definition
 	columnDef, err := p.parseColumnDef()
@@ -2593,7 +2591,7 @@ func (p *Parser) parseIntervalString(s string) (types.Interval, error) {
 				if err != nil {
 					return types.Interval{}, fmt.Errorf("invalid time format: %s", parts[i])
 				}
-				interval.Seconds = duration
+				interval.Duration = duration
 				i++
 				continue
 			}
@@ -2621,11 +2619,11 @@ func (p *Parser) parseIntervalString(s string) (types.Interval, error) {
 		case "day":
 			interval.Days += int32(num)
 		case "hour":
-			interval.Seconds += time.Duration(num) * time.Hour
+			interval.Duration += time.Duration(num) * time.Hour
 		case "minute":
-			interval.Seconds += time.Duration(num) * time.Minute
+			interval.Duration += time.Duration(num) * time.Minute
 		case "second":
-			interval.Seconds += time.Duration(num) * time.Second
+			interval.Duration += time.Duration(num) * time.Second
 		default:
 			return types.Interval{}, fmt.Errorf("unknown interval unit: %s", unit)
 		}

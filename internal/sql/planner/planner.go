@@ -176,14 +176,13 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 	}
 
 	// Check if we have aggregates in the SELECT clause
-	aggregates, nonAggregates, aliases, err := p.extractAggregates(stmt.Columns)
+	aggregates, nonAggregates, _, err := p.extractAggregates(stmt.Columns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process select columns: %w", err)
 	}
 
 	// Handle GROUP BY and aggregates
 	if len(stmt.GroupBy) > 0 || len(aggregates) > 0 {
-
 		// Convert GROUP BY expressions if present
 		var groupByExprs []Expression
 		if len(stmt.GroupBy) > 0 {
@@ -198,7 +197,7 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 		}
 
 		// Build aggregate schema
-		aggSchema := p.buildAggregateSchema(groupByExprs, aggregates, nonAggregates, aliases)
+		aggSchema := p.buildAggregateSchema(groupByExprs, aggregates)
 
 		// Create aggregate node
 		plan = NewLogicalAggregate(plan, groupByExprs, aggregates, aggSchema)
@@ -926,7 +925,7 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 
 		// Convert WHEN clauses
 		var whenList []WhenClause
-		var resultType types.DataType = types.Unknown
+		resultType := types.Unknown
 
 		for i, when := range e.WhenList {
 			condition, err := p.convertExpression(when.Condition)
@@ -1159,7 +1158,7 @@ func (p *BasicPlanner) extractAggregates(columns []parser.SelectColumn) ([]Aggre
 }
 
 // buildAggregateSchema builds the output schema for an aggregate operation.
-func (p *BasicPlanner) buildAggregateSchema(groupBy []Expression, aggregates []AggregateExpr, nonAggregates []Expression, aliases []string) *Schema {
+func (p *BasicPlanner) buildAggregateSchema(groupBy []Expression, aggregates []AggregateExpr) *Schema {
 	columns := make([]Column, 0, len(groupBy)+len(aggregates))
 
 	// Add GROUP BY columns
