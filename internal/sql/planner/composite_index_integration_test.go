@@ -241,6 +241,15 @@ func (mc *MockCatalog) DropIndex(schemaName, tableName, indexName string) error 
 	return nil
 }
 
+// Column operations (added for ALTER TABLE support)
+func (mc *MockCatalog) AddColumn(schemaName, tableName string, column catalog.ColumnDef) error {
+	return nil
+}
+
+func (mc *MockCatalog) DropColumn(schemaName, tableName, columnName string) error {
+	return nil
+}
+
 func (mc *MockCatalog) UpdateTableStats(schemaName, tableName string) error {
 	return nil
 }

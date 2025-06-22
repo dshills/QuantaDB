@@ -49,22 +49,43 @@ func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
 
 // Optimize applies all optimization rules to a plan until no more changes occur.
 func (o *Optimizer) Optimize(plan LogicalPlan) LogicalPlan {
-	maxIterations := 100 // Prevent infinite loops
+	maxIterations := 20 // Allow more iterations for complex queries
+	
+	var prevPlanStr string
+	var seenPlans = make(map[string]bool) // Track seen plan structures to detect cycles
 
 	for i := 0; i < maxIterations; i++ {
+		currentPlanStr := plan.String()
+		
+		// Check if we've seen this exact plan structure before (cycle detection)
+		if seenPlans[currentPlanStr] {
+			break
+		}
+		seenPlans[currentPlanStr] = true
+		
 		changed := false
 
 		for _, rule := range o.rules {
 			newPlan, applied := rule.Apply(plan)
 			if applied {
-				plan = newPlan
-				changed = true
+				// Double-check that the plan actually changed meaningfully
+				if newPlan.String() != plan.String() {
+					plan = newPlan
+					changed = true
+				}
 			}
 		}
 
+		// Additional check: if plan string is the same as previous iteration, stop
+		if currentPlanStr == prevPlanStr {
+			break
+		}
+		
 		if !changed {
 			break
 		}
+		
+		prevPlanStr = currentPlanStr
 	}
 
 	return plan
