@@ -673,3 +673,140 @@ func (p *LogicalCopy) Children() []Plan {
 
 // logicalNode marks this as a logical plan node
 func (p *LogicalCopy) logicalNode() {}
+
+// LogicalPrepare represents a PREPARE statement execution
+type LogicalPrepare struct {
+	basePlan
+	StatementName string
+	ParamTypes    []types.DataType
+	Query         parser.Statement
+}
+
+// NewLogicalPrepare creates a new PREPARE plan node
+func NewLogicalPrepare(name string, paramTypes []types.DataType, query parser.Statement) *LogicalPrepare {
+	return &LogicalPrepare{
+		basePlan:      basePlan{},
+		StatementName: name,
+		ParamTypes:    paramTypes,
+		Query:         query,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalPrepare) Type() string {
+	return "Prepare"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalPrepare) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalPrepare) String() string {
+	return fmt.Sprintf("Prepare(%s)", p.StatementName)
+}
+
+// Children returns child plans (none for PREPARE)
+func (p *LogicalPrepare) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalPrepare) logicalNode() {}
+
+// LogicalExecute represents an EXECUTE statement execution
+type LogicalExecute struct {
+	basePlan
+	StatementName string
+	Params        []parser.Expression
+}
+
+// NewLogicalExecute creates a new EXECUTE plan node
+func NewLogicalExecute(name string, params []parser.Expression) *LogicalExecute {
+	return &LogicalExecute{
+		basePlan:      basePlan{},
+		StatementName: name,
+		Params:        params,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalExecute) Type() string {
+	return "Execute"
+}
+
+// Schema returns the output schema (depends on prepared statement)
+func (p *LogicalExecute) Schema() *Schema {
+	// The actual schema will be determined at execution time
+	// based on the prepared statement being executed
+	return &Schema{
+		Columns: []Column{},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalExecute) String() string {
+	return fmt.Sprintf("Execute(%s)", p.StatementName)
+}
+
+// Children returns child plans (none for EXECUTE)
+func (p *LogicalExecute) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalExecute) logicalNode() {}
+
+// LogicalDeallocate represents a DEALLOCATE statement execution
+type LogicalDeallocate struct {
+	basePlan
+	StatementName string
+}
+
+// NewLogicalDeallocate creates a new DEALLOCATE plan node
+func NewLogicalDeallocate(name string) *LogicalDeallocate {
+	return &LogicalDeallocate{
+		basePlan:      basePlan{},
+		StatementName: name,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalDeallocate) Type() string {
+	return "Deallocate"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalDeallocate) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalDeallocate) String() string {
+	return fmt.Sprintf("Deallocate(%s)", p.StatementName)
+}
+
+// Children returns child plans (none for DEALLOCATE)
+func (p *LogicalDeallocate) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalDeallocate) logicalNode() {}

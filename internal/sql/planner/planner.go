@@ -85,6 +85,12 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 		return p.planVacuum(s)
 	case *parser.CopyStmt:
 		return p.planCopy(s)
+	case *parser.PrepareStmt:
+		return p.planPrepare(s)
+	case *parser.ExecuteStmt:
+		return p.planExecute(s)
+	case *parser.DeallocateStmt:
+		return p.planDeallocate(s)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}
@@ -1308,4 +1314,36 @@ func (p *BasicPlanner) planTableRef(ref *parser.TableRef) (LogicalPlan, error) {
 		alias = ref.TableName
 	}
 	return NewLogicalScan(ref.TableName, alias, schema), nil
+}
+
+// planPrepare converts a PREPARE statement to a logical plan.
+func (p *BasicPlanner) planPrepare(stmt *parser.PrepareStmt) (LogicalPlan, error) {
+	// Validate that the statement name is not empty
+	if stmt.Name == "" {
+		return nil, fmt.Errorf("prepared statement name cannot be empty")
+	}
+	
+	// The query inside the PREPARE statement will be parsed and planned
+	// when the prepared statement is executed
+	return NewLogicalPrepare(stmt.Name, stmt.ParamTypes, stmt.Query), nil
+}
+
+// planExecute converts an EXECUTE statement to a logical plan.
+func (p *BasicPlanner) planExecute(stmt *parser.ExecuteStmt) (LogicalPlan, error) {
+	// Validate that the statement name is not empty
+	if stmt.Name == "" {
+		return nil, fmt.Errorf("statement name cannot be empty")
+	}
+	
+	return NewLogicalExecute(stmt.Name, stmt.Params), nil
+}
+
+// planDeallocate converts a DEALLOCATE statement to a logical plan.
+func (p *BasicPlanner) planDeallocate(stmt *parser.DeallocateStmt) (LogicalPlan, error) {
+	// Validate that the statement name is not empty
+	if stmt.Name == "" {
+		return nil, fmt.Errorf("statement name cannot be empty")
+	}
+	
+	return NewLogicalDeallocate(stmt.Name), nil
 }

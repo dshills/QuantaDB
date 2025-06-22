@@ -66,6 +66,9 @@ const (
 	TokenFormat
 	TokenCsv
 	TokenBinary
+	TokenPrepare
+	TokenExecute
+	TokenDeallocate
 
 	// Data types.
 	TokenInteger
@@ -188,6 +191,9 @@ var tokenStrings = map[TokenType]string{
 	TokenFormat:       "FORMAT",
 	TokenCsv:          "CSV",
 	TokenBinary:       "BINARY",
+	TokenPrepare:      "PREPARE",
+	TokenExecute:      "EXECUTE",
+	TokenDeallocate:   "DEALLOCATE",
 	TokenInteger:      "INTEGER",
 	TokenBigint:       "BIGINT",
 	TokenSmallint:     "SMALLINT",
@@ -348,6 +354,9 @@ var keywords = map[string]TokenType{
 	"FORMAT":    TokenFormat,
 	"CSV":       TokenCsv,
 	"BINARY":    TokenBinary,
+	"PREPARE":   TokenPrepare,
+	"EXECUTE":   TokenExecute,
+	"DEALLOCATE": TokenDeallocate,
 	"CASE":      TokenCase,
 	"WHEN":      TokenWhen,
 	"THEN":      TokenThen,

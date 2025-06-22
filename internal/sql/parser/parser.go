@@ -99,6 +99,12 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseVacuum()
 	case TokenCopy:
 		return p.parseCopy()
+	case TokenPrepare:
+		return p.parsePrepare()
+	case TokenExecute:
+		return p.parseExecute()
+	case TokenDeallocate:
+		return p.parseDeallocate()
 	default:
 		return nil, p.error(fmt.Sprintf("unexpected statement start: %s", p.current))
 	}
@@ -1068,6 +1074,117 @@ func (p *Parser) parseIdentifierList() ([]string, error) {
 	}
 	
 	return identifiers, nil
+}
+
+// parsePrepare parses a PREPARE statement.
+// Syntax: PREPARE name [(type1, type2, ...)] AS statement
+func (p *Parser) parsePrepare() (*PrepareStmt, error) {
+	if !p.consume(TokenPrepare, "expected PREPARE") {
+		return nil, p.lastError()
+	}
+	
+	// Get statement name
+	name := p.current.Value
+	if !p.consume(TokenIdentifier, "expected statement name") {
+		return nil, p.lastError()
+	}
+	
+	stmt := &PrepareStmt{
+		Name: name,
+	}
+	
+	// Optional parameter type list
+	if p.match(TokenLeftParen) {
+		for {
+			dataType, err := p.parseDataType()
+			if err != nil {
+				return nil, err
+			}
+			stmt.ParamTypes = append(stmt.ParamTypes, dataType)
+			
+			if !p.match(TokenComma) {
+				break
+			}
+		}
+		
+		if !p.consume(TokenRightParen, "expected ) after parameter types") {
+			return nil, p.lastError()
+		}
+	}
+	
+	// AS keyword
+	if !p.consume(TokenAs, "expected AS") {
+		return nil, p.lastError()
+	}
+	
+	// Parse the statement to prepare
+	query, err := p.parseStatement()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Query = query
+	
+	return stmt, nil
+}
+
+// parseExecute parses an EXECUTE statement.
+// Syntax: EXECUTE name [(param1, param2, ...)]
+func (p *Parser) parseExecute() (*ExecuteStmt, error) {
+	if !p.consume(TokenExecute, "expected EXECUTE") {
+		return nil, p.lastError()
+	}
+	
+	// Get statement name
+	name := p.current.Value
+	if !p.consume(TokenIdentifier, "expected statement name") {
+		return nil, p.lastError()
+	}
+	
+	stmt := &ExecuteStmt{
+		Name: name,
+	}
+	
+	// Optional parameter list
+	if p.match(TokenLeftParen) {
+		for {
+			param, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			stmt.Params = append(stmt.Params, param)
+			
+			if !p.match(TokenComma) {
+				break
+			}
+		}
+		
+		if !p.consume(TokenRightParen, "expected ) after parameters") {
+			return nil, p.lastError()
+		}
+	}
+	
+	return stmt, nil
+}
+
+// parseDeallocate parses a DEALLOCATE statement.
+// Syntax: DEALLOCATE [PREPARE] name
+func (p *Parser) parseDeallocate() (*DeallocateStmt, error) {
+	if !p.consume(TokenDeallocate, "expected DEALLOCATE") {
+		return nil, p.lastError()
+	}
+	
+	// Optional PREPARE keyword
+	p.match(TokenPrepare)
+	
+	// Get statement name
+	name := p.current.Value
+	if !p.consume(TokenIdentifier, "expected statement name") {
+		return nil, p.lastError()
+	}
+	
+	return &DeallocateStmt{
+		Name: name,
+	}, nil
 }
 
 // parseCreateIndex parses a CREATE INDEX statement.

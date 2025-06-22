@@ -6,6 +6,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/index"
+	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 	"github.com/dshills/QuantaDB/internal/txn"
@@ -44,6 +45,10 @@ type ExecContext struct {
 	Params []types.Value
 	// Statistics collector
 	Stats *ExecStats
+	// Prepared statements for SQL-level PREPARE/EXECUTE
+	PreparedStatements map[string]*PreparedStatement
+	// Planner for re-planning queries
+	Planner planner.Planner
 }
 
 // Row represents a row of data.
@@ -69,6 +74,14 @@ type ExecStats struct {
 	RowsReturned   int64
 	BytesRead      int64
 	IndexOnlyScans int64
+}
+
+// PreparedStatement represents a prepared SQL statement for SQL-level PREPARE/EXECUTE.
+// This is different from the protocol-level prepared statements in the sql package.
+type PreparedStatement struct {
+	Name       string
+	ParamTypes []types.DataType
+	Query      parser.Statement
 }
 
 // BasicExecutor is a basic query executor.
@@ -185,6 +198,12 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildBitmapHeapScanOperator(p, ctx)
 	case *planner.LogicalCopy:
 		return e.buildCopyOperator(p, ctx)
+	case *planner.LogicalPrepare:
+		return e.buildPrepareOperator(p, ctx)
+	case *planner.LogicalExecute:
+		return e.buildExecuteOperator(p, ctx)
+	case *planner.LogicalDeallocate:
+		return e.buildDeallocateOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -912,6 +931,21 @@ func (e *BasicExecutor) buildCopyOperator(plan *planner.LogicalCopy, ctx *ExecCo
 	}
 	
 	return NewCopyOperator(plan, ctx.Catalog, e.storage, ctx.TxnManager), nil
+}
+
+// buildPrepareOperator builds a PREPARE operator.
+func (e *BasicExecutor) buildPrepareOperator(plan *planner.LogicalPrepare, ctx *ExecContext) (Operator, error) {
+	return NewPrepareOperator(plan), nil
+}
+
+// buildExecuteOperator builds an EXECUTE operator.
+func (e *BasicExecutor) buildExecuteOperator(plan *planner.LogicalExecute, ctx *ExecContext) (Operator, error) {
+	return NewExecuteOperator(plan), nil
+}
+
+// buildDeallocateOperator builds a DEALLOCATE operator.
+func (e *BasicExecutor) buildDeallocateOperator(plan *planner.LogicalDeallocate, ctx *ExecContext) (Operator, error) {
+	return NewDeallocateOperator(plan), nil
 }
 
 // convertSchema converts a planner schema to executor schema.

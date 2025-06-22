@@ -682,3 +682,61 @@ type WhenClause struct {
 func (w WhenClause) String() string {
 	return fmt.Sprintf("WHEN %s THEN %s", w.Condition.String(), w.Result.String())
 }
+
+// PrepareStmt represents a PREPARE statement.
+// Example: PREPARE stmt_name [(type1, type2, ...)] AS SELECT ...
+type PrepareStmt struct {
+	Name       string            // Statement name
+	ParamTypes []types.DataType  // Optional parameter type list
+	Query      Statement         // The statement to prepare
+}
+
+func (s *PrepareStmt) statementNode() {}
+func (s *PrepareStmt) String() string {
+	var parts []string
+	parts = append(parts, "PREPARE", s.Name)
+	
+	if len(s.ParamTypes) > 0 {
+		var types []string
+		for _, t := range s.ParamTypes {
+			types = append(types, t.Name())
+		}
+		parts = append(parts, "("+strings.Join(types, ", ")+")")
+	}
+	
+	parts = append(parts, "AS", s.Query.String())
+	return strings.Join(parts, " ")
+}
+
+// ExecuteStmt represents an EXECUTE statement.
+// Example: EXECUTE stmt_name (param1, param2, ...)
+type ExecuteStmt struct {
+	Name   string       // Statement name
+	Params []Expression // Parameter values
+}
+
+func (s *ExecuteStmt) statementNode() {}
+func (s *ExecuteStmt) String() string {
+	parts := []string{"EXECUTE", s.Name}
+	
+	if len(s.Params) > 0 {
+		var params []string
+		for _, p := range s.Params {
+			params = append(params, p.String())
+		}
+		parts = append(parts, "("+strings.Join(params, ", ")+")")
+	}
+	
+	return strings.Join(parts, " ")
+}
+
+// DeallocateStmt represents a DEALLOCATE statement.
+// Example: DEALLOCATE [PREPARE] stmt_name
+type DeallocateStmt struct {
+	Name string // Statement name
+}
+
+func (s *DeallocateStmt) statementNode() {}
+func (s *DeallocateStmt) String() string {
+	return fmt.Sprintf("DEALLOCATE %s", s.Name)
+}
