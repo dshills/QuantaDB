@@ -312,6 +312,19 @@ func (p *Parser) parseDataType() (types.DataType, error) {
 		}
 		// Default DECIMAL
 		return types.Decimal(10, 0), nil
+	case TokenFloat:
+		p.advance()
+		return types.Float, nil
+	case TokenReal:
+		p.advance()
+		return types.Float, nil // REAL is an alias for FLOAT
+	case TokenDouble:
+		p.advance()
+		// Check for PRECISION keyword
+		if p.current.Type == TokenPrecision {
+			p.advance()
+		}
+		return types.Double, nil
 	default:
 		return nil, p.error(fmt.Sprintf("expected data type, got %s", p.current))
 	}

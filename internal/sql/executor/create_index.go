@@ -10,17 +10,18 @@ import (
 
 // CreateIndexOperator executes CREATE INDEX statements.
 type CreateIndexOperator struct {
-	indexName  string
-	tableName  string
-	schemaName string
-	columns    []string
-	unique     bool
-	indexType  string
-	catalog    catalog.Catalog
-	storage    StorageBackend
-	indexMgr   *index.Manager
-	executed   bool
-	schema     *Schema
+	indexName      string
+	tableName      string
+	schemaName     string
+	columns        []string
+	unique         bool
+	indexType      string
+	catalog        catalog.Catalog
+	storage        StorageBackend
+	indexMgr       *index.Manager
+	executed       bool
+	resultReturned bool
+	schema         *Schema
 }
 
 // NewCreateIndexOperator creates a new CREATE INDEX operator.
@@ -157,26 +158,28 @@ func (c *CreateIndexOperator) Next() (*Row, error) {
 		return nil, fmt.Errorf("CREATE INDEX not executed")
 	}
 
-	// Return result once
-	if c.executed {
-		c.executed = false // Ensure we only return once
-
-		result := fmt.Sprintf("Index '%s' created on table '%s.%s'",
-			c.indexName, c.schemaName, c.tableName)
-
-		return &Row{
-			Values: []types.Value{
-				types.NewTextValue(result),
-			},
-		}, nil
+	// Check if we already returned the result
+	if c.resultReturned {
+		return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 	}
 
-	return nil, nil // nolint:nilnil // EOF - standard iterator pattern
+	// Mark result as returned
+	c.resultReturned = true
+
+	result := fmt.Sprintf("Index '%s' created on table '%s.%s'",
+		c.indexName, c.schemaName, c.tableName)
+
+	return &Row{
+		Values: []types.Value{
+			types.NewTextValue(result),
+		},
+	}, nil
 }
 
 // Close cleans up after CREATE INDEX
 func (c *CreateIndexOperator) Close() error {
 	c.executed = false
+	c.resultReturned = false
 	return nil
 }
 

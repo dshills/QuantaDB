@@ -727,12 +727,27 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 		// Build expression evaluator for the argument
 		var argEval ExprEvaluator
 		if len(aggExpr.Args) > 0 {
-			argEval, err = buildExprEvaluatorWithExecutor(aggExpr.Args[0], childSchema, e)
-			if err != nil {
-				return nil, fmt.Errorf("failed to build aggregate argument %d: %w", i, err)
+			// Check if this is COUNT(*)
+			if funcName == "COUNT" {
+				if _, isStar := aggExpr.Args[0].(*planner.Star); isStar {
+					// For COUNT(*), use a literal 1
+					argEval = &literalEvaluator{value: types.NewValue(int64(1))}
+				} else {
+					// COUNT(expr)
+					argEval, err = buildExprEvaluatorWithExecutor(aggExpr.Args[0], childSchema, e)
+					if err != nil {
+						return nil, fmt.Errorf("failed to build aggregate argument %d: %w", i, err)
+					}
+				}
+			} else {
+				// Other aggregate functions
+				argEval, err = buildExprEvaluatorWithExecutor(aggExpr.Args[0], childSchema, e)
+				if err != nil {
+					return nil, fmt.Errorf("failed to build aggregate argument %d: %w", i, err)
+				}
 			}
 		} else {
-			// For COUNT(*), use a literal 1
+			// No arguments - shouldn't happen for standard aggregates
 			argEval = &literalEvaluator{value: types.NewValue(int64(1))}
 		}
 

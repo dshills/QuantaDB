@@ -36,6 +36,7 @@ type Server struct {
 	catalog    catalog.Catalog
 	engine     engine.Engine
 	storage    executor.StorageBackend
+	indexMgr   interface{} // Index manager interface
 	txnManager *txn.Manager
 	tsService  *txn.TimestampService
 	logger     log.Logger
@@ -144,6 +145,11 @@ func (s *Server) SetStorageBackend(storage executor.StorageBackend) {
 	s.storage = storage
 }
 
+// SetIndexManager sets the index manager for the server
+func (s *Server) SetIndexManager(indexMgr interface{}) {
+	s.indexMgr = indexMgr
+}
+
 // Start starts the server
 func (s *Server) Start(ctx context.Context) error {
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
@@ -246,6 +252,7 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 		catalog:    s.catalog,
 		engine:     s.engine,
 		storage:    s.storage,
+		indexMgr:   s.indexMgr,
 		txnManager: s.txnManager,
 		tsService:  s.tsService,
 		logger:     s.logger.With("conn_id", connID),

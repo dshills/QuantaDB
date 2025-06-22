@@ -192,11 +192,16 @@
 ## Phase 6: Data Types & Advanced Features (Next)
 
 ### Data Types
-- [ ] **NUMERIC/DECIMAL**: Arbitrary precision decimal numbers
-- [ ] **REAL/DOUBLE PRECISION**: Floating point types
-- [ ] **DATE/TIME/TIMESTAMP**: Proper date/time handling
-- [ ] **BOOLEAN**: True/false values
-- [ ] **TEXT**: Variable-length strings without limit
+- [x] **NUMERIC/DECIMAL**: Arbitrary precision decimal numbers (already implemented with big.Rat)
+- [x] **REAL/DOUBLE PRECISION**: Floating point types
+  - Added FLOAT (32-bit) and DOUBLE PRECISION (64-bit) data types
+  - Parser support for FLOAT, REAL (alias), and DOUBLE PRECISION
+  - Complete DataType interface implementation with serialization
+  - Type conversion methods AsFloat() and AsDouble()
+  - Comprehensive test coverage
+- [x] **DATE/TIME/TIMESTAMP**: Proper date/time handling (already implemented)
+- [x] **BOOLEAN**: True/false values (already implemented)
+- [x] **TEXT**: Variable-length strings without limit (already implemented)
 - [ ] **BYTEA**: Binary data type
 
 ## Phase 7: Performance & Benchmarking

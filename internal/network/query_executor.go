@@ -78,6 +78,9 @@ func (qe *BasicQueryExecutor) HandleQuery(ctx context.Context, msg *protocol.Mes
 	// Create executor
 	exec := executor.NewBasicExecutor(connCtx.Catalog, connCtx.Engine)
 	exec.SetStorageBackend(connCtx.Storage)
+	if connCtx.IndexMgr != nil {
+		exec.SetIndexManager(connCtx.IndexMgr)
+	}
 
 	// Create execution context
 	execCtx := &executor.ExecContext{

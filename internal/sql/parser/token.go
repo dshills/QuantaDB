@@ -93,6 +93,10 @@ const (
 	TokenDate
 	TokenDecimal
 	TokenInterval
+	TokenFloat
+	TokenDouble
+	TokenReal
+	TokenPrecision
 
 	// Functions and date parts
 	TokenExtract
@@ -225,6 +229,10 @@ var tokenStrings = map[TokenType]string{
 	TokenDate:         "DATE",
 	TokenDecimal:      "DECIMAL",
 	TokenInterval:     "INTERVAL",
+	TokenFloat:        "FLOAT",
+	TokenDouble:       "DOUBLE",
+	TokenReal:         "REAL",
+	TokenPrecision:    "PRECISION",
 	TokenExtract:      "EXTRACT",
 	TokenYear:         "YEAR",
 	TokenMonth:        "MONTH",
@@ -377,6 +385,10 @@ var keywords = map[string]TokenType{
 	"PREPARE":   TokenPrepare,
 	"EXECUTE":   TokenExecute,
 	"DEALLOCATE": TokenDeallocate,
+	"FLOAT":     TokenFloat,
+	"DOUBLE":    TokenDouble,
+	"REAL":      TokenReal,
+	"PRECISION": TokenPrecision,
 	"FOREIGN":   TokenForeign,
 	"REFERENCES": TokenReferences,
 	"CHECK":     TokenCheck,

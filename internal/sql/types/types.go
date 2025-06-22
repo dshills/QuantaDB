@@ -114,6 +114,10 @@ func (v Value) Type() DataType {
 		return Text
 	case bool:
 		return Boolean
+	case float32:
+		return Float
+	case float64:
+		return Double
 	default:
 		return Unknown
 	}
@@ -183,6 +187,15 @@ func CompareValues(a, b Value) int {
 			}
 			return 0
 		}
+	case float32:
+		if v2, ok := b.Data.(float32); ok {
+			if v1 < v2 {
+				return -1
+			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		}
 	case float64:
 		if v2, ok := b.Data.(float64); ok {
 			if v1 < v2 {
@@ -219,6 +232,8 @@ var (
 	Date         DataType
 	Decimal      func(precision, scale int) DataType
 	IntervalType DataType
+	Float        DataType
+	Double       DataType
 )
 
 // TypeID represents the internal ID of a data type
@@ -236,6 +251,8 @@ const (
 	TypeIDTimestamp
 	TypeIDDate
 	TypeIDDecimal
+	TypeIDFloat
+	TypeIDDouble
 )
 
 // Column represents a column definition
@@ -319,4 +336,46 @@ type DecimalValue struct {
 	Value     string
 	Precision int
 	Scale     int
+}
+
+// AsFloat returns the value as a float32
+func (v Value) AsFloat() (float32, error) {
+	if v.Null {
+		return 0, fmt.Errorf("cannot convert NULL to float")
+	}
+	switch val := v.Data.(type) {
+	case float32:
+		return val, nil
+	case float64:
+		return float32(val), nil
+	case int32:
+		return float32(val), nil
+	case int64:
+		return float32(val), nil
+	case int16:
+		return float32(val), nil
+	default:
+		return 0, fmt.Errorf("cannot convert %T to float", v.Data)
+	}
+}
+
+// AsDouble returns the value as a float64
+func (v Value) AsDouble() (float64, error) {
+	if v.Null {
+		return 0, fmt.Errorf("cannot convert NULL to double")
+	}
+	switch val := v.Data.(type) {
+	case float64:
+		return val, nil
+	case float32:
+		return float64(val), nil
+	case int32:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case int16:
+		return float64(val), nil
+	default:
+		return 0, fmt.Errorf("cannot convert %T to double", v.Data)
+	}
 }

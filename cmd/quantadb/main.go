@@ -12,6 +12,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/config"
 	"github.com/dshills/QuantaDB/internal/engine"
+	"github.com/dshills/QuantaDB/internal/index"
 	"github.com/dshills/QuantaDB/internal/log"
 	"github.com/dshills/QuantaDB/internal/network"
 	"github.com/dshills/QuantaDB/internal/sql/executor"
@@ -123,12 +124,16 @@ func main() {
 	// Create MVCC storage backend
 	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, walManager, txnManager)
 
+	// Create index manager
+	indexMgr := index.NewManager(cat)
+
 	// Configure server
 	networkConfig := cfg.ToNetworkConfig()
 
 	// Create and start server
 	server := network.NewServerWithTxnManager(networkConfig, cat, eng, txnManager, logger)
 	server.SetStorageBackend(storageBackend)
+	server.SetIndexManager(indexMgr)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

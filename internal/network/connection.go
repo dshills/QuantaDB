@@ -54,6 +54,7 @@ type Connection struct {
 	catalog    catalog.Catalog
 	engine     engine.Engine
 	storage    executor.StorageBackend
+	indexMgr   interface{} // Index manager interface
 	txnManager *txn.Manager
 	tsService  *txn.TimestampService
 	logger     log.Logger
@@ -451,6 +452,9 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	exec := executor.NewBasicExecutor(c.catalog, c.engine)
 	if c.storage != nil {
 		exec.SetStorageBackend(c.storage)
+	}
+	if c.indexMgr != nil {
+		exec.SetIndexManager(c.indexMgr)
 	}
 	execCtx := &executor.ExecContext{
 		Catalog:        c.catalog,
@@ -995,6 +999,9 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 	exec := executor.NewBasicExecutor(c.catalog, c.engine)
 	if c.storage != nil {
 		exec.SetStorageBackend(c.storage)
+	}
+	if c.indexMgr != nil {
+		exec.SetIndexManager(c.indexMgr)
 	}
 	execCtx := &executor.ExecContext{
 		Catalog:        c.catalog,

@@ -18,6 +18,7 @@ type ConnectionContext struct {
 	Catalog         catalog.Catalog
 	Engine          engine.Engine
 	Storage         executor.StorageBackend
+	IndexMgr        interface{} // Index manager interface
 	TxnManager      *txn.Manager
 	TimestampService *txn.TimestampService
 	Params          map[string]string
