@@ -80,9 +80,41 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 		return nil, fmt.Errorf("star expression not supported in this context")
 
 	case *planner.FunctionCall:
-		// For non-aggregate functions, we would handle them here
-		// For now, return an error as we only support aggregate functions
-		return nil, fmt.Errorf("non-aggregate function calls not yet supported: %s", e.Name)
+		// Handle specific functions
+		switch e.Name {
+		case "SUBSTRING":
+			// SUBSTRING has 2 or 3 arguments: string, start [, length]
+			if len(e.Args) < 2 || len(e.Args) > 3 {
+				return nil, fmt.Errorf("SUBSTRING requires 2 or 3 arguments")
+			}
+			
+			strEval, err := buildExprEvaluatorWithExecutor(e.Args[0], schema, executor)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build string evaluator for SUBSTRING: %w", err)
+			}
+			
+			startEval, err := buildExprEvaluatorWithExecutor(e.Args[1], schema, executor)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build start evaluator for SUBSTRING: %w", err)
+			}
+			
+			var lengthEval ExprEvaluator
+			if len(e.Args) == 3 && e.Args[2] != nil {
+				lengthEval, err = buildExprEvaluatorWithExecutor(e.Args[2], schema, executor)
+				if err != nil {
+					return nil, fmt.Errorf("failed to build length evaluator for SUBSTRING: %w", err)
+				}
+			}
+			
+			return &substringEvaluator{
+				strEval:    strEval,
+				startEval:  startEval,
+				lengthEval: lengthEval,
+			}, nil
+			
+		default:
+			return nil, fmt.Errorf("unsupported function: %s", e.Name)
+		}
 
 	case *planner.ExtractExpr:
 		// Build evaluator for the FROM expression
@@ -1021,6 +1053,103 @@ func (e *extractEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error)
 	}
 
 	return types.NewValue(result), nil
+}
+
+// substringEvaluator evaluates SUBSTRING expressions.
+type substringEvaluator struct {
+	strEval    ExprEvaluator // The string to extract from
+	startEval  ExprEvaluator // The start position (1-based)
+	lengthEval ExprEvaluator // Optional length
+}
+
+func (e *substringEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// Evaluate the string expression
+	strVal, err := e.strEval.Eval(row, ctx)
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	if strVal.IsNull() {
+		return types.NewNullValue(), nil
+	}
+
+	// Get the string value
+	str, ok := strVal.Data.(string)
+	if !ok {
+		return types.NewNullValue(), fmt.Errorf("SUBSTRING requires string value, got %T", strVal.Data)
+	}
+
+	// Evaluate the start position
+	startVal, err := e.startEval.Eval(row, ctx)
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	if startVal.IsNull() {
+		return types.NewNullValue(), nil
+	}
+
+	// Get start position (1-based in SQL)
+	var start int
+	switch v := startVal.Data.(type) {
+	case int32:
+		start = int(v)
+	case int64:
+		start = int(v)
+	default:
+		return types.NewNullValue(), fmt.Errorf("SUBSTRING start position must be an integer, got %T", startVal.Data)
+	}
+
+	// Convert to 0-based indexing
+	if start > 0 {
+		start--
+	} else if start < 0 {
+		// Negative start means from end of string
+		start = len(str) + start + 1
+	} else {
+		// SQL standard: start position 0 is treated as 1
+		start = 0
+	}
+
+	// Ensure start is within bounds
+	if start < 0 {
+		start = 0
+	}
+	if start >= len(str) {
+		return types.NewValue(""), nil
+	}
+
+	// Evaluate optional length
+	var length int = len(str) - start // Default to rest of string
+	if e.lengthEval != nil {
+		lengthVal, err := e.lengthEval.Eval(row, ctx)
+		if err != nil {
+			return types.NewNullValue(), err
+		}
+
+		if !lengthVal.IsNull() {
+			switch v := lengthVal.Data.(type) {
+			case int32:
+				length = int(v)
+			case int64:
+				length = int(v)
+			default:
+				return types.NewNullValue(), fmt.Errorf("SUBSTRING length must be an integer, got %T", lengthVal.Data)
+			}
+
+			if length < 0 {
+				return types.NewNullValue(), fmt.Errorf("SUBSTRING length cannot be negative")
+			}
+		}
+	}
+
+	// Extract substring
+	end := start + length
+	if end > len(str) {
+		end = len(str)
+	}
+
+	return types.NewValue(str[start:end]), nil
 }
 
 // caseWhenEvaluator holds evaluators for a WHEN clause.

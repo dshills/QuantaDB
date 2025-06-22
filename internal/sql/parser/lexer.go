@@ -80,6 +80,11 @@ func (l *Lexer) NextToken() Token {
 			return l.consumeChars(TokenNotEqual, 2)
 		}
 		return l.makeToken(TokenError, "unexpected character '!'")
+	case '|':
+		if l.peekNext() == '|' {
+			return l.consumeChars(TokenConcat, 2)
+		}
+		return l.makeToken(TokenError, "unexpected character '|'")
 	case '\'':
 		return l.readString()
 	case '"':

@@ -40,6 +40,7 @@ const (
 	TokenLimit
 	TokenOffset
 	TokenAs
+	TokenFor
 	TokenDrop
 	TokenAlter
 	TokenAdd
@@ -79,6 +80,7 @@ const (
 	TokenHour
 	TokenMinute
 	TokenSecond
+	TokenSubstring
 
 	// Operators
 	TokenPlus
@@ -119,6 +121,7 @@ const (
 	TokenComma
 	TokenSemicolon
 	TokenDot
+	TokenConcat // || operator
 )
 
 var tokenStrings = map[TokenType]string{
@@ -151,6 +154,7 @@ var tokenStrings = map[TokenType]string{
 	TokenLimit:        "LIMIT",
 	TokenOffset:       "OFFSET",
 	TokenAs:           "AS",
+	TokenFor:          "FOR",
 	TokenDrop:         "DROP",
 	TokenAlter:        "ALTER",
 	TokenAdd:          "ADD",
@@ -186,6 +190,7 @@ var tokenStrings = map[TokenType]string{
 	TokenHour:         "HOUR",
 	TokenMinute:       "MINUTE",
 	TokenSecond:       "SECOND",
+	TokenSubstring:    "SUBSTRING",
 	TokenPlus:         "+",
 	TokenMinus:        "-",
 	TokenStar:         "*",
@@ -220,6 +225,7 @@ var tokenStrings = map[TokenType]string{
 	TokenComma:        ",",
 	TokenSemicolon:    ";",
 	TokenDot:          ".",
+	TokenConcat:       "||",
 }
 
 // String returns the string representation of a token type.
@@ -270,6 +276,7 @@ var keywords = map[string]TokenType{
 	"LIMIT":     TokenLimit,
 	"OFFSET":    TokenOffset,
 	"AS":        TokenAs,
+	"FOR":       TokenFor,
 	"DROP":      TokenDrop,
 	"ALTER":     TokenAlter,
 	"ADD":       TokenAdd,
@@ -306,6 +313,7 @@ var keywords = map[string]TokenType{
 	"HOUR":      TokenHour,
 	"MINUTE":    TokenMinute,
 	"SECOND":    TokenSecond,
+	"SUBSTRING": TokenSubstring,
 	"TRUE":      TokenTrue,
 	"FALSE":     TokenFalse,
 	"NULL":      TokenNull,

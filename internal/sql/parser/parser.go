@@ -1055,7 +1055,7 @@ func (p *Parser) parseNot() (Expression, error) {
 
 // parseComparison parses comparison expressions.
 func (p *Parser) parseComparison() (Expression, error) {
-	expr, err := p.parseTerm()
+	expr, err := p.parseConcat()
 	if err != nil {
 		return nil, err
 	}
@@ -1063,7 +1063,7 @@ func (p *Parser) parseComparison() (Expression, error) {
 	// Handle comparison operators
 	if p.matchAny(TokenEqual, TokenNotEqual, TokenLess, TokenLessEqual, TokenGreater, TokenGreaterEqual) {
 		op := p.previous.Type
-		right, err := p.parseTerm()
+		right, err := p.parseConcat()
 		if err != nil {
 			return nil, err
 		}
@@ -1076,7 +1076,7 @@ func (p *Parser) parseComparison() (Expression, error) {
 
 	// Handle LIKE
 	if p.match(TokenLike) {
-		right, err := p.parseTerm()
+		right, err := p.parseConcat()
 		if err != nil {
 			return nil, err
 		}
@@ -1166,6 +1166,28 @@ func (p *Parser) parseComparison() (Expression, error) {
 			Expr: expr,
 			Not:  notNull,
 		}, nil
+	}
+
+	return expr, nil
+}
+
+// parseConcat parses string concatenation (||).
+func (p *Parser) parseConcat() (Expression, error) {
+	expr, err := p.parseTerm()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(TokenConcat) {
+		right, err := p.parseConcat()
+		if err != nil {
+			return nil, err
+		}
+		expr = &BinaryExpr{
+			Left:     expr,
+			Operator: TokenConcat,
+			Right:    right,
+		}
 	}
 
 	return expr, nil
@@ -1320,6 +1342,49 @@ func (p *Parser) parsePrimary() (Expression, error) {
 			return nil, p.error(fmt.Sprintf("invalid interval literal: %v", err))
 		}
 		return &Literal{Value: types.NewIntervalValue(intervalValue)}, nil
+
+	case TokenSubstring:
+		// Handle SUBSTRING(string FROM start [FOR length])
+		p.advance() // consume 'SUBSTRING'
+		
+		if !p.consume(TokenLeftParen, "expected '(' after SUBSTRING") {
+			return nil, p.lastError()
+		}
+		
+		// Parse the string expression
+		strExpr, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		
+		if !p.consume(TokenFrom, "expected 'FROM' in SUBSTRING expression") {
+			return nil, p.lastError()
+		}
+		
+		// Parse the start position
+		startExpr, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		
+		// Optional FOR length
+		var lengthExpr Expression
+		if p.match(TokenFor) {
+			lengthExpr, err = p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+		}
+		
+		if !p.consume(TokenRightParen, "expected ')' after SUBSTRING expression") {
+			return nil, p.lastError()
+		}
+		
+		return &SubstringExpr{
+			Str:    strExpr,
+			Start:  startExpr,
+			Length: lengthExpr,
+		}, nil
 
 	case TokenExtract:
 		// Handle EXTRACT(field FROM expression)

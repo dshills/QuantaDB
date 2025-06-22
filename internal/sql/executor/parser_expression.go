@@ -50,6 +50,13 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 			return types.Value{}, err
 		}
 
+		// Handle NULL values in binary operations
+		if left.IsNull() || right.IsNull() {
+			// For most operators, NULL with anything returns NULL
+			// Exception: IS NULL, IS NOT NULL (but those aren't handled here)
+			return types.NewNullValue(), nil
+		}
+
 		// Handle comparison operators
 		switch e.Operator {
 		case parser.TokenEqual:
@@ -139,6 +146,19 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 				}
 			}
 			return types.Value{}, fmt.Errorf("type mismatch in division")
+		case parser.TokenConcat:
+			// Handle string concatenation (||)
+			// SQL standard: NULL || anything = NULL
+			if left.IsNull() || right.IsNull() {
+				return types.NewNullValue(), nil
+			}
+			
+			leftStr, ok1 := left.Data.(string)
+			rightStr, ok2 := right.Data.(string)
+			if !ok1 || !ok2 {
+				return types.Value{}, fmt.Errorf("|| requires string operands")
+			}
+			return types.NewValue(leftStr + rightStr), nil
 		default:
 			return types.Value{}, fmt.Errorf("unsupported binary operator: %v", e.Operator)
 		}
@@ -263,6 +283,93 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 
 		// Return NULL if no ELSE clause
 		return types.NullValue(types.Unknown), nil
+
+	case *parser.SubstringExpr:
+		// Evaluate SUBSTRING expression
+		strVal, err := evaluateExpression(e.Str, ctx)
+		if err != nil {
+			return types.Value{}, err
+		}
+
+		if strVal.IsNull() {
+			return types.NewNullValue(), nil
+		}
+
+		str, ok := strVal.Data.(string)
+		if !ok {
+			return types.Value{}, fmt.Errorf("SUBSTRING requires string value, got %T", strVal.Data)
+		}
+
+		// Evaluate start position
+		startVal, err := evaluateExpression(e.Start, ctx)
+		if err != nil {
+			return types.Value{}, err
+		}
+
+		if startVal.IsNull() {
+			return types.NewNullValue(), nil
+		}
+
+		var start int
+		switch v := startVal.Data.(type) {
+		case int64:
+			start = int(v)
+		case float64:
+			start = int(v)
+		default:
+			return types.Value{}, fmt.Errorf("SUBSTRING start position must be numeric, got %T", startVal.Data)
+		}
+
+		// Convert to 0-based indexing (SQL uses 1-based)
+		if start > 0 {
+			start--
+		} else if start < 0 {
+			// Negative start means from end of string
+			start = len(str) + start + 1
+		} else {
+			// SQL standard: start position 0 is treated as 1
+			start = 0
+		}
+
+		// Ensure start is within bounds
+		if start < 0 {
+			start = 0
+		}
+		if start >= len(str) {
+			return types.NewValue(""), nil
+		}
+
+		// Evaluate optional length
+		var length int = len(str) - start // Default to rest of string
+		if e.Length != nil {
+			lengthVal, err := evaluateExpression(e.Length, ctx)
+			if err != nil {
+				return types.Value{}, err
+			}
+
+			if !lengthVal.IsNull() {
+				switch v := lengthVal.Data.(type) {
+				case int64:
+					length = int(v)
+				case float64:
+					length = int(v)
+				default:
+					return types.Value{}, fmt.Errorf("SUBSTRING length must be numeric, got %T", lengthVal.Data)
+				}
+
+				if length < 0 {
+					return types.Value{}, fmt.Errorf("SUBSTRING length cannot be negative")
+				}
+			}
+		}
+
+		// Extract substring
+		end := start + length
+		if end > len(str) {
+			end = len(str)
+		}
+
+		return types.NewValue(str[start:end]), nil
 
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type: %T", expr)

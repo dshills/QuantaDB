@@ -542,6 +542,21 @@ func (e *ExtractExpr) String() string {
 	return fmt.Sprintf("EXTRACT(%s FROM %s)", e.Field, e.From.String())
 }
 
+// SubstringExpr represents a SUBSTRING function call.
+type SubstringExpr struct {
+	Str    Expression
+	Start  Expression
+	Length Expression // Can be nil
+}
+
+func (e *SubstringExpr) expressionNode() {}
+func (e *SubstringExpr) String() string {
+	if e.Length != nil {
+		return fmt.Sprintf("SUBSTRING(%s FROM %s FOR %s)", e.Str.String(), e.Start.String(), e.Length.String())
+	}
+	return fmt.Sprintf("SUBSTRING(%s FROM %s)", e.Str.String(), e.Start.String())
+}
+
 // AnalyzeStmt represents an ANALYZE statement.
 type AnalyzeStmt struct {
 	TableName string

@@ -572,6 +572,34 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			Type:  types.Integer,
 		}, nil
 
+	case *parser.SubstringExpr:
+		// Convert the string expression
+		strExpr, err := p.convertExpression(e.Str)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert SUBSTRING string expression: %w", err)
+		}
+
+		// Convert the start expression
+		startExpr, err := p.convertExpression(e.Start)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert SUBSTRING start expression: %w", err)
+		}
+
+		// Convert the optional length expression
+		var lengthExpr Expression
+		if e.Length != nil {
+			lengthExpr, err = p.convertExpression(e.Length)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert SUBSTRING length expression: %w", err)
+			}
+		}
+
+		return &FunctionCall{
+			Name: "SUBSTRING",
+			Args: []Expression{strExpr, startExpr, lengthExpr},
+			Type: types.Text,
+		}, nil
+
 	case *parser.BinaryExpr:
 		left, err := p.convertExpression(e.Left)
 		if err != nil {
@@ -883,6 +911,8 @@ func (p *BasicPlanner) convertBinaryOp(op parser.TokenType) (BinaryOperator, err
 		return OpAnd, nil
 	case parser.TokenOr:
 		return OpOr, nil
+	case parser.TokenConcat:
+		return OpConcat, nil
 	default:
 		return 0, fmt.Errorf("unsupported binary operator: %v", op)
 	}

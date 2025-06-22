@@ -56,6 +56,16 @@
   - Interval + Interval operations
   - Interval * Scalar multiplication
   - Comprehensive test coverage for all operations
+- [x] **String Functions**: String concatenation and SUBSTRING
+  - String concatenation operator (||) with proper NULL handling
+  - SUBSTRING(string FROM start [FOR length]) function
+  - Parser support with TokenConcat and SubstringExpr AST node
+  - Planner conversion of SubstringExpr to FunctionCall
+  - Executor substringEvaluator implementation
+  - Support for 1-based indexing per SQL standard
+  - Proper handling of edge cases (negative positions, excessive lengths)
+  - Integration with parser_expression.go for testing
+  - Comprehensive test coverage including NULL handling
 
 ### JOIN Support (COMPLETED)
 - [x] **JOIN Syntax**: Full implementation of SQL JOIN operations
@@ -87,7 +97,7 @@
 - [x] **ORDER BY**: Implement multi-column ordering with ASC/DESC (COMPLETED - was already implemented)
 - [x] **Date Literals**: Support for date 'YYYY-MM-DD' syntax (COMPLETED)
 - [x] **EXTRACT Function**: Support EXTRACT(field FROM date/timestamp) for YEAR, MONTH, DAY, HOUR, MINUTE, SECOND (COMPLETED)
-- [ ] **String Functions**: SUBSTRING, string concatenation (||)
+- [x] **String Functions**: SUBSTRING, string concatenation (||) (COMPLETED)
 - [x] **CASE Expressions**: Implement CASE WHEN for conditional logic (COMPLETED)
 - [ ] **IN/NOT IN**: Support for value lists and subqueries
 - [ ] **EXISTS/NOT EXISTS**: Correlated subquery support
