@@ -1697,15 +1697,21 @@ func (p *Parser) parseInExpression(expr Expression, not bool) (Expression, error
 
 	// Otherwise, parse value list
 	var values []Expression
-	for {
-		val, err := p.parseExpression()
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, val)
+	
+	// Handle empty list case
+	if p.check(TokenRightParen) {
+		// Empty list is valid in SQL
+	} else {
+		for {
+			val, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, val)
 
-		if !p.match(TokenComma) {
-			break
+			if !p.match(TokenComma) {
+				break
+			}
 		}
 	}
 

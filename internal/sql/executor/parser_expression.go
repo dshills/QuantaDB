@@ -371,6 +371,70 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 
 		return types.NewValue(str[start:end]), nil
 
+	case *parser.InExpr:
+		// Evaluate IN/NOT IN expression
+		exprVal, err := evaluateExpression(e.Expr, ctx)
+		if err != nil {
+			return types.Value{}, err
+		}
+
+		// Handle NULL on left side
+		if exprVal.IsNull() {
+			return types.NewNullValue(), nil
+		}
+
+		// Handle subquery case
+		if e.Subquery != nil {
+			// Subquery evaluation in parser expressions requires the full
+			// planner-executor pipeline. This path is typically not used
+			// in production as queries go through the planner first.
+			return types.Value{}, fmt.Errorf("subquery evaluation not supported in direct parser expression evaluation")
+		}
+
+		// Handle value list case
+		var found bool
+		var hasNull bool
+
+		for _, valueExpr := range e.Values {
+			valueVal, err := evaluateExpression(valueExpr, ctx)
+			if err != nil {
+				return types.Value{}, err
+			}
+
+			if valueVal.IsNull() {
+				hasNull = true
+				continue
+			}
+
+			// Compare values
+			if types.CompareValues(exprVal, valueVal) == 0 {
+				found = true
+				break
+			}
+		}
+
+		// SQL semantics for IN/NOT IN with NULLs:
+		// - expr IN (list): TRUE if found, NULL if not found but list contains NULL, FALSE otherwise
+		// - expr NOT IN (list): FALSE if found, NULL if not found but list contains NULL, TRUE otherwise
+
+		if found {
+			if e.Not {
+				return types.NewValue(false), nil // Found but we want NOT IN
+			} else {
+				return types.NewValue(true), nil // Found and we want IN
+			}
+		} else {
+			if hasNull {
+				return types.NewNullValue(), nil // Not found but NULL present
+			} else {
+				if e.Not {
+					return types.NewValue(true), nil // Not found and we want NOT IN
+				} else {
+					return types.NewValue(false), nil // Not found and we want IN
+				}
+			}
+		}
+
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type: %T", expr)
 	}

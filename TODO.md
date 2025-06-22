@@ -66,6 +66,16 @@
   - Proper handling of edge cases (negative positions, excessive lengths)
   - Integration with parser_expression.go for testing
   - Comprehensive test coverage including NULL handling
+- [x] **IN/NOT IN Expressions**: Value lists and subquery support  
+  - Parser support for IN (value_list) and IN (subquery) syntax
+  - Planner conversion from parser.InExpr to planner.InExpr with complete convertExpression support
+  - Executor evaluation with proper SQL NULL semantics
+  - Support for empty IN lists (always evaluates to false)
+  - Value list evaluation: comparison with proper type handling
+  - Subquery evaluation through existing inSubqueryEvaluator and inValuesEvaluator
+  - Proper NULL handling: NULL IN anything = NULL, correct three-valued logic
+  - Integration with parser_expression.go for direct expression evaluation
+  - Comprehensive test coverage for all cases including edge cases
 
 ### JOIN Support (COMPLETED)
 - [x] **JOIN Syntax**: Full implementation of SQL JOIN operations
@@ -99,7 +109,7 @@
 - [x] **EXTRACT Function**: Support EXTRACT(field FROM date/timestamp) for YEAR, MONTH, DAY, HOUR, MINUTE, SECOND (COMPLETED)
 - [x] **String Functions**: SUBSTRING, string concatenation (||) (COMPLETED)
 - [x] **CASE Expressions**: Implement CASE WHEN for conditional logic (COMPLETED)
-- [ ] **IN/NOT IN**: Support for value lists and subqueries
+- [x] **IN/NOT IN**: Support for value lists and subqueries (COMPLETED)
 - [ ] **EXISTS/NOT EXISTS**: Correlated subquery support
 
 ### Protocol & Client Compatibility
