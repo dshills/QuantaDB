@@ -27,6 +27,13 @@
 
 ## Recently Completed ✓
 
+### Bug Fixes & Improvements
+- [x] **INSERT Parameter Support**: Fixed INSERT operator to support parameter references ($1, $2, etc.)
+  - Added handling for ParameterRef expressions in addition to literals
+  - Created evaluation context with parameter values from ExecContext
+  - Enables prepared statements with INSERT to work correctly
+  - Note: Full expression support (functions, operators) still pending
+
 ### Phase 4: Query Transformation Enhancements (COMPLETED)
 - [x] **Subquery Planning**: Basic scalar subquery support in planner
 - [x] **Subquery Execution**: SubqueryOperator with result caching

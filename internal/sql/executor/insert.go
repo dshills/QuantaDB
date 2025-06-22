@@ -56,6 +56,17 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 		return fmt.Errorf("no values to insert")
 	}
 
+	// Create evaluation context once for parameter evaluation
+	var evalCtx *evalContext
+	if ctx.Params != nil && len(ctx.Params) > 0 {
+		// Convert []*catalog.Column to []catalog.Column
+		columns := make([]catalog.Column, len(i.table.Columns))
+		for colIdx, col := range i.table.Columns {
+			columns[colIdx] = *col
+		}
+		evalCtx = newEvalContext(nil, columns, ctx.Params)
+	}
+
 	// Insert each row
 	for _, valueList := range i.values {
 		// Validate column count
@@ -70,14 +81,29 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 		}
 
 		for idx, expr := range valueList {
-			// For INSERT, we only support literal values for now
-			literal, ok := expr.(*parser.Literal)
-			if !ok {
-				return fmt.Errorf("INSERT only supports literal values, got %T for column %d", expr, idx)
+			var value types.Value
+			
+			// Handle different expression types
+			switch e := expr.(type) {
+			case *parser.Literal:
+				// Use the literal value directly
+				value = e.Value
+			case *parser.ParameterRef:
+				// Handle parameter references ($1, $2, etc.)
+				if evalCtx == nil {
+					return fmt.Errorf("no parameters available for parameter $%d", e.Index)
+				}
+				evalResult, err := evaluateExpression(e, evalCtx)
+				if err != nil {
+					return fmt.Errorf("failed to evaluate parameter $%d for column %d: %w", e.Index, idx, err)
+				}
+				value = evalResult
+			default:
+				// For other expression types, we need to evaluate them
+				// This could include function calls, operators, etc.
+				// For now, we'll return an error for unsupported types
+				return fmt.Errorf("INSERT only supports literal values and parameters, got %T for column %d", expr, idx)
 			}
-
-			// Use the literal value directly
-			value := literal.Value
 
 			// Type check against column
 			col := i.table.Columns[idx]

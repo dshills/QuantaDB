@@ -41,10 +41,7 @@ func evaluateComparison(left types.Value, op parser.TokenType, right types.Value
 		return types.NullValue(types.Boolean), nil
 	}
 
-	cmp, err := left.Compare(right)
-	if err != nil {
-		return types.NullValue(types.Boolean), err
-	}
+	cmp := types.CompareValues(left, right)
 
 	var result bool
 	switch op {

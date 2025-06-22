@@ -200,11 +200,7 @@ func (cv *SimpleConstraintValidator) checkReferencingTables(table *catalog.Table
 		return err
 	}
 
-	for _, tableName := range tables {
-		refTable, err := cv.catalog.GetTable(table.SchemaName, tableName)
-		if err != nil {
-			continue
-		}
+	for _, refTable := range tables {
 		
 		// Check each constraint in the referencing table
 		for _, constraint := range refTable.Constraints {
@@ -285,7 +281,7 @@ func valuesEqual(v1, v2 types.Value) bool {
 	}
 	
 	// Type check
-	if v1.Type != v2.Type {
+	if v1.Type() != v2.Type() {
 		return false
 	}
 	
