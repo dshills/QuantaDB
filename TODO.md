@@ -194,7 +194,7 @@
   - Full index scan optimization infrastructure in planner (IndexScan, CompositeIndexScan, IndexOnlyScan)
   - Complete executor support for all index scan types
   - Cost-based optimization for index selection
-  - NOTE: Index usage optimization blocked by planner bug creating infinite LogicalProject loops
+  - NOTE: Index usage optimization now available (planner bug fixed)
 - [ ] **Foreign Keys**: Referential integrity constraints
 - [ ] **CHECK Constraints**: Custom validation rules
 
@@ -216,11 +216,38 @@
 
 ## Technical Debt & Architecture Improvements
 
+### Recently Completed ✓
+- [x] **Planner Bug Fix**: Fixed infinite loop creating nested LogicalProject nodes that prevented index optimization
+  - Added cycle detection and improved convergence checking in optimizer
+  - Reduced plan depth from 103 to 3 through proper optimization termination
+  - Enhanced optimizer with plan structure tracking to prevent infinite loops
+- [x] **Connection Refactoring**: Refactored 900+ line Connection struct into smaller components
+  - Broke down into 6 specialized components with clear separation of concerns
+  - ProtocolHandler: Low-level message routing and network operations  
+  - AuthenticationHandler: Connection startup and authentication
+  - QueryExecutor: SQL query processing through parser/planner/executor
+  - TransactionManager: Transaction lifecycle management  
+  - ExtendedQueryHandler: Parse/Bind/Execute protocol support
+  - ResultFormatter: Converting results to PostgreSQL wire format
+  - Created RefactoredConnection with proper component wiring
+  - Maintained all existing functionality while improving code organization
+- [x] **SSL/TLS Support**: Implemented SSL/TLS for secure connections
+  - Added SSL configuration to server Config struct
+  - Implemented certificate loading and custom TLS config support
+  - Created handleSSLUpgrade with proper SSL request detection
+  - Support for both SSL-enabled and SSL-disabled connections
+  - Added comprehensive SSL tests with certificate generation
+  - Maintained backward compatibility with existing non-SSL connections
+- [x] **Authentication System**: Implemented proper authentication instead of accepting all connections
+  - Support for multiple auth methods: "none", "password", "md5"
+  - UserStore interface for pluggable user credential storage
+  - InMemoryUserStore implementation with thread-safe operations
+  - MD5 password hashing following PostgreSQL specification
+  - Proper salt generation and challenge-response authentication
+  - Enhanced server configuration with AuthMethod and UserStore
+  - Complete PostgreSQL protocol compliance for authentication flow
+
 ### High Priority
-- [ ] **Planner Bug Fix**: Fix infinite loop creating nested LogicalProject nodes that prevents index optimization
-- [ ] **Connection Refactoring**: Refactor 900+ line Connection struct into smaller components (see docs/planning/connection-refactor-plan.md)
-- [ ] **SSL/TLS Support**: Implement SSL/TLS for secure connections
-- [ ] **Authentication System**: Implement proper authentication instead of accepting all connections
 - [ ] **Error Handling**: Replace string-based error matching in connection.go with proper error types
 
 ### Medium Priority
