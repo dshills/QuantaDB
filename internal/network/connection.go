@@ -587,7 +587,18 @@ func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) 
 	if c.server.config.WriteTimeout > 0 {
 		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
 	}
+	
+	// Check if result is nil
+	if result == nil {
+		c.logger.Debug("Result is nil, returning early")
+		return nil
+	}
+	
 	schema := result.Schema()
+	if schema == nil {
+		c.logger.Debug("Schema is nil, returning early")
+		return nil
+	}
 	c.logger.Debug("Got schema", "columns", len(schema.Columns))
 
 	// Send row description
