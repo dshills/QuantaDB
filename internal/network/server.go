@@ -2,7 +2,10 @@ package network
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -11,6 +14,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/log"
+	"github.com/dshills/QuantaDB/internal/network/protocol"
 	"github.com/dshills/QuantaDB/internal/sql/executor"
 	"github.com/dshills/QuantaDB/internal/txn"
 )
@@ -41,6 +45,13 @@ type Config struct {
 	MaxConnections int
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
+	
+	// SSL/TLS configuration
+	EnableSSL    bool
+	TLSConfig    *tls.Config
+	CertFile     string
+	KeyFile      string
+	RequireSSL   bool  // If true, reject non-SSL connections
 }
 
 // DefaultConfig returns default server configuration
@@ -51,6 +62,8 @@ func DefaultConfig() Config {
 		MaxConnections: 100,
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
+		EnableSSL:      false,
+		RequireSSL:     false,
 	}
 }
 
@@ -82,6 +95,32 @@ func NewServerWithTxnManager(config Config, cat catalog.Catalog, eng engine.Engi
 		connections: make(map[uint32]*Connection),
 		shutdown:    make(chan struct{}),
 	}
+}
+
+// ConfigureSSL configures SSL/TLS for the server using certificate files
+func (s *Server) ConfigureSSL(certFile, keyFile string) error {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return fmt.Errorf("failed to load SSL certificate: %w", err)
+	}
+	
+	s.config.TLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ServerName:   s.config.Host,
+	}
+	s.config.EnableSSL = true
+	s.config.CertFile = certFile
+	s.config.KeyFile = keyFile
+	
+	s.logger.Info("SSL/TLS configured", "cert_file", certFile, "key_file", keyFile)
+	return nil
+}
+
+// ConfigureSSLWithConfig configures SSL/TLS for the server using a custom TLS config
+func (s *Server) ConfigureSSLWithConfig(tlsConfig *tls.Config) {
+	s.config.TLSConfig = tlsConfig
+	s.config.EnableSSL = true
+	s.logger.Info("SSL/TLS configured with custom config")
 }
 
 // SetStorageBackend sets the storage backend for the server
@@ -215,6 +254,21 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 	conn.SetReadTimeout(s.config.ReadTimeout)
 	conn.SetWriteTimeout(s.config.WriteTimeout)
 
+	// Handle SSL upgrade if configured
+	actualConn := netConn
+	if s.config.EnableSSL {
+		sslConn, err := s.handleSSLUpgrade(netConn)
+		if err != nil {
+			s.logger.Error("SSL upgrade failed", "error", err)
+			return
+		}
+		if sslConn != nil {
+			actualConn = sslConn
+			conn.conn = actualConn  // Update connection with SSL-wrapped connection
+			s.logger.Debug("SSL connection established")
+		}
+	}
+
 	// Handle connection
 	if err := conn.Handle(ctx); err != nil {
 		conn.logger.Error("Connection error", "error", err)
@@ -222,6 +276,126 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 
 	// Close connection
 	conn.Close()
+}
+
+// handleSSLUpgrade handles the SSL request and potentially upgrades the connection to TLS
+func (s *Server) handleSSLUpgrade(conn net.Conn) (net.Conn, error) {
+	// Set a read deadline for the SSL request
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	defer conn.SetReadDeadline(time.Time{}) // Clear deadline
+	
+	// Read the first message to check if it's an SSL request
+	lengthBuf := make([]byte, 4)
+	if _, err := io.ReadFull(conn, lengthBuf); err != nil {
+		return nil, fmt.Errorf("failed to read message length: %w", err)
+	}
+	
+	length := int(binary.BigEndian.Uint32(lengthBuf))
+	if length < 4 {
+		return nil, fmt.Errorf("invalid message length: %d", length)
+	}
+	
+	// Read the message body
+	msgBuf := make([]byte, length-4)
+	if _, err := io.ReadFull(conn, msgBuf); err != nil {
+		return nil, fmt.Errorf("failed to read message body: %w", err)
+	}
+	
+	// Check if this is an SSL request
+	if length == 8 && len(msgBuf) >= 4 {
+		version := binary.BigEndian.Uint32(msgBuf[:4])
+		if version == protocol.SSLRequestCode {
+			s.logger.Debug("SSL request received")
+			
+			// Send SSL support response
+			response := byte('S') // 'S' for SSL supported
+			if s.config.RequireSSL {
+				response = 'S' // Always 'S' if we require SSL
+			}
+			
+			if _, err := conn.Write([]byte{response}); err != nil {
+				return nil, fmt.Errorf("failed to send SSL response: %w", err)
+			}
+			
+			s.logger.Debug("SSL response sent", "response", string(response))
+			
+			if response == 'S' {
+				// Upgrade to TLS
+				tlsConn := tls.Server(conn, s.config.TLSConfig)
+				
+				// Perform TLS handshake
+				if err := tlsConn.Handshake(); err != nil {
+					return nil, fmt.Errorf("TLS handshake failed: %w", err)
+				}
+				
+				s.logger.Debug("TLS handshake completed successfully")
+				return tlsConn, nil
+			}
+			
+			// Client will reconnect without SSL
+			return conn, nil
+		}
+	}
+	
+	// Not an SSL request - put the data back by creating a buffered connection
+	// We need to prepend the data we read back to the connection
+	combinedData := make([]byte, 0, len(lengthBuf)+len(msgBuf))
+	combinedData = append(combinedData, lengthBuf...)
+	combinedData = append(combinedData, msgBuf...)
+	
+	// Create a connection that has the data prepended
+	bufferedConn := &prependedConn{
+		conn:   conn,
+		prefix: combinedData,
+	}
+	
+	return bufferedConn, nil
+}
+
+// prependedConn wraps a connection and prepends some data to reads
+type prependedConn struct {
+	conn   net.Conn
+	prefix []byte
+	offset int
+}
+
+func (pc *prependedConn) Read(b []byte) (int, error) {
+	if pc.offset < len(pc.prefix) {
+		// Still reading from prefix
+		n := copy(b, pc.prefix[pc.offset:])
+		pc.offset += n
+		return n, nil
+	}
+	// Reading from underlying connection
+	return pc.conn.Read(b)
+}
+
+func (pc *prependedConn) Write(b []byte) (int, error) {
+	return pc.conn.Write(b)
+}
+
+func (pc *prependedConn) Close() error {
+	return pc.conn.Close()
+}
+
+func (pc *prependedConn) LocalAddr() net.Addr {
+	return pc.conn.LocalAddr()
+}
+
+func (pc *prependedConn) RemoteAddr() net.Addr {
+	return pc.conn.RemoteAddr()
+}
+
+func (pc *prependedConn) SetDeadline(t time.Time) error {
+	return pc.conn.SetDeadline(t)
+}
+
+func (pc *prependedConn) SetReadDeadline(t time.Time) error {
+	return pc.conn.SetReadDeadline(t)
+}
+
+func (pc *prependedConn) SetWriteDeadline(t time.Time) error {
+	return pc.conn.SetWriteDeadline(t)
 }
 
 // GetConnectionCount returns the current number of connections
