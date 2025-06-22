@@ -49,14 +49,25 @@ type aggregateGroup struct {
 
 // NewAggregateOperator creates a new aggregate operator.
 func NewAggregateOperator(child Operator, groupBy []ExprEvaluator, aggregates []AggregateExpr) *AggregateOperator {
+	return NewAggregateOperatorWithNames(child, groupBy, aggregates, nil)
+}
+
+// NewAggregateOperatorWithNames creates a new aggregate operator with explicit GROUP BY column names.
+func NewAggregateOperatorWithNames(child Operator, groupBy []ExprEvaluator, aggregates []AggregateExpr, groupByNames []string) *AggregateOperator {
 	// Build output schema
 	columns := make([]Column, 0, len(groupBy)+len(aggregates))
 
 	// Add GROUP BY columns
 	for i := range groupBy {
-		// For simplicity, name them group_0, group_1, etc.
+		var name string
+		if groupByNames != nil && i < len(groupByNames) && groupByNames[i] != "" {
+			name = groupByNames[i]
+		} else {
+			// For simplicity, name them group_0, group_1, etc.
+			name = fmt.Sprintf("group_%d", i)
+		}
 		columns = append(columns, Column{
-			Name:     fmt.Sprintf("group_%d", i),
+			Name:     name,
 			Type:     types.Unknown, // Would need to infer from expression
 			Nullable: true,
 		})
@@ -106,6 +117,10 @@ func (a *AggregateOperator) Open(ctx *ExecContext) error {
 
 // processInput reads all rows from the child and groups them.
 func (a *AggregateOperator) processInput() error {
+	if a.groups == nil {
+		return fmt.Errorf("aggregate operator groups map is nil")
+	}
+
 	for {
 		row, err := a.child.Next()
 		if err != nil {
@@ -115,9 +130,17 @@ func (a *AggregateOperator) processInput() error {
 			break // EOF
 		}
 
+		// Validate row
+		if row.Values == nil {
+			return fmt.Errorf("received row with nil values")
+		}
+
 		// Compute group key
 		groupKey := make([]types.Value, len(a.groupBy))
 		for i, expr := range a.groupBy {
+			if expr == nil {
+				return fmt.Errorf("group by expression %d is nil", i)
+			}
 			val, err := expr.Eval(row, a.ctx)
 			if err != nil {
 				return fmt.Errorf("error evaluating group by expression %d: %w", i, err)
@@ -166,21 +189,37 @@ func (a *AggregateOperator) processInput() error {
 
 // Next returns the next aggregated row.
 func (a *AggregateOperator) Next() (*Row, error) {
+	if a.groupIter == nil {
+		return nil, fmt.Errorf("group iterator is nil")
+	}
+
 	if a.iterIndex >= len(a.groupIter) {
 		return nil, nil // nolint:nilnil // EOF - this is the standard iterator pattern
 	}
 
 	group := a.groupIter[a.iterIndex]
+	if group == nil {
+		return nil, fmt.Errorf("group at index %d is nil", a.iterIndex)
+	}
+
 	a.iterIndex++
 
 	// Build result row
 	values := make([]types.Value, 0, len(a.groupBy)+len(a.aggregates))
 
 	// Add group key values
-	values = append(values, group.key...)
+	if group.key != nil {
+		values = append(values, group.key...)
+	}
 
 	// Add aggregate results
 	for i, agg := range a.aggregates {
+		if agg.Function == nil {
+			return nil, fmt.Errorf("aggregate function %d is nil", i)
+		}
+		if i >= len(group.states) {
+			return nil, fmt.Errorf("aggregate state %d missing", i)
+		}
 		result, err := agg.Function.Finalize(group.states[i])
 		if err != nil {
 			return nil, fmt.Errorf("error finalizing aggregate %d: %w", i, err)
@@ -188,7 +227,7 @@ func (a *AggregateOperator) Next() (*Row, error) {
 		values = append(values, result)
 	}
 
-	if a.ctx.Stats != nil {
+	if a.ctx != nil && a.ctx.Stats != nil {
 		a.ctx.Stats.RowsReturned++
 	}
 

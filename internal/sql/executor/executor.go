@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
@@ -141,9 +142,21 @@ func (e *BasicExecutor) Execute(plan planner.Plan, ctx *ExecContext) (Result, er
 	}
 
 	// Return a result wrapper
+	// Preserve operator schema if plan schema conversion fails
+	schema := convertSchema(plan.Schema())
+	if schema == nil {
+		schema = operator.Schema()
+	}
+
+	// Special handling for aggregate operators: prefer their schema over plan schema
+	// because they have correctly resolved column names
+	if _, isAggregate := operator.(*AggregateOperator); isAggregate {
+		schema = operator.Schema()
+	}
+
 	return &operatorResult{
 		operator: operator,
-		schema:   convertSchema(plan.Schema()),
+		schema:   schema,
 	}, nil
 }
 
@@ -373,7 +386,21 @@ func (e *BasicExecutor) buildProjectOperator(plan *planner.LogicalProject, ctx *
 	// Build projection evaluators
 	projections := make([]ExprEvaluator, len(plan.Projections))
 	childSchema := child.Schema()
-	for i, expr := range plan.Projections {
+
+	// Special handling for aggregate children: remap group_X column references
+	// to actual column names from the aggregate schema
+	var remappedProjections []planner.Expression
+	if _, isAggregate := child.(*AggregateOperator); isAggregate {
+		remappedProjections = make([]planner.Expression, len(plan.Projections))
+		for i, expr := range plan.Projections {
+			remappedExpr := remapGroupColumns(expr, childSchema)
+			remappedProjections[i] = remappedExpr
+		}
+	} else {
+		remappedProjections = plan.Projections
+	}
+
+	for i, expr := range remappedProjections {
 		eval, err := buildExprEvaluatorWithExecutor(expr, childSchema, e)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build projection %d: %w", i, err)
@@ -690,12 +717,20 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 	// Build GROUP BY expressions
 	childSchema := child.Schema()
 	groupBy := make([]ExprEvaluator, len(plan.GroupBy))
+	groupByNames := make([]string, len(plan.GroupBy))
 	for i, expr := range plan.GroupBy {
 		eval, err := buildExprEvaluatorWithExecutor(expr, childSchema, e)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build GROUP BY expression %d: %w", i, err)
 		}
 		groupBy[i] = eval
+
+		// Extract column name from the GROUP BY expression
+		if colRef, ok := expr.(*planner.ColumnRef); ok {
+			groupByNames[i] = colRef.ColumnName
+		} else {
+			groupByNames[i] = fmt.Sprintf("group_%d", i)
+		}
 	}
 
 	// Build aggregate expressions
@@ -751,14 +786,36 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 			argEval = &literalEvaluator{value: types.NewValue(int64(1))}
 		}
 
+		// Use the alias from the planner, or generate one based on function name
+		alias := aggExpr.Alias
+		if alias == "" {
+			// Get function name for a meaningful default alias
+			var funcName string
+			switch aggExpr.Function {
+			case planner.AggCount:
+				funcName = "COUNT"
+			case planner.AggSum:
+				funcName = "SUM"
+			case planner.AggAvg:
+				funcName = "AVG"
+			case planner.AggMin:
+				funcName = "MIN"
+			case planner.AggMax:
+				funcName = "MAX"
+			default:
+				funcName = fmt.Sprintf("FUNC_%d", i)
+			}
+			alias = fmt.Sprintf("agg_%s", funcName)
+		}
+
 		aggregates[i] = AggregateExpr{
 			Function: aggFunc,
 			Expr:     argEval,
-			Alias:    fmt.Sprintf("agg_%d", i), // Generate alias
+			Alias:    alias,
 		}
 	}
 
-	return NewAggregateOperator(child, groupBy, aggregates), nil
+	return NewAggregateOperatorWithNames(child, groupBy, aggregates, groupByNames), nil
 }
 
 // buildCreateTableOperator builds a CREATE TABLE operator.
@@ -950,7 +1007,7 @@ func (e *BasicExecutor) buildCopyOperator(plan *planner.LogicalCopy, ctx *ExecCo
 	if e.storage == nil {
 		return nil, fmt.Errorf("storage backend not configured")
 	}
-	
+
 	return NewCopyOperator(plan, ctx.Catalog, e.storage, ctx.TxnManager), nil
 }
 
@@ -1080,4 +1137,56 @@ func (e *BasicExecutor) buildBitmapHeapScanOperator(plan *planner.BitmapHeapScan
 	}
 
 	return NewBitmapHeapScanOperator(table, bitmapSource, e.storage), nil
+}
+
+// remapGroupColumns recursively remaps group_X column references to actual column names
+// from the aggregate schema. This fixes the issue where planner uses temporary names
+// like "group_0" but aggregate operator produces actual column names like "c_mktsegment".
+func remapGroupColumns(expr planner.Expression, aggregateSchema *Schema) planner.Expression {
+	switch e := expr.(type) {
+	case *planner.ColumnRef:
+		// Check if this is a group_X reference
+		if strings.HasPrefix(e.ColumnName, "group_") {
+			// Extract the group index
+			var groupIndex int
+			if n, err := fmt.Sscanf(e.ColumnName, "group_%d", &groupIndex); n == 1 && err == nil {
+				// Map to actual column name from aggregate schema
+				if groupIndex >= 0 && groupIndex < len(aggregateSchema.Columns) {
+					return &planner.ColumnRef{
+						ColumnName: aggregateSchema.Columns[groupIndex].Name,
+						TableAlias: e.TableAlias,
+						ColumnType: e.ColumnType,
+					}
+				}
+			}
+		}
+		return e
+	case *planner.BinaryOp:
+		return &planner.BinaryOp{
+			Left:     remapGroupColumns(e.Left, aggregateSchema),
+			Right:    remapGroupColumns(e.Right, aggregateSchema),
+			Operator: e.Operator,
+			Type:     e.Type,
+		}
+	case *planner.UnaryOp:
+		return &planner.UnaryOp{
+			Expr:     remapGroupColumns(e.Expr, aggregateSchema),
+			Operator: e.Operator,
+			Type:     e.Type,
+		}
+	case *planner.FunctionCall:
+		remappedArgs := make([]planner.Expression, len(e.Args))
+		for i, arg := range e.Args {
+			remappedArgs[i] = remapGroupColumns(arg, aggregateSchema)
+		}
+		return &planner.FunctionCall{
+			Name: e.Name,
+			Args: remappedArgs,
+			Type: e.Type,
+		}
+	// Add more expression types as needed
+	default:
+		// For other expression types (literals, etc.), return as-is
+		return e
+	}
 }
