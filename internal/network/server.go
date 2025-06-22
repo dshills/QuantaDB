@@ -19,6 +19,16 @@ import (
 	"github.com/dshills/QuantaDB/internal/txn"
 )
 
+// UserStore defines the interface for user authentication
+type UserStore interface {
+	// Authenticate validates user credentials
+	Authenticate(username, password string) bool
+	// GetUserMD5 returns the MD5 hash for a user (if using MD5 auth)
+	GetUserMD5(username, salt string) (string, bool)
+	// UserExists checks if a user exists
+	UserExists(username string) bool
+}
+
 // Server represents the PostgreSQL protocol server
 type Server struct {
 	config     Config
@@ -52,6 +62,10 @@ type Config struct {
 	CertFile     string
 	KeyFile      string
 	RequireSSL   bool  // If true, reject non-SSL connections
+	
+	// Authentication configuration  
+	AuthMethod   string  // "none", "password", "md5"
+	UserStore    UserStore // User credential store
 }
 
 // DefaultConfig returns default server configuration
@@ -64,6 +78,8 @@ func DefaultConfig() Config {
 		WriteTimeout:   30 * time.Second,
 		EnableSSL:      false,
 		RequireSSL:     false,
+		AuthMethod:     "none", // Default to no authentication
+		UserStore:      nil,    // Will be set by user
 	}
 }
 

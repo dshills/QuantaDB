@@ -61,7 +61,7 @@ func NewRefactoredConnection(
 	protocolHandler := NewBasicProtocolHandler(conn, logger, server)
 
 	// Create component handlers
-	authHandler := NewBasicAuthenticationHandler(protocolHandler, logger)
+	authHandler := NewBasicAuthenticationHandler(protocolHandler, logger, server)
 	resultFormatter := NewBasicResultFormatter(protocolHandler)
 	transactionMgr := NewBasicTransactionManager(protocolHandler)
 	queryExecutor := NewBasicQueryExecutor(protocolHandler, transactionMgr, resultFormatter)
