@@ -612,3 +612,64 @@ func (p *LogicalVacuum) Children() []Plan {
 
 // logicalNode marks this as a logical plan node
 func (p *LogicalVacuum) logicalNode() {}
+
+// LogicalCopy represents a COPY operation for bulk data import/export
+type LogicalCopy struct {
+	basePlan
+	TableName  string
+	SchemaName string
+	Columns    []string                     // Column names (if specified)
+	Direction  parser.CopyDirection         // FROM or TO
+	Source     string                       // STDIN, STDOUT, or filename
+	Options    map[string]string            // WITH options like FORMAT, DELIMITER, etc.
+	TableRef   *catalog.Table               // Reference to table metadata
+}
+
+// NewLogicalCopy creates a new COPY plan node
+func NewLogicalCopy(schemaName, tableName string, columns []string, direction parser.CopyDirection, source string, options map[string]string, tableRef *catalog.Table) *LogicalCopy {
+	return &LogicalCopy{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		Columns:    columns,
+		Direction:  direction,
+		Source:     source,
+		Options:    options,
+		TableRef:   tableRef,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalCopy) Type() string {
+	return "Copy"
+}
+
+// Schema returns the output schema (rows copied)
+func (p *LogicalCopy) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "rows_copied",
+				DataType: types.Integer,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalCopy) String() string {
+	dir := "FROM"
+	if p.Direction == parser.CopyTo {
+		dir = "TO"
+	}
+	return fmt.Sprintf("Copy(%s.%s %s %s)", p.SchemaName, p.TableName, dir, p.Source)
+}
+
+// Children returns child plans (none for COPY)
+func (p *LogicalCopy) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalCopy) logicalNode() {}

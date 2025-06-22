@@ -97,6 +97,8 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseAnalyze()
 	case TokenVacuum:
 		return p.parseVacuum()
+	case TokenCopy:
+		return p.parseCopy()
 	default:
 		return nil, p.error(fmt.Sprintf("unexpected statement start: %s", p.current))
 	}
@@ -954,6 +956,118 @@ func (p *Parser) parseVacuum() (*VacuumStmt, error) {
 	}
 
 	return stmt, nil
+}
+
+// parseCopy parses a COPY statement.
+// Syntax: COPY table [(column_list)] FROM|TO STDIN|STDOUT|'filename' [WITH (options)]
+func (p *Parser) parseCopy() (*CopyStmt, error) {
+	if !p.consume(TokenCopy, "expected COPY") {
+		return nil, p.lastError()
+	}
+
+	// Get table name
+	tableName := p.current.Value
+	if !p.consume(TokenIdentifier, "expected table name") {
+		return nil, p.lastError()
+	}
+
+	stmt := &CopyStmt{
+		TableName: tableName,
+		Options:   make(map[string]string),
+	}
+
+	// Optional column list
+	if p.match(TokenLeftParen) {
+		columns, err := p.parseIdentifierList()
+		if err != nil {
+			return nil, err
+		}
+		stmt.Columns = columns
+		if !p.consume(TokenRightParen, "expected )") {
+			return nil, p.lastError()
+		}
+	}
+
+	// Direction: FROM or TO
+	if p.match(TokenFrom) {
+		stmt.Direction = CopyFrom
+	} else if p.match(TokenTo) {
+		stmt.Direction = CopyTo
+	} else {
+		return nil, p.error("expected FROM or TO")
+	}
+
+	// Source: STDIN, STDOUT, or filename (string literal)
+	if p.match(TokenStdin) {
+		stmt.Source = "STDIN"
+	} else if p.match(TokenStdout) {
+		stmt.Source = "STDOUT"
+	} else if p.check(TokenString) {
+		stmt.Source = p.current.Value
+		p.advance()
+	} else {
+		return nil, p.error("expected STDIN, STDOUT, or filename")
+	}
+
+	// Optional WITH clause
+	if p.match(TokenWith) {
+		if !p.consume(TokenLeftParen, "expected ( after WITH") {
+			return nil, p.lastError()
+		}
+
+		// Parse options
+		for {
+			// Option name
+			if !p.check(TokenIdentifier) && !p.check(TokenFormat) && !p.check(TokenDelimiter) {
+				return nil, p.error("expected option name")
+			}
+			optName := strings.ToUpper(p.current.Value)
+			p.advance()
+
+			// Option value (optional for some options)
+			optValue := ""
+			if p.check(TokenString) || p.check(TokenIdentifier) || p.check(TokenCsv) || p.check(TokenBinary) {
+				optValue = p.current.Value
+				p.advance()
+			}
+
+			stmt.Options[optName] = optValue
+
+			// Check for more options
+			if !p.match(TokenComma) {
+				break
+			}
+		}
+
+		if !p.consume(TokenRightParen, "expected ) after WITH options") {
+			return nil, p.lastError()
+		}
+	}
+
+	return stmt, nil
+}
+
+// parseIdentifierList parses a comma-separated list of identifiers.
+func (p *Parser) parseIdentifierList() ([]string, error) {
+	var identifiers []string
+	
+	for {
+		if p.current.Type != TokenIdentifier {
+			return nil, p.error("expected identifier")
+		}
+		identifiers = append(identifiers, p.current.Value)
+		p.advance()
+		
+		if !p.match(TokenComma) {
+			break
+		}
+	}
+	
+	if len(identifiers) == 0 {
+		return nil, p.error("expected at least one identifier")
+	}
+	
+	return identifiers, nil
 }
 
 // parseCreateIndex parses a CREATE INDEX statement.

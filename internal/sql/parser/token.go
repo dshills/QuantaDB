@@ -58,6 +58,14 @@ const (
 	TokenAnalyze
 	TokenVacuum
 	TokenWith
+	TokenCopy
+	TokenTo
+	TokenStdin
+	TokenStdout
+	TokenDelimiter
+	TokenFormat
+	TokenCsv
+	TokenBinary
 
 	// Data types.
 	TokenInteger
@@ -172,6 +180,14 @@ var tokenStrings = map[TokenType]string{
 	TokenAnalyze:      "ANALYZE",
 	TokenVacuum:       "VACUUM",
 	TokenWith:         "WITH",
+	TokenCopy:         "COPY",
+	TokenTo:           "TO",
+	TokenStdin:        "STDIN",
+	TokenStdout:       "STDOUT",
+	TokenDelimiter:    "DELIMITER",
+	TokenFormat:       "FORMAT",
+	TokenCsv:          "CSV",
+	TokenBinary:       "BINARY",
 	TokenInteger:      "INTEGER",
 	TokenBigint:       "BIGINT",
 	TokenSmallint:     "SMALLINT",
@@ -324,6 +340,14 @@ var keywords = map[string]TokenType{
 	"EXISTS":    TokenExists,
 	"VACUUM":    TokenVacuum,
 	"WITH":      TokenWith,
+	"COPY":      TokenCopy,
+	"TO":        TokenTo,
+	"STDIN":     TokenStdin,
+	"STDOUT":    TokenStdout,
+	"DELIMITER": TokenDelimiter,
+	"FORMAT":    TokenFormat,
+	"CSV":       TokenCsv,
+	"BINARY":    TokenBinary,
 	"CASE":      TokenCase,
 	"WHEN":      TokenWhen,
 	"THEN":      TokenThen,

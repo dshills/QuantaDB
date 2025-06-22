@@ -183,6 +183,8 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildBitmapOrOperator(p, ctx)
 	case *planner.BitmapHeapScan:
 		return e.buildBitmapHeapScanOperator(p, ctx)
+	case *planner.LogicalCopy:
+		return e.buildCopyOperator(p, ctx)
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan)
 	}
@@ -901,6 +903,15 @@ func (e *BasicExecutor) buildVacuumOperator(plan *planner.LogicalVacuum, ctx *Ex
 
 	// Create regular VACUUM operator
 	return NewVacuumOperator(mvccStorage, table), nil
+}
+
+// buildCopyOperator builds a COPY operator.
+func (e *BasicExecutor) buildCopyOperator(plan *planner.LogicalCopy, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+	
+	return NewCopyOperator(plan, ctx.Catalog, e.storage, ctx.TxnManager), nil
 }
 
 // convertSchema converts a planner schema to executor schema.

@@ -83,6 +83,8 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 		return p.planAnalyze(s)
 	case *parser.VacuumStmt:
 		return p.planVacuum(s)
+	case *parser.CopyStmt:
+		return p.planCopy(s)
 	default:
 		return nil, fmt.Errorf("unsupported statement type: %T", stmt)
 	}
@@ -478,6 +480,44 @@ func (p *BasicPlanner) planVacuum(stmt *parser.VacuumStmt) (LogicalPlan, error) 
 	}
 
 	return NewLogicalVacuum(schemaName, stmt.TableName, stmt.Analyze), nil
+}
+
+// planCopy converts a COPY statement to a logical plan.
+func (p *BasicPlanner) planCopy(stmt *parser.CopyStmt) (LogicalPlan, error) {
+	// Default to public schema
+	schemaName := defaultSchema
+	
+	// Verify table exists
+	table, err := p.catalog.GetTable(schemaName, stmt.TableName)
+	if err != nil {
+		return nil, fmt.Errorf("table %s.%s not found", schemaName, stmt.TableName)
+	}
+	
+	// Verify columns exist if specified
+	if len(stmt.Columns) > 0 {
+		for _, colName := range stmt.Columns {
+			found := false
+			for _, col := range table.Columns {
+				if col.Name == colName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("column %s not found in table %s", colName, stmt.TableName)
+			}
+		}
+	}
+	
+	// Validate direction-source combination
+	if stmt.Direction == parser.CopyTo && stmt.Source == "STDIN" {
+		return nil, fmt.Errorf("cannot COPY TO STDIN")
+	}
+	if stmt.Direction == parser.CopyFrom && stmt.Source == "STDOUT" {
+		return nil, fmt.Errorf("cannot COPY FROM STDOUT")
+	}
+	
+	return NewLogicalCopy(schemaName, stmt.TableName, stmt.Columns, stmt.Direction, stmt.Source, stmt.Options, table), nil
 }
 
 // convertExpression converts a parser expression to a planner expression.

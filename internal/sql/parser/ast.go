@@ -589,6 +589,59 @@ func (s *VacuumStmt) String() string {
 	return cmd
 }
 
+// CopyStmt represents a COPY statement for bulk data loading/export.
+// Examples:
+// - COPY table FROM STDIN
+// - COPY table TO STDOUT
+// - COPY table (col1, col2) FROM STDIN WITH (FORMAT CSV, DELIMITER ',')
+type CopyStmt struct {
+	TableName   string
+	Columns     []string          // Optional column list
+	Direction   CopyDirection     // FROM or TO
+	Source      string            // STDIN, STDOUT, or filename
+	Options     map[string]string // WITH options like FORMAT, DELIMITER, etc.
+}
+
+// CopyDirection represents the direction of COPY (FROM or TO)
+type CopyDirection int
+
+const (
+	CopyFrom CopyDirection = iota
+	CopyTo
+)
+
+func (s *CopyStmt) statementNode() {}
+func (s *CopyStmt) String() string {
+	var parts []string
+	parts = append(parts, "COPY", s.TableName)
+	
+	if len(s.Columns) > 0 {
+		parts = append(parts, "("+strings.Join(s.Columns, ", ")+")")
+	}
+	
+	if s.Direction == CopyFrom {
+		parts = append(parts, "FROM")
+	} else {
+		parts = append(parts, "TO")
+	}
+	
+	parts = append(parts, s.Source)
+	
+	if len(s.Options) > 0 {
+		var opts []string
+		for k, v := range s.Options {
+			if v == "" {
+				opts = append(opts, k)
+			} else {
+				opts = append(opts, fmt.Sprintf("%s %s", k, v))
+			}
+		}
+		parts = append(parts, "WITH ("+strings.Join(opts, ", ")+")")
+	}
+	
+	return strings.Join(parts, " ")
+}
+
 // CaseExpr represents a CASE expression.
 // Supports both simple and searched CASE forms:
 // - Simple: CASE expr WHEN val1 THEN result1 WHEN val2 THEN result2 ELSE default END

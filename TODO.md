@@ -46,6 +46,29 @@
   - Executor subqueryEvaluator connected to SubqueryOperator
   - Support for aggregates without GROUP BY in subqueries
   - Int32 support in aggregate functions (AVG, SUM)
+### Network Layer Refactoring (COMPLETED)
+- [x] **Connection Refactoring**: Broke down 1,381-line Connection struct into 6 components
+  - BasicProtocolHandler: Protocol message handling and I/O operations
+  - BasicAuthenticationHandler: Authentication methods (cleartext, MD5, none)
+  - BasicTransactionManager: Transaction lifecycle management
+  - BasicQueryExecutor: Query parsing, planning, and execution
+  - BasicPreparedStatementManager: Extended query protocol support
+  - BasicResultFormatter: Result formatting and transmission
+  - Proper separation of concerns with clear interfaces
+  - Improved testability and maintainability
+- [x] **SSL/TLS Support**: Secure connection support
+  - Server-level SSL configuration with cert/key files
+  - SSL upgrade negotiation before connection handling
+  - Support for both SSL and non-SSL connections
+  - Proper buffering for non-SSL connections after SSL check
+  - RequireSSL option to reject non-SSL connections
+- [x] **Authentication System**: Replace accept-all with proper auth
+  - UserStore interface for credential management
+  - InMemoryUserStore implementation
+  - Support for "none", "password", and "md5" authentication methods
+  - PostgreSQL-compatible MD5 authentication (md5(md5(password + username) + salt))
+  - Configurable authentication method per server
+  - Example demonstrating password authentication
 - [x] **Date Arithmetic**: Date/time arithmetic with INTERVAL types
   - INTERVAL data type with months, days, and seconds components
   - Parser support for INTERVAL literals (e.g., INTERVAL '1 day')
@@ -156,7 +179,22 @@
 - [x] **Parameterized Queries**: Support $1, $2 style parameters (required by lib/pq) (COMPLETED)
 - [x] **Extended Query Protocol**: Parse/Bind/Execute message flow (COMPLETED)
 - [x] **Data Type Serialization**: Fix int64 vs int32 issues in protocol (COMPLETED)
-- [ ] **COPY Protocol**: Bulk data loading support
+- [x] **COPY Protocol**: Bulk data loading support (COMPLETED)
+  - Parser support for COPY statement with FROM/TO, STDIN/STDOUT/file, column lists, and WITH options
+  - AST node CopyStmt with support for CSV, TEXT, and BINARY formats (BINARY not yet implemented)
+  - Token additions for COPY-related keywords (COPY, TO, FROM, STDIN, STDOUT, DELIMITER, FORMAT, CSV, BINARY)
+  - Planner support with LogicalCopy plan type
+  - Executor CopyOperator implementation for bulk data import (COPY FROM)
+  - Support for TEXT and CSV formats with configurable delimiters
+  - Support for HEADER option in CSV format
+  - Proper NULL value handling (\\N in TEXT format)
+  - Escape sequence processing for TEXT format
+  - Error handling with line number reporting
+  - Integration with storage backend for efficient row insertion
+  - SetReader/SetWriter methods for STDIN/STDOUT integration with network layer
+  - TODO: COPY TO implementation for data export
+  - TODO: BINARY format support
+  - TODO: Network layer integration for COPY DATA protocol messages
 - [ ] **Prepared Statements**: Named statement caching
 
 ### SQL DDL Features
