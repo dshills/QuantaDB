@@ -181,7 +181,20 @@
   - Prevention of dropping the last column from a table
   - Comprehensive test coverage for parser, executor, and integration
   - Support for optional COLUMN keyword in ADD and required in DROP
-- [ ] **CREATE INDEX**: B+Tree index creation (integrate with planner)
+- [x] **CREATE INDEX**: B+Tree index creation and planner integration
+  - Parser support for CREATE INDEX syntax (already existed)
+  - Planner support with LogicalCreateIndex plan type (already existed)
+  - Executor CreateIndexOperator implementation with storage integration
+  - IndexManager integration for B+Tree index creation
+  - Catalog interface extension with CreateIndex and DropIndex methods
+  - MemoryCatalog implementation of index creation and removal
+  - Proper error handling for duplicate indexes, non-existent tables/columns
+  - Comprehensive test coverage for unit and integration testing
+  - End-to-end testing with PostgreSQL wire protocol
+  - Full index scan optimization infrastructure in planner (IndexScan, CompositeIndexScan, IndexOnlyScan)
+  - Complete executor support for all index scan types
+  - Cost-based optimization for index selection
+  - NOTE: Index usage optimization blocked by planner bug creating infinite LogicalProject loops
 - [ ] **Foreign Keys**: Referential integrity constraints
 - [ ] **CHECK Constraints**: Custom validation rules
 
@@ -204,6 +217,7 @@
 ## Technical Debt & Architecture Improvements
 
 ### High Priority
+- [ ] **Planner Bug Fix**: Fix infinite loop creating nested LogicalProject nodes that prevents index optimization
 - [ ] **Connection Refactoring**: Refactor 900+ line Connection struct into smaller components (see docs/planning/connection-refactor-plan.md)
 - [ ] **SSL/TLS Support**: Implement SSL/TLS for secure connections
 - [ ] **Authentication System**: Implement proper authentication instead of accepting all connections
