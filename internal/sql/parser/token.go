@@ -69,6 +69,17 @@ const (
 	TokenPrepare
 	TokenExecute
 	TokenDeallocate
+	
+	// Constraint tokens
+	TokenForeign
+	TokenReferences
+	TokenCheck
+	TokenConstraint
+	TokenCascade
+	TokenRestrict
+	TokenNoAction
+	TokenSetNull
+	TokenSetDefault
 
 	// Data types.
 	TokenInteger
@@ -194,6 +205,15 @@ var tokenStrings = map[TokenType]string{
 	TokenPrepare:      "PREPARE",
 	TokenExecute:      "EXECUTE",
 	TokenDeallocate:   "DEALLOCATE",
+	TokenForeign:      "FOREIGN",
+	TokenReferences:   "REFERENCES",
+	TokenCheck:        "CHECK",
+	TokenConstraint:   "CONSTRAINT",
+	TokenCascade:      "CASCADE",
+	TokenRestrict:     "RESTRICT",
+	TokenNoAction:     "NO ACTION",
+	TokenSetNull:      "SET NULL",
+	TokenSetDefault:   "SET DEFAULT",
 	TokenInteger:      "INTEGER",
 	TokenBigint:       "BIGINT",
 	TokenSmallint:     "SMALLINT",
@@ -357,6 +377,12 @@ var keywords = map[string]TokenType{
 	"PREPARE":   TokenPrepare,
 	"EXECUTE":   TokenExecute,
 	"DEALLOCATE": TokenDeallocate,
+	"FOREIGN":   TokenForeign,
+	"REFERENCES": TokenReferences,
+	"CHECK":     TokenCheck,
+	"CONSTRAINT": TokenConstraint,
+	"CASCADE":   TokenCascade,
+	"RESTRICT":  TokenRestrict,
 	"CASE":      TokenCase,
 	"WHEN":      TokenWhen,
 	"THEN":      TokenThen,

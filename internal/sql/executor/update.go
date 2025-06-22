@@ -155,6 +155,13 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 			updatedRow.Values[columnIndex] = value
 		}
 
+		// Validate constraints if validator is available
+		if u.ctx.ConstraintValidator != nil {
+			if err := u.ctx.ConstraintValidator.ValidateUpdate(u.table, row, updatedRow); err != nil {
+				return fmt.Errorf("constraint violation: %w", err)
+			}
+		}
+
 		// Update the row in storage
 		err = u.storage.UpdateRow(u.table.ID, rowID, updatedRow)
 		if err != nil {

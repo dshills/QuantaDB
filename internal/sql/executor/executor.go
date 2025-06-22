@@ -49,6 +49,12 @@ type ExecContext struct {
 	PreparedStatements map[string]*PreparedStatement
 	// Planner for re-planning queries
 	Planner planner.Planner
+	// Constraint validator
+	ConstraintValidator interface {
+		ValidateInsert(table *catalog.Table, row *Row) error
+		ValidateUpdate(table *catalog.Table, oldRow, newRow *Row) error
+		ValidateDelete(table *catalog.Table, row *Row) error
+	}
 }
 
 // Row represents a row of data.

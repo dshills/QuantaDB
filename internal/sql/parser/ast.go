@@ -108,6 +108,61 @@ func (c TablePrimaryKeyConstraint) String() string {
 	return fmt.Sprintf("PRIMARY KEY (%s)", strings.Join(c.Columns, ", "))
 }
 
+// TableForeignKeyConstraint represents a table-level FOREIGN KEY constraint.
+type TableForeignKeyConstraint struct {
+	Name           string   // Optional constraint name
+	Columns        []string // Local columns
+	RefTable       string   // Referenced table
+	RefColumns     []string // Referenced columns
+	OnDelete       string   // ON DELETE action
+	OnUpdate       string   // ON UPDATE action
+}
+
+func (c TableForeignKeyConstraint) String() string {
+	var parts []string
+	if c.Name != "" {
+		parts = append(parts, fmt.Sprintf("CONSTRAINT %s", c.Name))
+	}
+	parts = append(parts, fmt.Sprintf("FOREIGN KEY (%s)", strings.Join(c.Columns, ", ")))
+	
+	refPart := fmt.Sprintf("REFERENCES %s", c.RefTable)
+	if len(c.RefColumns) > 0 {
+		refPart += fmt.Sprintf(" (%s)", strings.Join(c.RefColumns, ", "))
+	}
+	parts = append(parts, refPart)
+	
+	if c.OnDelete != "" {
+		parts = append(parts, fmt.Sprintf("ON DELETE %s", c.OnDelete))
+	}
+	if c.OnUpdate != "" {
+		parts = append(parts, fmt.Sprintf("ON UPDATE %s", c.OnUpdate))
+	}
+	
+	return strings.Join(parts, " ")
+}
+
+// TableCheckConstraint represents a table-level CHECK constraint.
+type TableCheckConstraint struct {
+	Name       string     // Optional constraint name
+	Expression Expression // The CHECK expression
+}
+
+func (c TableCheckConstraint) String() string {
+	if c.Name != "" {
+		return fmt.Sprintf("CONSTRAINT %s CHECK (%s)", c.Name, c.Expression.String())
+	}
+	return fmt.Sprintf("CHECK (%s)", c.Expression.String())
+}
+
+// TableUniqueConstraint represents a table-level UNIQUE constraint.
+type TableUniqueConstraint struct {
+	Columns []string
+}
+
+func (c TableUniqueConstraint) String() string {
+	return fmt.Sprintf("UNIQUE (%s)", strings.Join(c.Columns, ", "))
+}
+
 // InsertStmt represents an INSERT statement.
 type InsertStmt struct {
 	TableName string

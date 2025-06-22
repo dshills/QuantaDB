@@ -89,6 +89,13 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 			row.Values[idx] = value
 		}
 
+		// Validate constraints if validator is available
+		if ctx.ConstraintValidator != nil {
+			if err := ctx.ConstraintValidator.ValidateInsert(i.table, row); err != nil {
+				return fmt.Errorf("constraint violation: %w", err)
+			}
+		}
+
 		// Insert the row into storage
 		_, err := i.storage.InsertRow(i.table.ID, row)
 		if err != nil {

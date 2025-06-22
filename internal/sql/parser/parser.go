@@ -155,7 +155,7 @@ func (p *Parser) parseCreateTable() (*CreateTableStmt, error) {
 
 	for !p.check(TokenRightParen) {
 		// Check if this is a table constraint
-		if p.check(TokenPrimary) || p.check(TokenUnique) {
+		if p.check(TokenPrimary) || p.check(TokenUnique) || p.check(TokenForeign) || p.check(TokenCheck) || p.check(TokenConstraint) {
 			constraint, err := p.parseTableConstraint()
 			if err != nil {
 				return nil, err
@@ -352,6 +352,17 @@ func (p *Parser) parseColumnConstraint() (ColumnConstraint, bool) {
 
 // parseTableConstraint parses a table-level constraint.
 func (p *Parser) parseTableConstraint() (TableConstraint, error) {
+	// Check for optional CONSTRAINT name
+	var constraintName string
+	if p.match(TokenConstraint) {
+		if p.current.Type != TokenIdentifier {
+			return nil, p.error("expected constraint name")
+		}
+		constraintName = p.current.Value
+		p.advance()
+	}
+
+	// PRIMARY KEY constraint
 	if p.match(TokenPrimary) {
 		if !p.consume(TokenKey, "expected KEY after PRIMARY") {
 			return nil, p.lastError()
@@ -362,17 +373,9 @@ func (p *Parser) parseTableConstraint() (TableConstraint, error) {
 		}
 
 		// Parse column list
-		var columns []string
-		for {
-			if p.current.Type != TokenIdentifier {
-				return nil, p.error("expected column name")
-			}
-			columns = append(columns, p.current.Value)
-			p.advance()
-
-			if !p.match(TokenComma) {
-				break
-			}
+		columns, err := p.parseIdentifierList()
+		if err != nil {
+			return nil, err
 		}
 
 		if !p.consume(TokenRightParen, "expected ')'") {
@@ -382,7 +385,153 @@ func (p *Parser) parseTableConstraint() (TableConstraint, error) {
 		return TablePrimaryKeyConstraint{Columns: columns}, nil
 	}
 
+	// UNIQUE constraint
+	if p.match(TokenUnique) {
+		if !p.consume(TokenLeftParen, "expected '('") {
+			return nil, p.lastError()
+		}
+
+		// Parse column list
+		columns, err := p.parseIdentifierList()
+		if err != nil {
+			return nil, err
+		}
+
+		if !p.consume(TokenRightParen, "expected ')'") {
+			return nil, p.lastError()
+		}
+
+		return TableUniqueConstraint{Columns: columns}, nil
+	}
+
+	// FOREIGN KEY constraint
+	if p.match(TokenForeign) {
+		if !p.consume(TokenKey, "expected KEY after FOREIGN") {
+			return nil, p.lastError()
+		}
+
+		if !p.consume(TokenLeftParen, "expected '('") {
+			return nil, p.lastError()
+		}
+
+		// Parse local columns
+		columns, err := p.parseIdentifierList()
+		if err != nil {
+			return nil, err
+		}
+
+		if !p.consume(TokenRightParen, "expected ')'") {
+			return nil, p.lastError()
+		}
+
+		if !p.consume(TokenReferences, "expected REFERENCES") {
+			return nil, p.lastError()
+		}
+
+		// Parse referenced table
+		if p.current.Type != TokenIdentifier {
+			return nil, p.error("expected table name")
+		}
+		refTable := p.current.Value
+		p.advance()
+
+		// Parse referenced columns (optional)
+		var refColumns []string
+		if p.match(TokenLeftParen) {
+			refColumns, err = p.parseIdentifierList()
+			if err != nil {
+				return nil, err
+			}
+
+			if !p.consume(TokenRightParen, "expected ')'") {
+				return nil, p.lastError()
+			}
+		}
+
+		// Parse ON DELETE/UPDATE actions (optional)
+		var onDelete, onUpdate string
+		for {
+			if p.match(TokenOn) {
+				if p.match(TokenDelete) {
+					onDelete, err = p.parseReferentialAction()
+					if err != nil {
+						return nil, err
+					}
+				} else if p.match(TokenUpdate) {
+					onUpdate, err = p.parseReferentialAction()
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					return nil, p.error("expected DELETE or UPDATE after ON")
+				}
+			} else {
+				break
+			}
+		}
+
+		return TableForeignKeyConstraint{
+			Name:       constraintName,
+			Columns:    columns,
+			RefTable:   refTable,
+			RefColumns: refColumns,
+			OnDelete:   onDelete,
+			OnUpdate:   onUpdate,
+		}, nil
+	}
+
+	// CHECK constraint
+	if p.match(TokenCheck) {
+		if !p.consume(TokenLeftParen, "expected '('") {
+			return nil, p.lastError()
+		}
+
+		// Parse the check expression
+		expr, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		if !p.consume(TokenRightParen, "expected ')'") {
+			return nil, p.lastError()
+		}
+
+		return TableCheckConstraint{
+			Name:       constraintName,
+			Expression: expr,
+		}, nil
+	}
+
 	return nil, p.error("unsupported table constraint")
+}
+
+// parseReferentialAction parses ON DELETE/UPDATE actions.
+func (p *Parser) parseReferentialAction() (string, error) {
+	if p.match(TokenCascade) {
+		return "CASCADE", nil
+	}
+	if p.match(TokenRestrict) {
+		return "RESTRICT", nil
+	}
+	if p.match(TokenSet) {
+		if p.match(TokenNull) {
+			return "SET NULL", nil
+		}
+		if p.match(TokenDefault) {
+			return "SET DEFAULT", nil
+		}
+		return "", p.error("expected NULL or DEFAULT after SET")
+	}
+	// Check for NO ACTION (two tokens)
+	if p.current.Type == TokenIdentifier && p.current.Value == "NO" {
+		p.advance()
+		if p.current.Type == TokenIdentifier && p.current.Value == "ACTION" {
+			p.advance()
+			return "NO ACTION", nil
+		}
+		return "", p.error("expected ACTION after NO")
+	}
+	return "", p.error("expected CASCADE, RESTRICT, SET NULL, SET DEFAULT, or NO ACTION")
 }
 
 // parseInsert parses an INSERT statement.

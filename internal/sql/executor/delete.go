@@ -93,6 +93,13 @@ func (d *DeleteOperator) Open(ctx *ExecContext) error {
 			}
 		}
 
+		// Validate constraints if validator is available
+		if d.ctx.ConstraintValidator != nil {
+			if err := d.ctx.ConstraintValidator.ValidateDelete(d.table, row); err != nil {
+				return fmt.Errorf("constraint violation: %w", err)
+			}
+		}
+
 		// Delete the row from storage (mark as tombstone)
 		err = d.storage.DeleteRow(d.table.ID, rowID)
 		if err != nil {

@@ -372,18 +372,24 @@ func (p *BasicPlanner) planCreateTable(stmt *parser.CreateTableStmt) (LogicalPla
 	for i, col := range stmt.Columns {
 		// Determine if column is nullable by checking constraints
 		nullable := true
+		var defaultValue types.Value
 		for _, constraint := range col.Constraints {
-			if _, ok := constraint.(*parser.NotNullConstraint); ok {
+			switch c := constraint.(type) {
+			case parser.NotNullConstraint:
 				nullable = false
-				break
+			case parser.DefaultConstraint:
+				// Extract default value from the expression
+				if lit, ok := c.Value.(*parser.Literal); ok {
+					defaultValue = lit.Value
+				}
 			}
 		}
 
 		columns[i] = catalog.Column{
-			Name:       col.Name,
-			DataType:   col.DataType,
-			IsNullable: nullable,
-			// TODO: Handle default values
+			Name:         col.Name,
+			DataType:     col.DataType,
+			IsNullable:   nullable,
+			DefaultValue: defaultValue,
 		}
 	}
 
@@ -391,11 +397,31 @@ func (p *BasicPlanner) planCreateTable(stmt *parser.CreateTableStmt) (LogicalPla
 	constraints := make([]catalog.Constraint, 0)
 	for _, constraint := range stmt.Constraints {
 		switch con := constraint.(type) {
-		case *parser.TablePrimaryKeyConstraint:
-			constraints = append(constraints, catalog.PrimaryKeyConstraint{
+		case parser.TablePrimaryKeyConstraint:
+			constraints = append(constraints, &catalog.PrimaryKeyConstraint{
 				Columns: con.Columns,
 			})
-			// TODO: Handle other constraint types
+		case parser.TableForeignKeyConstraint:
+			// Default to public schema if not specified
+			refSchema := defaultSchema
+			constraints = append(constraints, &catalog.ForeignKeyConstraint{
+				Name:           con.Name,
+				Columns:        con.Columns,
+				RefTableSchema: refSchema,
+				RefTableName:   con.RefTable,
+				RefColumns:     con.RefColumns,
+				OnDelete:       catalog.ReferentialAction(con.OnDelete),
+				OnUpdate:       catalog.ReferentialAction(con.OnUpdate),
+			})
+		case parser.TableCheckConstraint:
+			constraints = append(constraints, &catalog.CheckConstraint{
+				Name:       con.Name,
+				Expression: con.Expression.String(),
+			})
+		case parser.TableUniqueConstraint:
+			constraints = append(constraints, &catalog.UniqueConstraint{
+				Columns: con.Columns,
+			})
 		}
 	}
 
