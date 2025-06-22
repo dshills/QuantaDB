@@ -169,7 +169,18 @@
   - Integration with storage backend to remove table data
   - Comprehensive test coverage for unit and integration testing
   - End-to-end testing with PostgreSQL wire protocol
-- [ ] **ALTER TABLE**: Add/drop columns, change data types
+- [x] **ALTER TABLE**: Add/drop columns, change data types
+  - Parser support for ALTER TABLE ADD COLUMN and DROP COLUMN syntax
+  - AST nodes for AlterTableStmt with action types (ADD/DROP)
+  - Planner support with LogicalAlterTableAddColumn and LogicalAlterTableDropColumn plan types
+  - Executor AlterTableAddColumnOperator and AlterTableDropColumnOperator implementations
+  - Catalog interface extension with AddColumn and DropColumn methods
+  - MemoryCatalog implementation of column addition and removal
+  - Constraint processing for NOT NULL and other column constraints
+  - Proper error handling for duplicate columns, non-existent tables/columns
+  - Prevention of dropping the last column from a table
+  - Comprehensive test coverage for parser, executor, and integration
+  - Support for optional COLUMN keyword in ADD and required in DROP
 - [ ] **CREATE INDEX**: B+Tree index creation (integrate with planner)
 - [ ] **Foreign Keys**: Referential integrity constraints
 - [ ] **CHECK Constraints**: Custom validation rules

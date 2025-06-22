@@ -91,6 +91,8 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseDelete()
 	case TokenDrop:
 		return p.parseDrop()
+	case TokenAlter:
+		return p.parseAlter()
 	case TokenAnalyze:
 		return p.parseAnalyze()
 	case TokenVacuum:
@@ -772,6 +774,91 @@ func (p *Parser) parseDropTable() (*DropTableStmt, error) {
 	}, nil
 }
 
+// parseAlter parses an ALTER statement.
+func (p *Parser) parseAlter() (Statement, error) {
+	if !p.consume(TokenAlter, "expected ALTER") {
+		return nil, p.lastError()
+	}
+
+	switch p.current.Type { //nolint:exhaustive
+	case TokenTable:
+		return p.parseAlterTable()
+	default:
+		return nil, p.error(fmt.Sprintf("unexpected token after ALTER: %s", p.current))
+	}
+}
+
+// parseAlterTable parses an ALTER TABLE statement.
+func (p *Parser) parseAlterTable() (*AlterTableStmt, error) {
+	if !p.consume(TokenTable, "expected TABLE") {
+		return nil, p.lastError()
+	}
+
+	// Get table name
+	tableName := p.current.Value
+	if !p.consume(TokenIdentifier, "expected table name") {
+		return nil, p.lastError()
+	}
+
+	// Parse ALTER TABLE action
+	switch p.current.Type { //nolint:exhaustive
+	case TokenAdd:
+		return p.parseAlterTableAdd(tableName)
+	case TokenDrop:
+		return p.parseAlterTableDrop(tableName)
+	default:
+		return nil, p.error(fmt.Sprintf("unexpected ALTER TABLE action: %s", p.current))
+	}
+}
+
+// parseAlterTableAdd parses ALTER TABLE ... ADD COLUMN
+func (p *Parser) parseAlterTableAdd(tableName string) (*AlterTableStmt, error) {
+	if !p.consume(TokenAdd, "expected ADD") {
+		return nil, p.lastError()
+	}
+
+	// COLUMN keyword is optional
+	if p.match(TokenColumn) {
+		// Column keyword consumed
+	}
+
+	// Parse column definition
+	columnDef, err := p.parseColumnDef()
+	if err != nil {
+		return nil, err
+	}
+
+	return &AlterTableStmt{
+		TableName: tableName,
+		Action:    AlterTableActionAddColumn,
+		Column:    &columnDef,
+	}, nil
+}
+
+// parseAlterTableDrop parses ALTER TABLE ... DROP COLUMN
+func (p *Parser) parseAlterTableDrop(tableName string) (*AlterTableStmt, error) {
+	if !p.consume(TokenDrop, "expected DROP") {
+		return nil, p.lastError()
+	}
+
+	// COLUMN keyword is required for DROP
+	if !p.consume(TokenColumn, "expected COLUMN") {
+		return nil, p.lastError()
+	}
+
+	// Get column name
+	columnName := p.current.Value
+	if !p.consume(TokenIdentifier, "expected column name") {
+		return nil, p.lastError()
+	}
+
+	return &AlterTableStmt{
+		TableName:  tableName,
+		Action:     AlterTableActionDropColumn,
+		ColumnName: columnName,
+	}, nil
+}
+
 // parseDropIndex parses a DROP INDEX statement.
 func (p *Parser) parseDropIndex() (*DropIndexStmt, error) {
 	if !p.consume(TokenIndex, "expected INDEX") {
@@ -1267,7 +1354,13 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		// Try to parse as integer first
 		if !strings.Contains(value, ".") {
 			if i, err := strconv.ParseInt(value, 10, 64); err == nil {
-				return &Literal{Value: types.NewValue(i)}, nil
+				// Use int32 for values that fit, int64 for larger values
+				// This provides consistency with PostgreSQL INTEGER type
+				if i >= -2147483648 && i <= 2147483647 {
+					return &Literal{Value: types.NewValue(int32(i))}, nil
+				} else {
+					return &Literal{Value: types.NewValue(i)}, nil
+				}
 			}
 		}
 
@@ -1819,6 +1912,34 @@ func (s *DropIndexStmt) String() string {
 		return fmt.Sprintf("DROP INDEX %s ON %s", s.IndexName, s.TableName)
 	}
 	return fmt.Sprintf("DROP INDEX %s", s.IndexName)
+}
+
+// AlterTableAction represents the type of ALTER TABLE action
+type AlterTableAction int
+
+const (
+	AlterTableActionAddColumn AlterTableAction = iota
+	AlterTableActionDropColumn
+)
+
+// AlterTableStmt represents an ALTER TABLE statement.
+type AlterTableStmt struct {
+	TableName  string
+	Action     AlterTableAction
+	Column     *ColumnDef // Used for ADD COLUMN
+	ColumnName string     // Used for DROP COLUMN
+}
+
+func (s *AlterTableStmt) statementNode() {}
+func (s *AlterTableStmt) String() string {
+	switch s.Action {
+	case AlterTableActionAddColumn:
+		return fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", s.TableName, s.Column.String())
+	case AlterTableActionDropColumn:
+		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", s.TableName, s.ColumnName)
+	default:
+		return fmt.Sprintf("ALTER TABLE %s", s.TableName)
+	}
 }
 
 // parseTableExpression parses a table expression which can be:

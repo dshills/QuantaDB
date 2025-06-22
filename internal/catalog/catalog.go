@@ -15,6 +15,10 @@ type Catalog interface {
 	DropTable(schemaName, tableName string) error
 	ListTables(schemaName string) ([]*Table, error)
 
+	// Column operations
+	AddColumn(schemaName, tableName string, column ColumnDef) error
+	DropColumn(schemaName, tableName, columnName string) error
+
 	// Index operations
 	CreateIndex(index *IndexSchema) (*Index, error)
 	GetIndex(schemaName, tableName, indexName string) (*Index, error)

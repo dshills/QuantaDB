@@ -658,7 +658,7 @@ func TestParseLiterals(t *testing.T) {
 			name:  "Integer literal",
 			input: "INSERT INTO t VALUES (42)",
 			checkValue: func(lit *Literal) bool {
-				val, ok := lit.Value.Data.(int64)
+				val, ok := lit.Value.Data.(int32)
 				return ok && val == 42
 			},
 		},

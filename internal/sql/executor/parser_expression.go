@@ -435,6 +435,13 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 			}
 		}
 
+	case *parser.ExistsExpr:
+		// Evaluate EXISTS/NOT EXISTS expression
+		// EXISTS always requires a subquery, and subquery evaluation in parser
+		// expressions requires the full planner-executor pipeline. This path is
+		// typically not used in production as queries go through the planner first.
+		return types.Value{}, fmt.Errorf("EXISTS/NOT EXISTS evaluation not supported in direct parser expression evaluation")
+
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type: %T", expr)
 	}

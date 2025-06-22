@@ -398,7 +398,13 @@ func ParseParameterValue(data []byte, dataType types.DataType, format int16) (ty
 	if dataType == types.Unknown || dataType == nil {
 		// Try integer
 		if i, err := strconv.ParseInt(text, 10, 64); err == nil {
-			return types.NewValue(i), nil
+			// Use int32 for values that fit, int64 for larger values
+			// This provides consistency with PostgreSQL INTEGER type
+			if i >= -2147483648 && i <= 2147483647 {
+				return types.NewValue(int32(i)), nil
+			} else {
+				return types.NewValue(i), nil
+			}
 		}
 		// Try float
 		if f, err := strconv.ParseFloat(text, 64); err == nil {
@@ -423,7 +429,11 @@ func ParseParameterValue(data []byte, dataType types.DataType, format int16) (ty
 		if err != nil {
 			return types.Value{}, fmt.Errorf("invalid integer value: %s", text)
 		}
-		return types.NewValue(i), nil
+		// PostgreSQL INTEGER is 32-bit, check bounds
+		if i < -2147483648 || i > 2147483647 {
+			return types.Value{}, fmt.Errorf("integer value %d out of range for INTEGER type", i)
+		}
+		return types.NewValue(int32(i)), nil
 
 	case "BOOLEAN":
 		b, err := strconv.ParseBool(text)

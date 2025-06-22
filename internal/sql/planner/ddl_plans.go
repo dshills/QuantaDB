@@ -382,6 +382,104 @@ func (p *LogicalDropIndex) Children() []Plan {
 // logicalNode marks this as a logical plan node
 func (p *LogicalDropIndex) logicalNode() {}
 
+// LogicalAlterTableAddColumn represents an ALTER TABLE ADD COLUMN operation
+type LogicalAlterTableAddColumn struct {
+	basePlan
+	TableName  string
+	SchemaName string
+	Column     *parser.ColumnDef
+}
+
+// NewLogicalAlterTableAddColumn creates a new ALTER TABLE ADD COLUMN plan node
+func NewLogicalAlterTableAddColumn(schemaName, tableName string, column *parser.ColumnDef) *LogicalAlterTableAddColumn {
+	return &LogicalAlterTableAddColumn{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		Column:     column,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalAlterTableAddColumn) Type() string {
+	return "AlterTableAddColumn"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalAlterTableAddColumn) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalAlterTableAddColumn) String() string {
+	return fmt.Sprintf("AlterTableAddColumn(%s.%s, %s)", p.SchemaName, p.TableName, p.Column.String())
+}
+
+// Children returns child plans (none for ALTER TABLE ADD COLUMN)
+func (p *LogicalAlterTableAddColumn) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalAlterTableAddColumn) logicalNode() {}
+
+// LogicalAlterTableDropColumn represents an ALTER TABLE DROP COLUMN operation
+type LogicalAlterTableDropColumn struct {
+	basePlan
+	TableName  string
+	SchemaName string
+	ColumnName string
+}
+
+// NewLogicalAlterTableDropColumn creates a new ALTER TABLE DROP COLUMN plan node
+func NewLogicalAlterTableDropColumn(schemaName, tableName, columnName string) *LogicalAlterTableDropColumn {
+	return &LogicalAlterTableDropColumn{
+		basePlan:   basePlan{},
+		SchemaName: schemaName,
+		TableName:  tableName,
+		ColumnName: columnName,
+	}
+}
+
+// Type returns the plan type
+func (p *LogicalAlterTableDropColumn) Type() string {
+	return "AlterTableDropColumn"
+}
+
+// Schema returns the output schema (result message)
+func (p *LogicalAlterTableDropColumn) Schema() *Schema {
+	return &Schema{
+		Columns: []Column{
+			{
+				Name:     "result",
+				DataType: types.Text,
+				Nullable: false,
+			},
+		},
+	}
+}
+
+// String returns a string representation
+func (p *LogicalAlterTableDropColumn) String() string {
+	return fmt.Sprintf("AlterTableDropColumn(%s.%s, %s)", p.SchemaName, p.TableName, p.ColumnName)
+}
+
+// Children returns child plans (none for ALTER TABLE DROP COLUMN)
+func (p *LogicalAlterTableDropColumn) Children() []Plan {
+	return nil
+}
+
+// logicalNode marks this as a logical plan node
+func (p *LogicalAlterTableDropColumn) logicalNode() {}
+
 // LogicalAnalyze represents an ANALYZE operation
 type LogicalAnalyze struct {
 	basePlan

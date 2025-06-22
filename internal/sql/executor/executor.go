@@ -157,6 +157,10 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildCreateIndexOperator(p, ctx)
 	case *planner.LogicalDropTable:
 		return e.buildDropTableOperator(p, ctx)
+	case *planner.LogicalAlterTableAddColumn:
+		return e.buildAlterTableAddColumnOperator(p, ctx)
+	case *planner.LogicalAlterTableDropColumn:
+		return e.buildAlterTableDropColumnOperator(p, ctx)
 	case *planner.LogicalDropIndex:
 		return e.buildDropIndexOperator(p, ctx)
 	case *planner.LogicalAnalyze:
@@ -799,6 +803,36 @@ func (e *BasicExecutor) buildDropTableOperator(plan *planner.LogicalDropTable, c
 	return NewDropTableOperator(
 		plan.SchemaName,
 		plan.TableName,
+		ctx.Catalog,
+		e.storage,
+	), nil
+}
+
+// buildAlterTableAddColumnOperator builds an ALTER TABLE ADD COLUMN operator.
+func (e *BasicExecutor) buildAlterTableAddColumnOperator(plan *planner.LogicalAlterTableAddColumn, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+
+	return NewAlterTableAddColumnOperator(
+		plan.SchemaName,
+		plan.TableName,
+		plan.Column,
+		ctx.Catalog,
+		e.storage,
+	), nil
+}
+
+// buildAlterTableDropColumnOperator builds an ALTER TABLE DROP COLUMN operator.
+func (e *BasicExecutor) buildAlterTableDropColumnOperator(plan *planner.LogicalAlterTableDropColumn, ctx *ExecContext) (Operator, error) {
+	if e.storage == nil {
+		return nil, fmt.Errorf("storage backend not configured")
+	}
+
+	return NewAlterTableDropColumnOperator(
+		plan.SchemaName,
+		plan.TableName,
+		plan.ColumnName,
 		ctx.Catalog,
 		e.storage,
 	), nil

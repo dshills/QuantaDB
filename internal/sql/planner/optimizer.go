@@ -214,9 +214,20 @@ func (p *ProjectionPushdown) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 			// Need columns for join condition plus output columns
 			joinCols := c.RequiredColumns()
 
+			// Verify that we have at least two children
+			children := c.Children()
+			if len(children) < 2 {
+				return plan, false
+			}
+
 			// Determine which columns are needed from each side
-			leftSchema := c.Children()[0].Schema()
-			rightSchema := c.Children()[1].Schema()
+			leftSchema := children[0].Schema()
+			rightSchema := children[1].Schema()
+
+			// Check for nil schemas (defensive programming)
+			if leftSchema == nil || rightSchema == nil {
+				return plan, false
+			}
 
 			leftRequired := NewColumnSet()
 			rightRequired := NewColumnSet()
@@ -254,15 +265,15 @@ func (p *ProjectionPushdown) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 			}
 
 			// Create projections for both sides if beneficial
-			leftChild := c.Children()[0].(LogicalPlan)
-			rightChild := c.Children()[1].(LogicalPlan)
+			leftChild := children[0].(LogicalPlan)
+			rightChild := children[1].(LogicalPlan)
 
 			modified := false
-			if !leftRequired.HasStar() && leftRequired.Size() < len(leftSchema.Columns) {
+			if leftSchema != nil && !leftRequired.HasStar() && leftRequired.Size() < len(leftSchema.Columns) {
 				leftChild = p.createProjection(leftChild, leftRequired)
 				modified = true
 			}
-			if !rightRequired.HasStar() && rightRequired.Size() < len(rightSchema.Columns) {
+			if rightSchema != nil && !rightRequired.HasStar() && rightRequired.Size() < len(rightSchema.Columns) {
 				rightChild = p.createProjection(rightChild, rightRequired)
 				modified = true
 			}

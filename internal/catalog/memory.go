@@ -267,6 +267,82 @@ func (c *MemoryCatalog) DropTable(schemaName, tableName string) error {
 	return nil
 }
 
+// AddColumn adds a column to an existing table.
+func (c *MemoryCatalog) AddColumn(schemaName, tableName string, column ColumnDef) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if schemaName == "" {
+		schemaName = defaultSchemaName
+	}
+
+	key := fmt.Sprintf("%s.%s", schemaName, tableName)
+	table, exists := c.tables[key]
+	if !exists {
+		return fmt.Errorf("table %q does not exist", key)
+	}
+
+	// Check if column already exists
+	for _, existingCol := range table.Columns {
+		if existingCol.Name == column.Name {
+			return fmt.Errorf("column %q already exists in table %q", column.Name, key)
+		}
+	}
+
+	// Add the column to the table
+	newColumn := &Column{
+		ID:              int64(len(table.Columns) + 1), // Simple ID assignment
+		Name:            column.Name,
+		DataType:        column.DataType,
+		OrdinalPosition: len(table.Columns) + 1,
+		IsNullable:      column.IsNullable,
+		DefaultValue:    column.DefaultValue,
+	}
+
+	table.Columns = append(table.Columns, newColumn)
+
+	return nil
+}
+
+// DropColumn removes a column from an existing table.
+func (c *MemoryCatalog) DropColumn(schemaName, tableName, columnName string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if schemaName == "" {
+		schemaName = defaultSchemaName
+	}
+
+	key := fmt.Sprintf("%s.%s", schemaName, tableName)
+	table, exists := c.tables[key]
+	if !exists {
+		return fmt.Errorf("table %q does not exist", key)
+	}
+
+	// Find the column to remove
+	columnIndex := -1
+	for i, col := range table.Columns {
+		if col.Name == columnName {
+			columnIndex = i
+			break
+		}
+	}
+
+	if columnIndex == -1 {
+		return fmt.Errorf("column %q does not exist in table %q", columnName, key)
+	}
+
+	// Cannot drop the last column
+	if len(table.Columns) == 1 {
+		return fmt.Errorf("cannot drop the last column from table %q", key)
+	}
+
+	// Remove the column from the slice
+	table.Columns = append(table.Columns[:columnIndex], table.Columns[columnIndex+1:]...)
+
+	return nil
+}
+
 // ListTables returns all tables in a schema.
 func (c *MemoryCatalog) ListTables(schemaName string) ([]*Table, error) {
 	c.mu.RLock()

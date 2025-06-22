@@ -124,8 +124,8 @@ func TestParameterValueParsing(t *testing.T) {
 			t.Fatalf("ParseParameterValue failed: %v", err)
 		}
 
-		if value.Data != int64(123) {
-			t.Errorf("Expected 123, got %v", value.Data)
+		if value.Data != int32(123) {
+			t.Errorf("Expected int32(123), got %v (%T)", value.Data, value.Data)
 		}
 	})
 
@@ -173,9 +173,9 @@ func TestParameterValueParsing(t *testing.T) {
 			t.Fatalf("ParseParameterValue failed: %v", err)
 		}
 
-		// Should infer as integer
-		if value.Data != int64(42) {
-			t.Errorf("Expected 42 as int64, got %v (%T)", value.Data, value.Data)
+		// Should infer as integer (int32 for values that fit)
+		if value.Data != int32(42) {
+			t.Errorf("Expected 42 as int32, got %v (%T)", value.Data, value.Data)
 		}
 	})
 }

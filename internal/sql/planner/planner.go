@@ -75,6 +75,8 @@ func (p *BasicPlanner) buildLogicalPlan(stmt parser.Statement) (LogicalPlan, err
 		return p.planCreateIndex(s)
 	case *parser.DropTableStmt:
 		return p.planDropTable(s)
+	case *parser.AlterTableStmt:
+		return p.planAlterTable(s)
 	case *parser.DropIndexStmt:
 		return p.planDropIndex(s)
 	case *parser.AnalyzeStmt:
@@ -407,6 +409,21 @@ func (p *BasicPlanner) planDropTable(stmt *parser.DropTableStmt) (LogicalPlan, e
 	schemaName := defaultSchema
 
 	return NewLogicalDropTable(schemaName, stmt.TableName), nil
+}
+
+// planAlterTable converts an ALTER TABLE statement to a logical plan.
+func (p *BasicPlanner) planAlterTable(stmt *parser.AlterTableStmt) (LogicalPlan, error) {
+	// Default to public schema
+	schemaName := defaultSchema
+
+	switch stmt.Action {
+	case parser.AlterTableActionAddColumn:
+		return NewLogicalAlterTableAddColumn(schemaName, stmt.TableName, stmt.Column), nil
+	case parser.AlterTableActionDropColumn:
+		return NewLogicalAlterTableDropColumn(schemaName, stmt.TableName, stmt.ColumnName), nil
+	default:
+		return nil, fmt.Errorf("unsupported ALTER TABLE action")
+	}
 }
 
 // planDropIndex converts a DROP INDEX statement to a logical plan.
