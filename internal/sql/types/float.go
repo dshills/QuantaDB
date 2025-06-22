@@ -27,17 +27,17 @@ func (t *floatType) Compare(a, b Value) int {
 	if a.Null || b.Null {
 		return CompareValues(a, b)
 	}
-	
+
 	aVal, err := a.AsFloat()
 	if err != nil {
 		panic(fmt.Sprintf("float comparison: %v", err))
 	}
-	
+
 	bVal, err := b.AsFloat()
 	if err != nil {
 		panic(fmt.Sprintf("float comparison: %v", err))
 	}
-	
+
 	if aVal < bVal {
 		return -1
 	} else if aVal > bVal {
@@ -50,12 +50,12 @@ func (t *floatType) Serialize(v Value) ([]byte, error) {
 	if v.Null {
 		return nil, nil
 	}
-	
+
 	val, err := v.AsFloat()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, math.Float32bits(val))
 	return buf, nil
@@ -65,11 +65,11 @@ func (t *floatType) Deserialize(data []byte) (Value, error) {
 	if data == nil {
 		return NullValue(Float), nil
 	}
-	
+
 	if len(data) != 4 {
 		return Value{}, fmt.Errorf("expected 4 bytes for FLOAT, got %d", len(data))
 	}
-	
+
 	val := math.Float32frombits(binary.BigEndian.Uint32(data))
 	return NewValue(val), nil
 }
@@ -112,17 +112,17 @@ func (t *doubleType) Compare(a, b Value) int {
 	if a.Null || b.Null {
 		return CompareValues(a, b)
 	}
-	
+
 	aVal, err := a.AsDouble()
 	if err != nil {
 		panic(fmt.Sprintf("double comparison: %v", err))
 	}
-	
+
 	bVal, err := b.AsDouble()
 	if err != nil {
 		panic(fmt.Sprintf("double comparison: %v", err))
 	}
-	
+
 	if aVal < bVal {
 		return -1
 	} else if aVal > bVal {
@@ -135,12 +135,12 @@ func (t *doubleType) Serialize(v Value) ([]byte, error) {
 	if v.Null {
 		return nil, nil
 	}
-	
+
 	val, err := v.AsDouble()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, math.Float64bits(val))
 	return buf, nil
@@ -150,11 +150,11 @@ func (t *doubleType) Deserialize(data []byte) (Value, error) {
 	if data == nil {
 		return NullValue(Double), nil
 	}
-	
+
 	if len(data) != 8 {
 		return Value{}, fmt.Errorf("expected 8 bytes for DOUBLE PRECISION, got %d", len(data))
 	}
-	
+
 	val := math.Float64frombits(binary.BigEndian.Uint64(data))
 	return NewValue(val), nil
 }

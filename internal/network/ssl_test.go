@@ -31,12 +31,12 @@ func generateTestCert(certFile, keyFile string) error {
 			Organization: []string{"Test"},
 			Country:      []string{"US"},
 		},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Hour * 24 * 30), // 30 days
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
-		DNSNames:     []string{"localhost"},
+		NotBefore:   time.Now(),
+		NotAfter:    time.Now().Add(time.Hour * 24 * 30), // 30 days
+		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1)},
+		DNSNames:    []string{"localhost"},
 	}
 
 	// Create certificate
@@ -86,7 +86,7 @@ func TestSSLConfiguration(t *testing.T) {
 	// Create server with SSL configuration
 	config := DefaultConfig()
 	logger := log.Default()
-	
+
 	// Mock dependencies would go here, but for this test we'll just verify SSL config
 	server := &Server{
 		config: config,
@@ -123,7 +123,7 @@ func TestSSLConfigurationWithCustomConfig(t *testing.T) {
 	// Create server
 	config := DefaultConfig()
 	logger := log.Default()
-	
+
 	server := &Server{
 		config: config,
 		logger: logger,

@@ -7,19 +7,19 @@ import (
 
 func TestFloatType(t *testing.T) {
 	ft := Float
-	
+
 	t.Run("Name", func(t *testing.T) {
 		if ft.Name() != "FLOAT" {
 			t.Errorf("expected FLOAT, got %s", ft.Name())
 		}
 	})
-	
+
 	t.Run("Size", func(t *testing.T) {
 		if ft.Size() != 4 {
 			t.Errorf("expected 4, got %d", ft.Size())
 		}
 	})
-	
+
 	t.Run("SerializeDeserialize", func(t *testing.T) {
 		tests := []float32{
 			0.0,
@@ -29,7 +29,7 @@ func TestFloatType(t *testing.T) {
 			math.MaxFloat32,
 			math.SmallestNonzeroFloat32,
 		}
-		
+
 		for _, val := range tests {
 			v := NewValue(val)
 			data, err := ft.Serialize(v)
@@ -37,30 +37,30 @@ func TestFloatType(t *testing.T) {
 				t.Errorf("serialize error for %f: %v", val, err)
 				continue
 			}
-			
+
 			v2, err := ft.Deserialize(data)
 			if err != nil {
 				t.Errorf("deserialize error for %f: %v", val, err)
 				continue
 			}
-			
+
 			if v2.IsNull() {
 				t.Errorf("expected non-null value for %f", val)
 				continue
 			}
-			
+
 			val2, ok := v2.Data.(float32)
 			if !ok {
 				t.Errorf("expected float32, got %T", v2.Data)
 				continue
 			}
-			
+
 			if val != val2 {
 				t.Errorf("expected %f, got %f", val, val2)
 			}
 		}
 	})
-	
+
 	t.Run("SerializeNull", func(t *testing.T) {
 		v := NullValue(Float)
 		data, err := ft.Serialize(v)
@@ -71,7 +71,7 @@ func TestFloatType(t *testing.T) {
 			t.Errorf("expected nil data for null value")
 		}
 	})
-	
+
 	t.Run("DeserializeNull", func(t *testing.T) {
 		v, err := ft.Deserialize(nil)
 		if err != nil {
@@ -81,7 +81,7 @@ func TestFloatType(t *testing.T) {
 			t.Errorf("expected null value")
 		}
 	})
-	
+
 	t.Run("Compare", func(t *testing.T) {
 		tests := []struct {
 			a, b float32
@@ -92,7 +92,7 @@ func TestFloatType(t *testing.T) {
 			{1.5, 1.5, 0},
 			{-1.0, 1.0, -1},
 		}
-		
+
 		for _, tc := range tests {
 			va := NewValue(tc.a)
 			vb := NewValue(tc.b)
@@ -102,7 +102,7 @@ func TestFloatType(t *testing.T) {
 			}
 		}
 	})
-	
+
 	t.Run("Zero", func(t *testing.T) {
 		v := ft.Zero()
 		if v.IsNull() {
@@ -120,19 +120,19 @@ func TestFloatType(t *testing.T) {
 
 func TestDoubleType(t *testing.T) {
 	dt := Double
-	
+
 	t.Run("Name", func(t *testing.T) {
 		if dt.Name() != "DOUBLE PRECISION" {
 			t.Errorf("expected DOUBLE PRECISION, got %s", dt.Name())
 		}
 	})
-	
+
 	t.Run("Size", func(t *testing.T) {
 		if dt.Size() != 8 {
 			t.Errorf("expected 8, got %d", dt.Size())
 		}
 	})
-	
+
 	t.Run("SerializeDeserialize", func(t *testing.T) {
 		tests := []float64{
 			0.0,
@@ -142,7 +142,7 @@ func TestDoubleType(t *testing.T) {
 			math.MaxFloat64,
 			math.SmallestNonzeroFloat64,
 		}
-		
+
 		for _, val := range tests {
 			v := NewValue(val)
 			data, err := dt.Serialize(v)
@@ -150,24 +150,24 @@ func TestDoubleType(t *testing.T) {
 				t.Errorf("serialize error for %f: %v", val, err)
 				continue
 			}
-			
+
 			v2, err := dt.Deserialize(data)
 			if err != nil {
 				t.Errorf("deserialize error for %f: %v", val, err)
 				continue
 			}
-			
+
 			if v2.IsNull() {
 				t.Errorf("expected non-null value for %f", val)
 				continue
 			}
-			
+
 			val2, ok := v2.Data.(float64)
 			if !ok {
 				t.Errorf("expected float64, got %T", v2.Data)
 				continue
 			}
-			
+
 			if val != val2 {
 				t.Errorf("expected %f, got %f", val, val2)
 			}
@@ -190,7 +190,7 @@ func TestFloatConversions(t *testing.T) {
 			{NewValue("string"), 0, true},
 			{NullValue(Float), 0, true},
 		}
-		
+
 		for _, tc := range tests {
 			got, err := tc.value.AsFloat()
 			if tc.err {
@@ -207,7 +207,7 @@ func TestFloatConversions(t *testing.T) {
 			}
 		}
 	})
-	
+
 	t.Run("AsDouble", func(t *testing.T) {
 		tests := []struct {
 			value Value
@@ -222,7 +222,7 @@ func TestFloatConversions(t *testing.T) {
 			{NewValue("string"), 0, true},
 			{NullValue(Double), 0, true},
 		}
-		
+
 		for _, tc := range tests {
 			got, err := tc.value.AsDouble()
 			if tc.err {

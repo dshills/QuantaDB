@@ -56,17 +56,17 @@ type Config struct {
 	MaxConnections int
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
-	
+
 	// SSL/TLS configuration
-	EnableSSL    bool
-	TLSConfig    *tls.Config
-	CertFile     string
-	KeyFile      string
-	RequireSSL   bool  // If true, reject non-SSL connections
-	
-	// Authentication configuration  
-	AuthMethod   string  // "none", "password", "md5"
-	UserStore    UserStore // User credential store
+	EnableSSL  bool
+	TLSConfig  *tls.Config
+	CertFile   string
+	KeyFile    string
+	RequireSSL bool // If true, reject non-SSL connections
+
+	// Authentication configuration
+	AuthMethod string    // "none", "password", "md5"
+	UserStore  UserStore // User credential store
 }
 
 // DefaultConfig returns default server configuration
@@ -120,7 +120,7 @@ func (s *Server) ConfigureSSL(certFile, keyFile string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load SSL certificate: %w", err)
 	}
-	
+
 	s.config.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ServerName:   s.config.Host,
@@ -128,7 +128,7 @@ func (s *Server) ConfigureSSL(certFile, keyFile string) error {
 	s.config.EnableSSL = true
 	s.config.CertFile = certFile
 	s.config.KeyFile = keyFile
-	
+
 	s.logger.Info("SSL/TLS configured", "cert_file", certFile, "key_file", keyFile)
 	return nil
 }
@@ -287,7 +287,7 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 		}
 		if sslConn != nil {
 			actualConn = sslConn
-			conn.conn = actualConn  // Update connection with SSL-wrapped connection
+			conn.conn = actualConn // Update connection with SSL-wrapped connection
 			s.logger.Debug("SSL connection established")
 		}
 	}
@@ -306,72 +306,72 @@ func (s *Server) handleSSLUpgrade(conn net.Conn) (net.Conn, error) {
 	// Set a read deadline for the SSL request
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	defer conn.SetReadDeadline(time.Time{}) // Clear deadline
-	
+
 	// Read the first message to check if it's an SSL request
 	lengthBuf := make([]byte, 4)
 	if _, err := io.ReadFull(conn, lengthBuf); err != nil {
 		return nil, fmt.Errorf("failed to read message length: %w", err)
 	}
-	
+
 	length := int(binary.BigEndian.Uint32(lengthBuf))
 	if length < 4 {
 		return nil, fmt.Errorf("invalid message length: %d", length)
 	}
-	
+
 	// Read the message body
 	msgBuf := make([]byte, length-4)
 	if _, err := io.ReadFull(conn, msgBuf); err != nil {
 		return nil, fmt.Errorf("failed to read message body: %w", err)
 	}
-	
+
 	// Check if this is an SSL request
 	if length == 8 && len(msgBuf) >= 4 {
 		version := binary.BigEndian.Uint32(msgBuf[:4])
 		if version == protocol.SSLRequestCode {
 			s.logger.Debug("SSL request received")
-			
+
 			// Send SSL support response
 			response := byte('S') // 'S' for SSL supported
 			if s.config.RequireSSL {
 				response = 'S' // Always 'S' if we require SSL
 			}
-			
+
 			if _, err := conn.Write([]byte{response}); err != nil {
 				return nil, fmt.Errorf("failed to send SSL response: %w", err)
 			}
-			
+
 			s.logger.Debug("SSL response sent", "response", string(response))
-			
+
 			if response == 'S' {
 				// Upgrade to TLS
 				tlsConn := tls.Server(conn, s.config.TLSConfig)
-				
+
 				// Perform TLS handshake
 				if err := tlsConn.Handshake(); err != nil {
 					return nil, fmt.Errorf("TLS handshake failed: %w", err)
 				}
-				
+
 				s.logger.Debug("TLS handshake completed successfully")
 				return tlsConn, nil
 			}
-			
+
 			// Client will reconnect without SSL
 			return conn, nil
 		}
 	}
-	
+
 	// Not an SSL request - put the data back by creating a buffered connection
 	// We need to prepend the data we read back to the connection
 	combinedData := make([]byte, 0, len(lengthBuf)+len(msgBuf))
 	combinedData = append(combinedData, lengthBuf...)
 	combinedData = append(combinedData, msgBuf...)
-	
+
 	// Create a connection that has the data prepended
 	bufferedConn := &prependedConn{
 		conn:   conn,
 		prefix: combinedData,
 	}
-	
+
 	return bufferedConn, nil
 }
 

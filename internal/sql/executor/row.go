@@ -18,6 +18,9 @@ const (
 	typeBIGINT    = "BIGINT"
 	typeSMALLINT  = "SMALLINT"
 	typeDECIMAL   = "DECIMAL"
+	typeFLOAT     = "FLOAT"
+	typeDOUBLE    = "DOUBLE"
+	typeREAL      = "REAL"
 	typeTEXT      = "TEXT"
 	typeVARCHAR   = "VARCHAR"
 	typeCHAR      = "CHAR"
@@ -164,6 +167,26 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return err
 		}
 
+	case typeFLOAT, typeREAL:
+		// FLOAT and REAL are 32-bit
+		v, ok := val.Data.(float32)
+		if !ok {
+			return fmt.Errorf("expected float32, got %T", val.Data)
+		}
+		if err := binary.Write(w, binary.LittleEndian, v); err != nil {
+			return err
+		}
+
+	case typeDOUBLE:
+		// DOUBLE is 64-bit
+		v, ok := val.Data.(float64)
+		if !ok {
+			return fmt.Errorf("expected float64, got %T", val.Data)
+		}
+		if err := binary.Write(w, binary.LittleEndian, v); err != nil {
+			return err
+		}
+
 	case typeTEXT, typeVARCHAR, typeCHAR:
 		v, ok := val.Data.(string)
 		if !ok {
@@ -253,6 +276,20 @@ func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (typ
 		return types.NewValue(v), nil
 
 	case typeDECIMAL:
+		var v float64
+		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+			return types.Value{}, err
+		}
+		return types.NewValue(v), nil
+
+	case typeFLOAT, typeREAL:
+		var v float32
+		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+			return types.Value{}, err
+		}
+		return types.NewValue(v), nil
+
+	case typeDOUBLE:
 		var v float64
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err

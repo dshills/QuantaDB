@@ -21,11 +21,11 @@ type BasicProtocolHandler struct {
 	server *Server
 
 	// Component handlers
-	authHandler       AuthenticationHandler
-	queryExecutor     QueryExecutor
-	transactionMgr    TransactionManager
-	extQueryHandler   ExtendedQueryHandler
-	resultFormatter   ResultFormatter
+	authHandler     AuthenticationHandler
+	queryExecutor   QueryExecutor
+	transactionMgr  TransactionManager
+	extQueryHandler ExtendedQueryHandler
+	resultFormatter ResultFormatter
 }
 
 // NewBasicProtocolHandler creates a new protocol handler.

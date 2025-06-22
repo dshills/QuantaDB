@@ -83,7 +83,7 @@ func (g *Generator) GenerateNations() []string {
 func (g *Generator) GenerateSuppliers() []string {
 	count := int(10000 * g.scaleFactor)
 	var inserts []string
-	
+
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("Supplier#%09d", i)
 		address := g.randomText(10, 40)
@@ -91,7 +91,7 @@ func (g *Generator) GenerateSuppliers() []string {
 		phone := g.randomPhone(nationKey)
 		acctbal := g.randomDecimal(-999.99, 9999.99)
 		comment := g.randomText(25, 100)
-		
+
 		insert := fmt.Sprintf("INSERT INTO supplier VALUES (%d, '%s', '%s', %d, '%s', %.2f, '%s');",
 			i, name, address, nationKey, phone, acctbal, comment)
 		inserts = append(inserts, insert)
@@ -103,7 +103,7 @@ func (g *Generator) GenerateSuppliers() []string {
 func (g *Generator) GenerateCustomers() []string {
 	count := int(150000 * g.scaleFactor)
 	var inserts []string
-	
+
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("Customer#%09d", i)
 		address := g.randomText(10, 40)
@@ -112,7 +112,7 @@ func (g *Generator) GenerateCustomers() []string {
 		acctbal := g.randomDecimal(-999.99, 9999.99)
 		mktsegment := marketSegments[g.rng.Intn(len(marketSegments))]
 		comment := g.randomText(29, 116)
-		
+
 		insert := fmt.Sprintf("INSERT INTO customer VALUES (%d, '%s', '%s', %d, '%s', %.2f, '%s', '%s');",
 			i, name, address, nationKey, phone, acctbal, mktsegment, comment)
 		inserts = append(inserts, insert)
@@ -124,11 +124,11 @@ func (g *Generator) GenerateCustomers() []string {
 func (g *Generator) GenerateParts() []string {
 	count := int(200000 * g.scaleFactor)
 	var inserts []string
-	
+
 	types := []string{"ECONOMY", "PROMO", "STANDARD", "SMALL", "MEDIUM"}
 	containers := []string{"SM CASE", "SM BOX", "SM BAG", "SM JAR", "MD CASE", "MD BOX", "MD BAG", "MD JAR",
 		"LG CASE", "LG BOX", "LG BAG", "LG JAR", "JUMBO CASE", "JUMBO BOX", "JUMBO BAG", "JUMBO JAR"}
-	
+
 	for i := 1; i <= count; i++ {
 		name := g.randomPartName()
 		mfgr := fmt.Sprintf("Manufacturer#%d", g.rng.Intn(5)+1)
@@ -138,7 +138,7 @@ func (g *Generator) GenerateParts() []string {
 		container := containers[g.rng.Intn(len(containers))]
 		retailPrice := 900.0 + float64(i%1000)/10.0
 		comment := g.randomText(5, 22)
-		
+
 		insert := fmt.Sprintf("INSERT INTO part VALUES (%d, '%s', '%s', '%s', '%s', %d, '%s', %.2f, '%s');",
 			i, name, mfgr, brand, ptype, size, container, retailPrice, comment)
 		inserts = append(inserts, insert)
@@ -150,29 +150,29 @@ func (g *Generator) GenerateParts() []string {
 func (g *Generator) GenerateOrders() []string {
 	count := int(1500000 * g.scaleFactor)
 	var inserts []string
-	
+
 	// Date range: 1992-01-01 to 1998-12-31
 	startDate := time.Date(1992, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(1998, 12, 31, 0, 0, 0, 0, time.UTC)
 	dateRange := int(endDate.Sub(startDate).Hours() / 24)
-	
+
 	for i := 1; i <= count; i++ {
 		custKey := g.rng.Intn(int(150000*g.scaleFactor)) + 1
 		orderStatus := "O"
 		if g.rng.Float64() < 0.5 {
 			orderStatus = "F"
 		}
-		
+
 		// Generate order date
 		daysOffset := g.rng.Intn(dateRange)
 		orderDate := startDate.AddDate(0, 0, daysOffset)
-		
+
 		totalPrice := g.randomDecimal(1000.0, 500000.0)
 		orderPriority := orderPriorities[g.rng.Intn(len(orderPriorities))]
 		clerk := fmt.Sprintf("Clerk#%09d", g.rng.Intn(1000)+1)
 		shipPriority := 0
 		comment := g.randomText(19, 78)
-		
+
 		insert := fmt.Sprintf("INSERT INTO orders VALUES (%d, %d, '%s', %.2f, '%s', '%s', '%s', %d, '%s');",
 			i, custKey, orderStatus, totalPrice, orderDate.Format("2006-01-02"),
 			orderPriority, clerk, shipPriority, comment)
@@ -186,7 +186,7 @@ func (g *Generator) GenerateOrders() []string {
 func (g *Generator) randomText(minLen, maxLen int) string {
 	length := minLen + g.rng.Intn(maxLen-minLen+1)
 	words := []string{"the", "of", "and", "to", "a", "in", "that", "is", "was", "for", "it", "with", "as", "his", "on", "be", "at", "by", "have", "from"}
-	
+
 	var result []string
 	totalLen := 0
 	for totalLen < length {
@@ -194,7 +194,7 @@ func (g *Generator) randomText(minLen, maxLen int) string {
 		result = append(result, word)
 		totalLen += len(word) + 1
 	}
-	
+
 	text := strings.Join(result, " ")
 	if len(text) > length {
 		text = text[:length]
@@ -217,7 +217,7 @@ func (g *Generator) randomDecimal(min, max float64) float64 {
 
 func (g *Generator) randomPartName() string {
 	syllables := []string{"al", "an", "ar", "be", "ca", "de", "el", "en", "es", "et", "ge", "in", "is", "it", "le", "ly", "ma", "me", "ne", "nu", "on", "or", "ou", "pe", "ra", "re", "ri", "ro", "se", "st", "te", "ti", "to", "un", "ur", "us"}
-	
+
 	numSyllables := 2 + g.rng.Intn(3)
 	var parts []string
 	for i := 0; i < numSyllables; i++ {
@@ -234,7 +234,7 @@ func (g *Generator) GenerateLineitem(orderKey, lineNumber, maxPartKey, maxSuppKe
 	extendedPrice := quantity * g.randomDecimal(900, 1100)
 	discount := g.randomDecimal(0, 0.10)
 	tax := g.randomDecimal(0, 0.08)
-	
+
 	// Return flag and line status
 	returnFlag := "N"
 	lineStatus := "O"
@@ -244,18 +244,18 @@ func (g *Generator) GenerateLineitem(orderKey, lineNumber, maxPartKey, maxSuppKe
 	if g.rng.Float64() < 0.5 {
 		lineStatus = "F"
 	}
-	
+
 	// Generate dates (ship date within 122 days of order date)
 	baseDate := time.Date(1992, 1, 1, 0, 0, 0, 0, time.UTC)
 	shipOffset := g.rng.Intn(2500) // days from base
 	shipDate := baseDate.AddDate(0, 0, shipOffset)
 	commitDate := shipDate.AddDate(0, 0, g.rng.Intn(30))
 	receiptDate := shipDate.AddDate(0, 0, g.rng.Intn(7)+1)
-	
+
 	shipInstruct := []string{"DELIVER IN PERSON", "COLLECT COD", "NONE", "TAKE BACK RETURN"}[g.rng.Intn(4)]
 	shipMode := []string{"REG AIR", "AIR", "RAIL", "SHIP", "TRUCK", "MAIL", "FOB"}[g.rng.Intn(7)]
 	comment := g.randomText(10, 43)
-	
+
 	return fmt.Sprintf("INSERT INTO lineitem VALUES (%d, %d, %d, %d, %.2f, %.2f, %.2f, %.2f, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');",
 		orderKey, partKey, suppKey, lineNumber, quantity, extendedPrice, discount, tax,
 		returnFlag, lineStatus, shipDate.Format("2006-01-02"), commitDate.Format("2006-01-02"),
@@ -267,7 +267,7 @@ func (g *Generator) GeneratePartsupp(partKey, suppKey int) string {
 	availQty := g.rng.Intn(9999) + 1
 	supplyCost := g.randomDecimal(1.00, 1000.00)
 	comment := g.randomText(49, 198)
-	
+
 	return fmt.Sprintf("INSERT INTO partsupp VALUES (%d, %d, %d, %.2f, '%s');",
 		partKey, suppKey, availQty, supplyCost, comment)
 }

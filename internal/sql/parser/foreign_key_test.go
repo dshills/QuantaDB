@@ -23,7 +23,7 @@ func TestParseForeignKey(t *testing.T) {
 				if len(stmt.Columns) != 2 {
 					t.Fatalf("expected 2 columns, got %d", len(stmt.Columns))
 				}
-				
+
 				// Check that id column has PRIMARY KEY constraint
 				if len(stmt.Columns[0].Constraints) != 1 {
 					t.Fatalf("expected 1 constraint on id column, got %d", len(stmt.Columns[0].Constraints))
@@ -31,12 +31,12 @@ func TestParseForeignKey(t *testing.T) {
 				if _, ok := stmt.Columns[0].Constraints[0].(PrimaryKeyConstraint); !ok {
 					t.Errorf("expected PRIMARY KEY constraint on id column")
 				}
-				
+
 				// Check table constraints
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 table constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				// Check foreign key
 				fk, ok := stmt.Constraints[0].(TableForeignKeyConstraint)
 				if !ok {
@@ -64,7 +64,7 @@ func TestParseForeignKey(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				fk, ok := stmt.Constraints[0].(TableForeignKeyConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be FOREIGN KEY, got %T", stmt.Constraints[0])
@@ -85,7 +85,7 @@ func TestParseForeignKey(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				fk, ok := stmt.Constraints[0].(TableForeignKeyConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be FOREIGN KEY, got %T", stmt.Constraints[0])
@@ -106,7 +106,7 @@ func TestParseForeignKey(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				fk, ok := stmt.Constraints[0].(TableForeignKeyConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be FOREIGN KEY, got %T", stmt.Constraints[0])
@@ -130,7 +130,7 @@ func TestParseForeignKey(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				fk, ok := stmt.Constraints[0].(TableForeignKeyConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be FOREIGN KEY, got %T", stmt.Constraints[0])
@@ -152,7 +152,7 @@ func TestParseForeignKey(t *testing.T) {
 				if len(stmt.Constraints) != 2 {
 					t.Fatalf("expected 2 constraints, got %d", len(stmt.Constraints))
 				}
-				
+
 				fk, ok := stmt.Constraints[1].(TableForeignKeyConstraint)
 				if !ok {
 					t.Fatalf("expected second constraint to be FOREIGN KEY, got %T", stmt.Constraints[1])
@@ -176,7 +176,7 @@ func TestParseForeignKey(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				fk, ok := stmt.Constraints[0].(TableForeignKeyConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be FOREIGN KEY, got %T", stmt.Constraints[0])
@@ -192,23 +192,23 @@ func TestParseForeignKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewParser(tt.input)
 			stmt, err := p.Parse()
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			createStmt, ok := stmt.(*CreateTableStmt)
 			if !ok {
 				t.Fatalf("expected *CreateTableStmt, got %T", stmt)
 			}
-			
+
 			if tt.validate != nil {
 				tt.validate(t, createStmt)
 			}
@@ -234,7 +234,7 @@ func TestParseCheckConstraint(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				check, ok := stmt.Constraints[0].(TableCheckConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be CHECK, got %T", stmt.Constraints[0])
@@ -258,7 +258,7 @@ func TestParseCheckConstraint(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				check, ok := stmt.Constraints[0].(TableCheckConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be CHECK, got %T", stmt.Constraints[0])
@@ -281,7 +281,7 @@ func TestParseCheckConstraint(t *testing.T) {
 				if len(stmt.Constraints) != 1 {
 					t.Fatalf("expected 1 constraint, got %d", len(stmt.Constraints))
 				}
-				
+
 				check, ok := stmt.Constraints[0].(TableCheckConstraint)
 				if !ok {
 					t.Fatalf("expected first constraint to be CHECK, got %T", stmt.Constraints[0])
@@ -304,7 +304,7 @@ func TestParseCheckConstraint(t *testing.T) {
 				if len(stmt.Constraints) != 2 {
 					t.Fatalf("expected 2 constraints, got %d", len(stmt.Constraints))
 				}
-				
+
 				// Both should be CHECK constraints
 				for i := 0; i < 2; i++ {
 					_, ok := stmt.Constraints[i].(TableCheckConstraint)
@@ -320,23 +320,23 @@ func TestParseCheckConstraint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewParser(tt.input)
 			stmt, err := p.Parse()
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			createStmt, ok := stmt.(*CreateTableStmt)
 			if !ok {
 				t.Fatalf("expected *CreateTableStmt, got %T", stmt)
 			}
-			
+
 			if tt.validate != nil {
 				tt.validate(t, createStmt)
 			}

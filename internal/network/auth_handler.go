@@ -35,23 +35,23 @@ func NewBasicAuthenticationHandler(protocolHandler ProtocolHandler, logger log.L
 func (ah *BasicAuthenticationHandler) HandleStartup(connCtx *ConnectionContext) error {
 	// Read and parse the startup message
 	reader := ah.protocolHandler.(*BasicProtocolHandler).GetReader()
-	
+
 	// Parse startup message
 	params, err := ah.readStartupMessage(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read startup message: %w", err)
 	}
-	
+
 	// Store connection parameters
 	if connCtx.Params == nil {
 		connCtx.Params = make(map[string]string)
 	}
-	
+
 	// Copy parsed parameters
 	for key, value := range params {
 		connCtx.Params[key] = value
 	}
-	
+
 	// Set defaults for missing required parameters
 	if connCtx.Params["user"] == "" {
 		connCtx.Params["user"] = "quantadb"
@@ -72,13 +72,13 @@ func (ah *BasicAuthenticationHandler) HandleStartup(connCtx *ConnectionContext) 
 
 	// Send authentication request based on server configuration
 	writer := ah.protocolHandler.(*BasicProtocolHandler).GetWriter()
-	
+
 	// Determine authentication method
 	authType, authData, err := ah.determineAuthMethod(connCtx)
 	if err != nil {
 		return fmt.Errorf("failed to determine auth method: %w", err)
 	}
-	
+
 	auth := &protocol.Authentication{
 		Type: authType,
 		Data: authData,
@@ -86,12 +86,12 @@ func (ah *BasicAuthenticationHandler) HandleStartup(connCtx *ConnectionContext) 
 	if err := protocol.WriteMessage(writer, auth.ToMessage()); err != nil {
 		return fmt.Errorf("failed to send authentication request: %w", err)
 	}
-	
+
 	// If no authentication required, complete startup
 	if authType == protocol.AuthOK {
 		return ah.completeStartup(connCtx)
 	}
-	
+
 	// Otherwise, wait for authentication response
 	ah.SetState(StateAuthentication)
 	return nil
@@ -102,25 +102,25 @@ func (ah *BasicAuthenticationHandler) HandleAuthentication(connCtx *ConnectionCo
 	// Read authentication response from client
 	reader := ah.protocolHandler.(*BasicProtocolHandler).GetReader()
 	writer := ah.protocolHandler.(*BasicProtocolHandler).GetWriter()
-	
+
 	// Read password message
 	msg, err := protocol.ReadMessage(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read authentication message: %w", err)
 	}
-	
+
 	if msg.Type != protocol.MsgPasswordMessage {
 		return fmt.Errorf("expected password message, got %c", msg.Type)
 	}
-	
+
 	// Parse password (null-terminated string)
 	passwordBytes := bytes.TrimSuffix(msg.Data, []byte{0})
 	password := string(passwordBytes)
-	
+
 	// Validate credentials
 	username := connCtx.Params["user"]
 	authenticated := ah.validateCredentials(username, password, connCtx)
-	
+
 	if !authenticated {
 		// Send authentication failure
 		auth := &protocol.Authentication{
@@ -129,7 +129,7 @@ func (ah *BasicAuthenticationHandler) HandleAuthentication(connCtx *ConnectionCo
 		protocol.WriteMessage(writer, auth.ToMessage())
 		return fmt.Errorf("authentication failed for user %s", username)
 	}
-	
+
 	// Send authentication OK
 	auth := &protocol.Authentication{
 		Type: protocol.AuthOK,
@@ -137,7 +137,7 @@ func (ah *BasicAuthenticationHandler) HandleAuthentication(connCtx *ConnectionCo
 	if err := protocol.WriteMessage(writer, auth.ToMessage()); err != nil {
 		return fmt.Errorf("failed to send authentication OK: %w", err)
 	}
-	
+
 	// Complete startup process
 	return ah.completeStartup(connCtx)
 }
@@ -147,7 +147,7 @@ func (ah *BasicAuthenticationHandler) SetState(newState int) {
 	if ah.state != newState {
 		oldStateName := stateNames[ah.state]
 		newStateName := stateNames[newState]
-		
+
 		ah.logger.Debug("Connection state change",
 			"old_state", oldStateName,
 			"new_state", newStateName)
@@ -167,12 +167,12 @@ func (ah *BasicAuthenticationHandler) readStartupMessage(reader io.Reader) (map[
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse startup message: %w", err)
 	}
-	
+
 	ah.logger.Info("Client connected",
 		"user", params["user"],
 		"database", params["database"],
 		"application", params["application_name"])
-	
+
 	return params, nil
 }
 
@@ -181,31 +181,31 @@ func (ah *BasicAuthenticationHandler) determineAuthMethod(connCtx *ConnectionCon
 	switch ah.server.config.AuthMethod {
 	case "none":
 		return protocol.AuthOK, nil, nil
-		
+
 	case "password":
 		// Check if user exists
 		if ah.server.config.UserStore != nil && !ah.server.config.UserStore.UserExists(connCtx.Params["user"]) {
 			return 0, nil, fmt.Errorf("user %s does not exist", connCtx.Params["user"])
 		}
 		return protocol.AuthCleartextPassword, nil, nil
-		
+
 	case "md5":
 		// Check if user exists
 		if ah.server.config.UserStore != nil && !ah.server.config.UserStore.UserExists(connCtx.Params["user"]) {
 			return 0, nil, fmt.Errorf("user %s does not exist", connCtx.Params["user"])
 		}
-		
+
 		// Generate 4-byte salt for MD5 authentication
 		salt := make([]byte, 4)
 		if _, err := rand.Read(salt); err != nil {
 			return 0, nil, fmt.Errorf("failed to generate MD5 salt: %w", err)
 		}
-		
+
 		// Store salt in connection context for later validation
 		connCtx.Params["_md5_salt"] = string(salt)
-		
+
 		return protocol.AuthMD5Password, salt, nil
-		
+
 	default:
 		return 0, nil, fmt.Errorf("unsupported authentication method: %s", ah.server.config.AuthMethod)
 	}
@@ -217,14 +217,14 @@ func (ah *BasicAuthenticationHandler) validateCredentials(username, password str
 		// No user store configured, allow all connections (for backwards compatibility)
 		return true
 	}
-	
+
 	switch ah.server.config.AuthMethod {
 	case "none":
 		return true
-		
+
 	case "password":
 		return ah.server.config.UserStore.Authenticate(username, password)
-		
+
 	case "md5":
 		// For MD5, the password is the MD5 hash, and we need to validate it
 		salt := connCtx.Params["_md5_salt"]
@@ -233,7 +233,7 @@ func (ah *BasicAuthenticationHandler) validateCredentials(username, password str
 			return false
 		}
 		return password == expectedHash
-		
+
 	default:
 		ah.logger.Error("Unsupported authentication method", "method", ah.server.config.AuthMethod)
 		return false
@@ -243,7 +243,7 @@ func (ah *BasicAuthenticationHandler) validateCredentials(username, password str
 // completeStartup sends all the required startup messages after authentication
 func (ah *BasicAuthenticationHandler) completeStartup(connCtx *ConnectionContext) error {
 	writer := ah.protocolHandler.(*BasicProtocolHandler).GetWriter()
-	
+
 	// Send required parameter status messages
 	requiredParams := map[string]string{
 		"server_version":                "14.0", // Mimic PostgreSQL 14

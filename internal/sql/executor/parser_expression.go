@@ -152,7 +152,7 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 			if left.IsNull() || right.IsNull() {
 				return types.NewNullValue(), nil
 			}
-			
+
 			leftStr, ok1 := left.Data.(string)
 			rightStr, ok2 := right.Data.(string)
 			if !ok1 || !ok2 {

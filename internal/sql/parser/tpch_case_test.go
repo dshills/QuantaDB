@@ -75,13 +75,13 @@ func TestSimpleTPCHStyleCase(t *testing.T) {
 	for i, expectedAlias := range []string{"brazil_volume", "usa_volume"} {
 		col := selectStmt.Columns[i]
 		require.Equal(t, expectedAlias, col.Alias)
-		
+
 		// Check it's a function call (SUM)
 		funcCall, ok := col.Expr.(*FunctionCall)
 		require.True(t, ok)
 		require.Equal(t, "SUM", funcCall.Name)
 		require.Len(t, funcCall.Args, 1)
-		
+
 		// The argument should be a CASE expression
 		caseExpr, ok := funcCall.Args[0].(*CaseExpr)
 		require.True(t, ok)

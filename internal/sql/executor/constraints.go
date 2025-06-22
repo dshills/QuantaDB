@@ -59,7 +59,7 @@ func (cv *SimpleConstraintValidator) ValidateUpdate(table *catalog.Table, oldRow
 			}
 		}
 	}
-	
+
 	// For now, we don't check referential integrity for tables that reference this one
 	// This would require implementing CASCADE, SET NULL, etc. actions
 	return nil
@@ -89,7 +89,7 @@ func (cv *SimpleConstraintValidator) validateForeignKey(table *catalog.Table, ro
 			break
 		}
 	}
-	
+
 	if allNull {
 		return nil // NULL foreign keys are allowed
 	}
@@ -118,33 +118,33 @@ func (cv *SimpleConstraintValidator) validateForeignKey(table *catalog.Table, ro
 			if colIdx < 0 {
 				return fmt.Errorf("foreign key column %s not found", col)
 			}
-			
+
 			refCol := fk.RefColumns[i]
 			refColIdx := getColumnIndex(refTable, refCol)
 			if refColIdx < 0 {
 				return fmt.Errorf("referenced column %s not found", refCol)
 			}
-			
+
 			// Compare values
 			val := row.Values[colIdx]
 			refVal := refRow.Values[refColIdx]
-			
+
 			// Use type-specific comparison
 			if !valuesEqual(val, refVal) {
 				matches = false
 				break
 			}
 		}
-		
+
 		if matches {
 			found = true
 			break
 		}
-		
+
 	}
 
 	if !found {
-		return fmt.Errorf("foreign key constraint %s violated: referenced row not found in %s", 
+		return fmt.Errorf("foreign key constraint %s violated: referenced row not found in %s",
 			fk.Name, fk.RefTableName)
 	}
 
@@ -169,9 +169,9 @@ func (cv *SimpleConstraintValidator) validateCheck(table *catalog.Table, row *Ro
 			IsNullable: col.IsNullable,
 		}
 	}
-	
+
 	evalCtx := newEvalContext(row, columns, nil)
-	
+
 	// Evaluate the expression
 	result, err := evaluateExpression(expr, evalCtx)
 	if err != nil {
@@ -201,27 +201,27 @@ func (cv *SimpleConstraintValidator) checkReferencingTables(table *catalog.Table
 	}
 
 	for _, refTable := range tables {
-		
+
 		// Check each constraint in the referencing table
 		for _, constraint := range refTable.Constraints {
 			fk, ok := constraint.(*catalog.ForeignKeyConstraint)
 			if !ok || fk.RefTableName != table.TableName {
 				continue
 			}
-			
+
 			// Check if any rows reference the row being deleted
 			iter, err := cv.storage.ScanTable(refTable.ID, 0) // Use 0 for current snapshot
 			if err != nil {
 				continue
 			}
 			defer iter.Close()
-			
+
 			for {
 				refRow, _, err := iter.Next()
 				if err != nil || refRow == nil {
 					break
 				}
-				
+
 				// Check if this row references the deleted row
 				matches := true
 				for i, refCol := range fk.RefColumns {
@@ -230,37 +230,37 @@ func (cv *SimpleConstraintValidator) checkReferencingTables(table *catalog.Table
 						matches = false
 						break
 					}
-					
+
 					col := fk.Columns[i]
 					colIdx := getColumnIndex(refTable, col)
 					if colIdx < 0 {
 						matches = false
 						break
 					}
-					
+
 					// Compare values
 					val := row.Values[refColIdx]
 					refVal := refRow.Values[colIdx]
-					
+
 					if refVal.IsNull() {
 						matches = false
 						break
 					}
-					
+
 					// Use type-specific comparison
 					if !valuesEqual(val, refVal) {
 						matches = false
 						break
 					}
 				}
-				
+
 				if matches {
 					return fmt.Errorf("foreign key constraint %s violated: rows still reference this record", fk.Name)
 				}
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -279,12 +279,12 @@ func valuesEqual(v1, v2 types.Value) bool {
 	if v1.IsNull() || v2.IsNull() {
 		return v1.IsNull() && v2.IsNull()
 	}
-	
+
 	// Type check
 	if v1.Type() != v2.Type() {
 		return false
 	}
-	
+
 	// Compare based on type
 	switch val1 := v1.Data.(type) {
 	case int64:

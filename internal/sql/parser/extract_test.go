@@ -15,7 +15,7 @@ func TestExtractFunction(t *testing.T) {
 			query: "SELECT EXTRACT(YEAR FROM date '2023-01-01')",
 		},
 		{
-			name:  "EXTRACT MONTH from date literal", 
+			name:  "EXTRACT MONTH from date literal",
 			query: "SELECT EXTRACT(MONTH FROM date '2023-12-25')",
 		},
 		{

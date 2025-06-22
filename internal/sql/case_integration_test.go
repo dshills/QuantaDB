@@ -79,13 +79,13 @@ func TestCaseInAggregation(t *testing.T) {
 	for i, col := range selectStmt.Columns {
 		funcCall, ok := col.Expr.(*parser.FunctionCall)
 		require.True(t, ok, "Column %d should be a function call", i)
-		
+
 		if i < 2 {
 			require.Equal(t, "COUNT", funcCall.Name)
 		} else {
 			require.Equal(t, "SUM", funcCall.Name)
 		}
-		
+
 		// The argument should contain a CASE expression
 		require.Len(t, funcCall.Args, 1)
 		caseExpr, ok := funcCall.Args[0].(*parser.CaseExpr)
@@ -127,12 +127,12 @@ func TestNestedCaseExpressions(t *testing.T) {
 	// The column should be a CASE expression
 	col := selectStmt.Columns[0]
 	require.Equal(t, "product_tier", col.Alias)
-	
+
 	caseExpr, ok := col.Expr.(*parser.CaseExpr)
 	require.True(t, ok)
 	require.Nil(t, caseExpr.Expr) // Searched CASE
 	require.Len(t, caseExpr.WhenList, 2)
-	
+
 	// The THEN clauses should contain nested CASE expressions
 	for i, when := range caseExpr.WhenList {
 		nestedCase, ok := when.Result.(*parser.CaseExpr)

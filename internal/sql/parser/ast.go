@@ -110,12 +110,12 @@ func (c TablePrimaryKeyConstraint) String() string {
 
 // TableForeignKeyConstraint represents a table-level FOREIGN KEY constraint.
 type TableForeignKeyConstraint struct {
-	Name           string   // Optional constraint name
-	Columns        []string // Local columns
-	RefTable       string   // Referenced table
-	RefColumns     []string // Referenced columns
-	OnDelete       string   // ON DELETE action
-	OnUpdate       string   // ON UPDATE action
+	Name       string   // Optional constraint name
+	Columns    []string // Local columns
+	RefTable   string   // Referenced table
+	RefColumns []string // Referenced columns
+	OnDelete   string   // ON DELETE action
+	OnUpdate   string   // ON UPDATE action
 }
 
 func (c TableForeignKeyConstraint) String() string {
@@ -124,20 +124,20 @@ func (c TableForeignKeyConstraint) String() string {
 		parts = append(parts, fmt.Sprintf("CONSTRAINT %s", c.Name))
 	}
 	parts = append(parts, fmt.Sprintf("FOREIGN KEY (%s)", strings.Join(c.Columns, ", ")))
-	
+
 	refPart := fmt.Sprintf("REFERENCES %s", c.RefTable)
 	if len(c.RefColumns) > 0 {
 		refPart += fmt.Sprintf(" (%s)", strings.Join(c.RefColumns, ", "))
 	}
 	parts = append(parts, refPart)
-	
+
 	if c.OnDelete != "" {
 		parts = append(parts, fmt.Sprintf("ON DELETE %s", c.OnDelete))
 	}
 	if c.OnUpdate != "" {
 		parts = append(parts, fmt.Sprintf("ON UPDATE %s", c.OnUpdate))
 	}
-	
+
 	return strings.Join(parts, " ")
 }
 
@@ -577,12 +577,12 @@ func (f *FunctionCall) String() string {
 	for _, arg := range f.Args {
 		args = append(args, arg.String())
 	}
-	
+
 	distinct := ""
 	if f.Distinct {
 		distinct = "DISTINCT "
 	}
-	
+
 	return fmt.Sprintf("%s(%s%s)", f.Name, distinct, strings.Join(args, ", "))
 }
 
@@ -650,11 +650,11 @@ func (s *VacuumStmt) String() string {
 // - COPY table TO STDOUT
 // - COPY table (col1, col2) FROM STDIN WITH (FORMAT CSV, DELIMITER ',')
 type CopyStmt struct {
-	TableName   string
-	Columns     []string          // Optional column list
-	Direction   CopyDirection     // FROM or TO
-	Source      string            // STDIN, STDOUT, or filename
-	Options     map[string]string // WITH options like FORMAT, DELIMITER, etc.
+	TableName string
+	Columns   []string          // Optional column list
+	Direction CopyDirection     // FROM or TO
+	Source    string            // STDIN, STDOUT, or filename
+	Options   map[string]string // WITH options like FORMAT, DELIMITER, etc.
 }
 
 // CopyDirection represents the direction of COPY (FROM or TO)
@@ -669,19 +669,19 @@ func (s *CopyStmt) statementNode() {}
 func (s *CopyStmt) String() string {
 	var parts []string
 	parts = append(parts, "COPY", s.TableName)
-	
+
 	if len(s.Columns) > 0 {
 		parts = append(parts, "("+strings.Join(s.Columns, ", ")+")")
 	}
-	
+
 	if s.Direction == CopyFrom {
 		parts = append(parts, "FROM")
 	} else {
 		parts = append(parts, "TO")
 	}
-	
+
 	parts = append(parts, s.Source)
-	
+
 	if len(s.Options) > 0 {
 		var opts []string
 		for k, v := range s.Options {
@@ -693,7 +693,7 @@ func (s *CopyStmt) String() string {
 		}
 		parts = append(parts, "WITH ("+strings.Join(opts, ", ")+")")
 	}
-	
+
 	return strings.Join(parts, " ")
 }
 
@@ -702,28 +702,28 @@ func (s *CopyStmt) String() string {
 // - Simple: CASE expr WHEN val1 THEN result1 WHEN val2 THEN result2 ELSE default END
 // - Searched: CASE WHEN cond1 THEN result1 WHEN cond2 THEN result2 ELSE default END
 type CaseExpr struct {
-	Expr     Expression    // nil for searched CASE
-	WhenList []WhenClause  // List of WHEN clauses
-	Else     Expression    // Optional ELSE expression
+	Expr     Expression   // nil for searched CASE
+	WhenList []WhenClause // List of WHEN clauses
+	Else     Expression   // Optional ELSE expression
 }
 
 func (c *CaseExpr) expressionNode() {}
 func (c *CaseExpr) String() string {
 	var parts []string
 	parts = append(parts, "CASE")
-	
+
 	if c.Expr != nil {
 		parts = append(parts, c.Expr.String())
 	}
-	
+
 	for _, when := range c.WhenList {
 		parts = append(parts, when.String())
 	}
-	
+
 	if c.Else != nil {
 		parts = append(parts, "ELSE", c.Else.String())
 	}
-	
+
 	parts = append(parts, "END")
 	return strings.Join(parts, " ")
 }
@@ -741,16 +741,16 @@ func (w WhenClause) String() string {
 // PrepareStmt represents a PREPARE statement.
 // Example: PREPARE stmt_name [(type1, type2, ...)] AS SELECT ...
 type PrepareStmt struct {
-	Name       string            // Statement name
-	ParamTypes []types.DataType  // Optional parameter type list
-	Query      Statement         // The statement to prepare
+	Name       string           // Statement name
+	ParamTypes []types.DataType // Optional parameter type list
+	Query      Statement        // The statement to prepare
 }
 
 func (s *PrepareStmt) statementNode() {}
 func (s *PrepareStmt) String() string {
 	var parts []string
 	parts = append(parts, "PREPARE", s.Name)
-	
+
 	if len(s.ParamTypes) > 0 {
 		var types []string
 		for _, t := range s.ParamTypes {
@@ -758,7 +758,7 @@ func (s *PrepareStmt) String() string {
 		}
 		parts = append(parts, "("+strings.Join(types, ", ")+")")
 	}
-	
+
 	parts = append(parts, "AS", s.Query.String())
 	return strings.Join(parts, " ")
 }
@@ -773,7 +773,7 @@ type ExecuteStmt struct {
 func (s *ExecuteStmt) statementNode() {}
 func (s *ExecuteStmt) String() string {
 	parts := []string{"EXECUTE", s.Name}
-	
+
 	if len(s.Params) > 0 {
 		var params []string
 		for _, p := range s.Params {
@@ -781,7 +781,7 @@ func (s *ExecuteStmt) String() string {
 		}
 		parts = append(parts, "("+strings.Join(params, ", ")+")")
 	}
-	
+
 	return strings.Join(parts, " ")
 }
 

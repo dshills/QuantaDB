@@ -9,19 +9,19 @@ import (
 func main() {
 	// Simple TCP connection test
 	fmt.Println("Testing basic TCP connection to QuantaDB...")
-	
+
 	conn, err := net.Dial("tcp", "localhost:5432")
 	if err != nil {
 		fmt.Printf("Failed to connect: %v\n", err)
 		return
 	}
 	defer conn.Close()
-	
+
 	fmt.Println("TCP connection successful!")
-	
+
 	// Give it a moment
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Try to read any initial response
 	buf := make([]byte, 1024)
 	conn.SetReadDeadline(time.Now().Add(1 * time.Second))

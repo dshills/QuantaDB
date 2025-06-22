@@ -8,12 +8,12 @@ import (
 // ForeignKeyConstraint represents a foreign key constraint.
 type ForeignKeyConstraint struct {
 	Name           string
-	Columns        []string           // Columns in this table
-	RefTableSchema string             // Referenced table schema
-	RefTableName   string             // Referenced table name
-	RefColumns     []string           // Referenced columns
-	OnDelete       ReferentialAction  // Action on delete
-	OnUpdate       ReferentialAction  // Action on update
+	Columns        []string          // Columns in this table
+	RefTableSchema string            // Referenced table schema
+	RefTableName   string            // Referenced table name
+	RefColumns     []string          // Referenced columns
+	OnDelete       ReferentialAction // Action on delete
+	OnUpdate       ReferentialAction // Action on update
 }
 
 // ReferentialAction represents actions for ON DELETE/UPDATE clauses.
@@ -36,15 +36,15 @@ func (c ForeignKeyConstraint) constraintType() string { return "FOREIGN KEY" }
 
 func (c ForeignKeyConstraint) String() string {
 	var parts []string
-	
+
 	// Name (if provided)
 	if c.Name != "" {
 		parts = append(parts, fmt.Sprintf("CONSTRAINT %s", c.Name))
 	}
-	
+
 	// Foreign key columns
 	parts = append(parts, fmt.Sprintf("FOREIGN KEY (%s)", strings.Join(c.Columns, ", ")))
-	
+
 	// References clause
 	refPart := fmt.Sprintf("REFERENCES %s", c.RefTableName)
 	if c.RefTableSchema != "" && c.RefTableSchema != "public" {
@@ -54,17 +54,17 @@ func (c ForeignKeyConstraint) String() string {
 		refPart += fmt.Sprintf(" (%s)", strings.Join(c.RefColumns, ", "))
 	}
 	parts = append(parts, refPart)
-	
+
 	// ON DELETE clause
 	if c.OnDelete != "" && c.OnDelete != NoAction {
 		parts = append(parts, fmt.Sprintf("ON DELETE %s", c.OnDelete))
 	}
-	
+
 	// ON UPDATE clause
 	if c.OnUpdate != "" && c.OnUpdate != NoAction {
 		parts = append(parts, fmt.Sprintf("ON UPDATE %s", c.OnUpdate))
 	}
-	
+
 	return strings.Join(parts, " ")
 }
 

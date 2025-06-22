@@ -67,7 +67,7 @@ func (op *CopyOperator) Open(ctx *ExecContext) error {
 			op.writer = file
 		}
 	}
-	
+
 	return nil
 }
 
@@ -83,17 +83,17 @@ func (op *CopyOperator) Next() (*Row, error) {
 			return nil, err
 		}
 	}
-	
+
 	// Return the result row with row count
 	row := &Row{
 		Values: []types.Value{
 			types.NewValue(op.rowCount),
 		},
 	}
-	
+
 	// Mark as done for subsequent calls
 	op.rowCount = -1
-	
+
 	return row, nil
 }
 
@@ -119,7 +119,7 @@ func (op *CopyOperator) executeCopyFrom() error {
 	if op.reader == nil {
 		return fmt.Errorf("no input source for COPY FROM")
 	}
-	
+
 	// Get table columns
 	table := op.plan.TableRef
 	columns := op.plan.Columns
@@ -130,19 +130,19 @@ func (op *CopyOperator) executeCopyFrom() error {
 			columns[i] = col.Name
 		}
 	}
-	
+
 	// Create column index map
 	colIndexMap := make(map[string]int)
 	for i, col := range table.Columns {
 		colIndexMap[col.Name] = i
 	}
-	
+
 	// Determine format
 	format := op.plan.Options["FORMAT"]
 	if format == "" {
 		format = "TEXT"
 	}
-	
+
 	// Parse data based on format
 	switch strings.ToUpper(format) {
 	case "CSV":
@@ -160,43 +160,43 @@ func (op *CopyOperator) executeCopyFromText(columns []string, colIndexMap map[st
 	if delimiter == "" {
 		delimiter = "\t"
 	}
-	
+
 	scanner := bufio.NewScanner(op.reader)
 	lineNum := 0
-	
+
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
-		
+
 		// Skip empty lines
 		if line == "" {
 			continue
 		}
-		
+
 		// Check for end-of-data marker
 		if line == "\\." {
 			break
 		}
-		
+
 		// Split by delimiter
 		fields := strings.Split(line, delimiter)
 		if len(fields) != len(columns) {
 			return fmt.Errorf("line %d: expected %d columns, got %d", lineNum, len(columns), len(fields))
 		}
-		
+
 		// Build row values
 		rowValues := make([]types.Value, len(op.plan.TableRef.Columns))
 		for i := range rowValues {
 			rowValues[i] = types.NewNullValue()
 		}
-		
+
 		for i, field := range fields {
 			colName := columns[i]
 			colIdx, ok := colIndexMap[colName]
 			if !ok {
 				return fmt.Errorf("column %s not found in table", colName)
 			}
-			
+
 			col := op.plan.TableRef.Columns[colIdx]
 			value, err := parseTextValue(field, col.DataType)
 			if err != nil {
@@ -204,34 +204,34 @@ func (op *CopyOperator) executeCopyFromText(columns []string, colIndexMap map[st
 			}
 			rowValues[colIdx] = value
 		}
-		
+
 		// Insert the row
 		if err := op.insertRow(rowValues); err != nil {
 			return fmt.Errorf("line %d: %w", lineNum, err)
 		}
-		
+
 		op.rowCount++
 	}
-	
+
 	return scanner.Err()
 }
 
 // executeCopyFromCSV handles CSV format COPY FROM.
 func (op *CopyOperator) executeCopyFromCSV(columns []string, colIndexMap map[string]int) error {
 	reader := csv.NewReader(op.reader)
-	
+
 	// Configure CSV reader based on options
 	if delimiter := op.plan.Options["DELIMITER"]; delimiter != "" && len(delimiter) > 0 {
 		reader.Comma = rune(delimiter[0])
 	}
-	
+
 	// Check if header row should be skipped
 	if _, hasHeader := op.plan.Options["HEADER"]; hasHeader {
 		if _, err := reader.Read(); err != nil {
 			return fmt.Errorf("error reading header: %w", err)
 		}
 	}
-	
+
 	lineNum := 0
 	for {
 		record, err := reader.Read()
@@ -241,26 +241,26 @@ func (op *CopyOperator) executeCopyFromCSV(columns []string, colIndexMap map[str
 		if err != nil {
 			return fmt.Errorf("CSV parse error at line %d: %w", lineNum, err)
 		}
-		
+
 		lineNum++
-		
+
 		if len(record) != len(columns) {
 			return fmt.Errorf("line %d: expected %d columns, got %d", lineNum, len(columns), len(record))
 		}
-		
+
 		// Build row values
 		rowValues := make([]types.Value, len(op.plan.TableRef.Columns))
 		for i := range rowValues {
 			rowValues[i] = types.NewNullValue()
 		}
-		
+
 		for i, field := range record {
 			colName := columns[i]
 			colIdx, ok := colIndexMap[colName]
 			if !ok {
 				return fmt.Errorf("column %s not found in table", colName)
 			}
-			
+
 			col := op.plan.TableRef.Columns[colIdx]
 			// Handle empty string as NULL in CSV
 			if field == "" {
@@ -273,15 +273,15 @@ func (op *CopyOperator) executeCopyFromCSV(columns []string, colIndexMap map[str
 				rowValues[colIdx] = value
 			}
 		}
-		
+
 		// Insert the row
 		if err := op.insertRow(rowValues); err != nil {
 			return fmt.Errorf("line %d: %w", lineNum, err)
 		}
-		
+
 		op.rowCount++
 	}
-	
+
 	return nil
 }
 
@@ -298,13 +298,13 @@ func (op *CopyOperator) executeCopyTo() error {
 	if op.writer == nil {
 		return fmt.Errorf("no output destination for COPY TO")
 	}
-	
+
 	// TODO: Implement COPY TO functionality
 	// This would involve:
 	// 1. Creating a scan over the table
 	// 2. Formatting rows according to the specified format
 	// 3. Writing to the output stream
-	
+
 	return fmt.Errorf("COPY TO not yet implemented")
 }
 
@@ -314,10 +314,10 @@ func parseTextValue(text string, dataType types.DataType) (types.Value, error) {
 	if text == "\\N" {
 		return types.NewNullValue(), nil
 	}
-	
+
 	// Handle escape sequences
 	text = unescapeText(text)
-	
+
 	// Parse based on data type
 	switch dataType.Name() {
 	case "INTEGER", "BIGINT", "SMALLINT":
@@ -326,14 +326,14 @@ func parseTextValue(text string, dataType types.DataType) (types.Value, error) {
 			return types.Value{}, fmt.Errorf("invalid integer: %s", text)
 		}
 		return types.NewValue(n), nil
-		
+
 	case "DECIMAL", "NUMERIC":
 		f, err := strconv.ParseFloat(text, 64)
 		if err != nil {
 			return types.Value{}, fmt.Errorf("invalid decimal: %s", text)
 		}
 		return types.NewValue(f), nil
-		
+
 	case "BOOLEAN":
 		switch strings.ToLower(text) {
 		case "t", "true", "yes", "on", "1":
@@ -343,10 +343,10 @@ func parseTextValue(text string, dataType types.DataType) (types.Value, error) {
 		default:
 			return types.Value{}, fmt.Errorf("invalid boolean: %s", text)
 		}
-		
+
 	case "VARCHAR", "CHAR", "TEXT":
 		return types.NewValue(text), nil
-		
+
 	case "TIMESTAMP":
 		t, err := time.Parse("2006-01-02 15:04:05", text)
 		if err != nil {
@@ -357,14 +357,14 @@ func parseTextValue(text string, dataType types.DataType) (types.Value, error) {
 			}
 		}
 		return types.NewValue(t), nil
-		
+
 	case "DATE":
 		t, err := time.Parse("2006-01-02", text)
 		if err != nil {
 			return types.Value{}, fmt.Errorf("invalid date: %s", text)
 		}
 		return types.NewValue(t), nil
-		
+
 	default:
 		// Default to string
 		return types.NewValue(text), nil
@@ -380,7 +380,6 @@ func unescapeText(text string) string {
 	text = strings.ReplaceAll(text, "\\\\", "\\")
 	return text
 }
-
 
 // SetReader sets the input reader for COPY FROM STDIN.
 func (op *CopyOperator) SetReader(r io.Reader) {

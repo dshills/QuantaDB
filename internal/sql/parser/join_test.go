@@ -93,7 +93,7 @@ func TestJoinParsing(t *testing.T) {
 			if err == nil && stmt == nil {
 				t.Error("Parse() returned nil statement without error")
 			}
-			
+
 			// If parsing succeeded, verify it's a SELECT statement with proper FROM clause
 			if err == nil {
 				selectStmt, ok := stmt.(*SelectStmt)
@@ -101,7 +101,7 @@ func TestJoinParsing(t *testing.T) {
 					t.Errorf("expected SelectStmt, got %T", stmt)
 					return
 				}
-				
+
 				if selectStmt.From == nil {
 					t.Error("expected FROM clause to be non-nil")
 				}
@@ -132,27 +132,27 @@ func TestJoinTypes(t *testing.T) {
 
 func TestTableRefParsing(t *testing.T) {
 	tests := []struct {
-		name     string
-		sql      string
-		wantName string
+		name      string
+		sql       string
+		wantName  string
 		wantAlias string
 	}{
 		{
-			name:     "simple table",
-			sql:      "SELECT * FROM users",
-			wantName: "users",
+			name:      "simple table",
+			sql:       "SELECT * FROM users",
+			wantName:  "users",
 			wantAlias: "",
 		},
 		{
-			name:     "table with implicit alias",
-			sql:      "SELECT * FROM users u",
-			wantName: "users",
+			name:      "table with implicit alias",
+			sql:       "SELECT * FROM users u",
+			wantName:  "users",
 			wantAlias: "u",
 		},
 		{
-			name:     "table with AS alias",
-			sql:      "SELECT * FROM users AS u",
-			wantName: "users",
+			name:      "table with AS alias",
+			sql:       "SELECT * FROM users AS u",
+			wantName:  "users",
 			wantAlias: "u",
 		},
 	}

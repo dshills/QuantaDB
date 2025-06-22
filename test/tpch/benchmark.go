@@ -61,7 +61,7 @@ func (b *BenchmarkSuite) RunQuery(name, query string) *BenchmarkResult {
 
 	// Time the entire execution
 	start := time.Now()
-	
+
 	// Execute query
 	rows, err := b.db.Query(query)
 	if err != nil {
@@ -82,7 +82,7 @@ func (b *BenchmarkSuite) RunQuery(name, query string) *BenchmarkResult {
 
 	result.ExecutionTime = time.Since(start)
 	result.ExecTime = result.ExecutionTime // For now, we don't separate plan/exec time
-	
+
 	return result
 }
 
@@ -92,13 +92,13 @@ func (b *BenchmarkSuite) RunAll() []*BenchmarkResult {
 
 	// Run queries in order
 	queryOrder := []string{"Q3", "Q5", "Q8", "Q10"}
-	
+
 	for _, name := range queryOrder {
 		if query, ok := b.queries[name]; ok {
 			fmt.Printf("Running %s...\n", name)
 			result := b.RunQuery(name, query)
 			results = append(results, result)
-			
+
 			if result.Error != nil {
 				fmt.Printf("  ERROR: %v\n", result.Error)
 			} else {
@@ -157,7 +157,7 @@ func (b *BenchmarkSuite) executeFile(filename string) error {
 	// For now, we'll use a simple approach
 	// In production, you'd want to read and execute statements more carefully
 	ctx := context.Background()
-	
+
 	// Start a transaction for bulk loading
 	tx, err := b.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -167,7 +167,7 @@ func (b *BenchmarkSuite) executeFile(filename string) error {
 
 	// TODO: Read file and execute statements
 	// For now, return nil to allow compilation
-	
+
 	return tx.Commit()
 }
 
@@ -176,13 +176,13 @@ func GenerateReport(results []*BenchmarkResult, scaleFactor float64) string {
 	report := fmt.Sprintf("TPC-H Benchmark Results\n")
 	report += fmt.Sprintf("Scale Factor: %.2f\n", scaleFactor)
 	report += fmt.Sprintf("Timestamp: %s\n\n", time.Now().Format(time.RFC3339))
-	
+
 	report += "Query Results:\n"
 	report += "─────────────\n"
-	
+
 	var totalTime time.Duration
 	successCount := 0
-	
+
 	for _, r := range results {
 		report += fmt.Sprintf("\n%s - %s\n", r.QueryName, r.Description)
 		if r.Error != nil {
@@ -196,7 +196,7 @@ func GenerateReport(results []*BenchmarkResult, scaleFactor float64) string {
 			successCount++
 		}
 	}
-	
+
 	report += fmt.Sprintf("\n─────────────\n")
 	report += fmt.Sprintf("Summary:\n")
 	report += fmt.Sprintf("  Successful: %d/%d\n", successCount, len(results))
@@ -204,6 +204,6 @@ func GenerateReport(results []*BenchmarkResult, scaleFactor float64) string {
 		report += fmt.Sprintf("  Total Time: %v\n", totalTime)
 		report += fmt.Sprintf("  Average Time: %v\n", totalTime/time.Duration(successCount))
 	}
-	
+
 	return report
 }

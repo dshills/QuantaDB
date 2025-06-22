@@ -518,13 +518,13 @@ func (p *BasicPlanner) planVacuum(stmt *parser.VacuumStmt) (LogicalPlan, error) 
 func (p *BasicPlanner) planCopy(stmt *parser.CopyStmt) (LogicalPlan, error) {
 	// Default to public schema
 	schemaName := defaultSchema
-	
+
 	// Verify table exists
 	table, err := p.catalog.GetTable(schemaName, stmt.TableName)
 	if err != nil {
 		return nil, fmt.Errorf("table %s.%s not found", schemaName, stmt.TableName)
 	}
-	
+
 	// Verify columns exist if specified
 	if len(stmt.Columns) > 0 {
 		for _, colName := range stmt.Columns {
@@ -540,7 +540,7 @@ func (p *BasicPlanner) planCopy(stmt *parser.CopyStmt) (LogicalPlan, error) {
 			}
 		}
 	}
-	
+
 	// Validate direction-source combination
 	if stmt.Direction == parser.CopyTo && stmt.Source == "STDIN" {
 		return nil, fmt.Errorf("cannot COPY TO STDIN")
@@ -548,7 +548,7 @@ func (p *BasicPlanner) planCopy(stmt *parser.CopyStmt) (LogicalPlan, error) {
 	if stmt.Direction == parser.CopyFrom && stmt.Source == "STDOUT" {
 		return nil, fmt.Errorf("cannot COPY FROM STDOUT")
 	}
-	
+
 	return NewLogicalCopy(schemaName, stmt.TableName, stmt.Columns, stmt.Direction, stmt.Source, stmt.Options, table), nil
 }
 
@@ -923,34 +923,34 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 				return nil, fmt.Errorf("failed to convert CASE expression: %w", err)
 			}
 		}
-		
+
 		// Convert WHEN clauses
 		var whenList []WhenClause
 		var resultType types.DataType = types.Unknown
-		
+
 		for i, when := range e.WhenList {
 			condition, err := p.convertExpression(when.Condition)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert WHEN condition %d: %w", i, err)
 			}
-			
+
 			result, err := p.convertExpression(when.Result)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert THEN result %d: %w", i, err)
 			}
-			
+
 			// Use the first result's type as the expression type
 			// TODO: Type coercion for mixed types
 			if resultType == types.Unknown && result.DataType() != types.Unknown {
 				resultType = result.DataType()
 			}
-			
+
 			whenList = append(whenList, WhenClause{
 				Condition: condition,
 				Result:    result,
 			})
 		}
-		
+
 		// Convert ELSE clause
 		var elseExpr Expression
 		if e.Else != nil {
@@ -959,18 +959,18 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert ELSE expression: %w", err)
 			}
-			
+
 			// Update result type if needed
 			if resultType == types.Unknown && elseExpr.DataType() != types.Unknown {
 				resultType = elseExpr.DataType()
 			}
 		}
-		
+
 		// If we still don't know the type, default to text
 		if resultType == types.Unknown {
 			resultType = types.Text
 		}
-		
+
 		return &CaseExpr{
 			Expr:     caseExpr,
 			WhenList: whenList,
@@ -1233,7 +1233,7 @@ func (p *BasicPlanner) planTableExpression(tableExpr parser.TableExpression) (Lo
 	case *parser.TableRef:
 		// Simple table reference
 		return p.planTableRef(te)
-		
+
 	case *parser.SubqueryRef:
 		// Subquery in FROM clause
 		subPlan, err := p.planSelect(te.Query)
@@ -1243,7 +1243,7 @@ func (p *BasicPlanner) planTableExpression(tableExpr parser.TableExpression) (Lo
 		// The subquery plan already has the correct schema
 		// We just need to use the alias for column references
 		return subPlan, nil
-		
+
 	case *parser.JoinExpr:
 		// JOIN expression
 		// Recursively plan left and right sides
@@ -1251,12 +1251,12 @@ func (p *BasicPlanner) planTableExpression(tableExpr parser.TableExpression) (Lo
 		if err != nil {
 			return nil, err
 		}
-		
+
 		rightPlan, err := p.planTableExpression(te.Right)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Convert join type from parser to planner
 		var joinType JoinType
 		switch te.JoinType {
@@ -1273,7 +1273,7 @@ func (p *BasicPlanner) planTableExpression(tableExpr parser.TableExpression) (Lo
 		default:
 			joinType = InnerJoin
 		}
-		
+
 		// Convert the join condition
 		var condition Expression
 		if te.Condition != nil {
@@ -1282,7 +1282,7 @@ func (p *BasicPlanner) planTableExpression(tableExpr parser.TableExpression) (Lo
 				return nil, err
 			}
 		}
-		
+
 		// Compute the join schema (concatenate left and right schemas)
 		leftSchema := leftPlan.Schema()
 		rightSchema := rightPlan.Schema()
@@ -1291,12 +1291,12 @@ func (p *BasicPlanner) planTableExpression(tableExpr parser.TableExpression) (Lo
 		}
 		joinSchema.Columns = append(joinSchema.Columns, leftSchema.Columns...)
 		joinSchema.Columns = append(joinSchema.Columns, rightSchema.Columns...)
-		
+
 		// Create the logical join
 		join := NewLogicalJoin(leftPlan, rightPlan, joinType, condition, joinSchema)
-		
+
 		return join, nil
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported table expression type: %T", tableExpr)
 	}
@@ -1321,7 +1321,7 @@ func (p *BasicPlanner) planTableRef(ref *parser.TableRef) (LogicalPlan, error) {
 		}
 		return NewLogicalScan(ref.TableName, alias, schema), nil
 	}
-	
+
 	// Build schema from table metadata
 	schema := &Schema{
 		Columns: make([]Column, len(table.Columns)),
@@ -1333,7 +1333,7 @@ func (p *BasicPlanner) planTableRef(ref *parser.TableRef) (LogicalPlan, error) {
 			Nullable: col.IsNullable,
 		}
 	}
-	
+
 	// Use alias if provided, otherwise use table name
 	alias := ref.Alias
 	if alias == "" {
@@ -1348,7 +1348,7 @@ func (p *BasicPlanner) planPrepare(stmt *parser.PrepareStmt) (LogicalPlan, error
 	if stmt.Name == "" {
 		return nil, fmt.Errorf("prepared statement name cannot be empty")
 	}
-	
+
 	// The query inside the PREPARE statement will be parsed and planned
 	// when the prepared statement is executed
 	return NewLogicalPrepare(stmt.Name, stmt.ParamTypes, stmt.Query), nil
@@ -1360,7 +1360,7 @@ func (p *BasicPlanner) planExecute(stmt *parser.ExecuteStmt) (LogicalPlan, error
 	if stmt.Name == "" {
 		return nil, fmt.Errorf("statement name cannot be empty")
 	}
-	
+
 	return NewLogicalExecute(stmt.Name, stmt.Params), nil
 }
 
@@ -1370,6 +1370,6 @@ func (p *BasicPlanner) planDeallocate(stmt *parser.DeallocateStmt) (LogicalPlan,
 	if stmt.Name == "" {
 		return nil, fmt.Errorf("statement name cannot be empty")
 	}
-	
+
 	return NewLogicalDeallocate(stmt.Name), nil
 }

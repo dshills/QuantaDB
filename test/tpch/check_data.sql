@@ -1,0 +1,1 @@
+SELECT COUNT(*) as orders_count FROM orders;

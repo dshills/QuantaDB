@@ -208,7 +208,6 @@ func (m *mockInsertStorageBackend) DropTable(tableID int64) error {
 	return nil
 }
 
-
 // Helper function
 func containsStr(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || containsStr(s[1:], substr)))

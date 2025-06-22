@@ -89,7 +89,7 @@ func TestInExpressions(t *testing.T) {
 				false, // David is in list
 			},
 		},
-		
+
 		// Single value IN (equivalent to equality)
 		{
 			name: "IN with single value",
@@ -101,7 +101,7 @@ func TestInExpressions(t *testing.T) {
 				false, // id=4
 			},
 		},
-		
+
 		// Empty IN list (should always be false)
 		{
 			name: "IN with empty list",
@@ -186,13 +186,13 @@ func TestInExprNullHandling(t *testing.T) {
 			isNull: true, // NULL IN anything = NULL
 		},
 		{
-			name:   "NULL NOT IN value list (should be NULL)", 
+			name:   "NULL NOT IN value list (should be NULL)",
 			expr:   "nullable_field NOT IN ('A', 'B')",
 			isNull: true, // NULL NOT IN anything = NULL
 		},
 		{
 			name:   "value IN list with NULL (should be NULL if not found)",
-			expr:   "id IN (2, NULL, 3)", 
+			expr:   "id IN (2, NULL, 3)",
 			isNull: true, // 1 not in (2,3) and NULL is present -> NULL
 		},
 		{
@@ -247,7 +247,7 @@ func TestInExprNullHandling(t *testing.T) {
 func TestInSubqueryExpressions(t *testing.T) {
 	// Note: This test would require full subquery execution capability
 	// For now, we'll just test the parsing and planner integration
-	
+
 	testQueries := []string{
 		"SELECT * FROM users WHERE id IN (SELECT user_id FROM orders)",
 		"SELECT * FROM users WHERE id NOT IN (SELECT user_id FROM orders WHERE amount > 100)",
@@ -265,7 +265,7 @@ func TestInSubqueryExpressions(t *testing.T) {
 			selectStmt, ok := stmt.(*parser.SelectStmt)
 			require.True(t, ok)
 			require.NotNil(t, selectStmt.Where)
-			
+
 			// This confirms the parser can handle IN with subqueries
 			// Full execution would require setting up tables and data
 		})

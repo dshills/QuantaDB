@@ -751,12 +751,12 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 				return nil, err
 			}
 			stmt.GroupBy = append(stmt.GroupBy, expr)
-			
+
 			if !p.match(TokenComma) {
 				break
 			}
 		}
-		
+
 		// Parse optional HAVING clause
 		if p.match(TokenHaving) {
 			expr, err := p.parseExpression()
@@ -1218,23 +1218,23 @@ func (p *Parser) parseCopy() (*CopyStmt, error) {
 // parseIdentifierList parses a comma-separated list of identifiers.
 func (p *Parser) parseIdentifierList() ([]string, error) {
 	var identifiers []string
-	
+
 	for {
 		if p.current.Type != TokenIdentifier {
 			return nil, p.error("expected identifier")
 		}
 		identifiers = append(identifiers, p.current.Value)
 		p.advance()
-		
+
 		if !p.match(TokenComma) {
 			break
 		}
 	}
-	
+
 	if len(identifiers) == 0 {
 		return nil, p.error("expected at least one identifier")
 	}
-	
+
 	return identifiers, nil
 }
 
@@ -1244,17 +1244,17 @@ func (p *Parser) parsePrepare() (*PrepareStmt, error) {
 	if !p.consume(TokenPrepare, "expected PREPARE") {
 		return nil, p.lastError()
 	}
-	
+
 	// Get statement name
 	name := p.current.Value
 	if !p.consume(TokenIdentifier, "expected statement name") {
 		return nil, p.lastError()
 	}
-	
+
 	stmt := &PrepareStmt{
 		Name: name,
 	}
-	
+
 	// Optional parameter type list
 	if p.match(TokenLeftParen) {
 		for {
@@ -1263,29 +1263,29 @@ func (p *Parser) parsePrepare() (*PrepareStmt, error) {
 				return nil, err
 			}
 			stmt.ParamTypes = append(stmt.ParamTypes, dataType)
-			
+
 			if !p.match(TokenComma) {
 				break
 			}
 		}
-		
+
 		if !p.consume(TokenRightParen, "expected ) after parameter types") {
 			return nil, p.lastError()
 		}
 	}
-	
+
 	// AS keyword
 	if !p.consume(TokenAs, "expected AS") {
 		return nil, p.lastError()
 	}
-	
+
 	// Parse the statement to prepare
 	query, err := p.parseStatement()
 	if err != nil {
 		return nil, err
 	}
 	stmt.Query = query
-	
+
 	return stmt, nil
 }
 
@@ -1295,17 +1295,17 @@ func (p *Parser) parseExecute() (*ExecuteStmt, error) {
 	if !p.consume(TokenExecute, "expected EXECUTE") {
 		return nil, p.lastError()
 	}
-	
+
 	// Get statement name
 	name := p.current.Value
 	if !p.consume(TokenIdentifier, "expected statement name") {
 		return nil, p.lastError()
 	}
-	
+
 	stmt := &ExecuteStmt{
 		Name: name,
 	}
-	
+
 	// Optional parameter list
 	if p.match(TokenLeftParen) {
 		for {
@@ -1314,17 +1314,17 @@ func (p *Parser) parseExecute() (*ExecuteStmt, error) {
 				return nil, err
 			}
 			stmt.Params = append(stmt.Params, param)
-			
+
 			if !p.match(TokenComma) {
 				break
 			}
 		}
-		
+
 		if !p.consume(TokenRightParen, "expected ) after parameters") {
 			return nil, p.lastError()
 		}
 	}
-	
+
 	return stmt, nil
 }
 
@@ -1334,16 +1334,16 @@ func (p *Parser) parseDeallocate() (*DeallocateStmt, error) {
 	if !p.consume(TokenDeallocate, "expected DEALLOCATE") {
 		return nil, p.lastError()
 	}
-	
+
 	// Optional PREPARE keyword
 	p.match(TokenPrepare)
-	
+
 	// Get statement name
 	name := p.current.Value
 	if !p.consume(TokenIdentifier, "expected statement name") {
 		return nil, p.lastError()
 	}
-	
+
 	return &DeallocateStmt{
 		Name: name,
 	}, nil
@@ -1789,7 +1789,7 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		}
 		dateStr := p.current.Value
 		p.advance()
-		
+
 		// Parse the date string
 		dateValue, err := types.ParseDate(dateStr)
 		if err != nil {
@@ -1805,7 +1805,7 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		}
 		timestampStr := p.current.Value
 		p.advance()
-		
+
 		// Parse the timestamp string
 		timestampValue, err := types.ParseTimestamp(timestampStr)
 		if err != nil {
@@ -1821,7 +1821,7 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		}
 		intervalStr := p.current.Value
 		p.advance()
-		
+
 		// Parse the interval string
 		intervalValue, err := p.parseIntervalString(intervalStr)
 		if err != nil {
@@ -1832,27 +1832,27 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	case TokenSubstring:
 		// Handle SUBSTRING(string FROM start [FOR length])
 		p.advance() // consume 'SUBSTRING'
-		
+
 		if !p.consume(TokenLeftParen, "expected '(' after SUBSTRING") {
 			return nil, p.lastError()
 		}
-		
+
 		// Parse the string expression
 		strExpr, err := p.parseExpression()
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if !p.consume(TokenFrom, "expected 'FROM' in SUBSTRING expression") {
 			return nil, p.lastError()
 		}
-		
+
 		// Parse the start position
 		startExpr, err := p.parseExpression()
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Optional FOR length
 		var lengthExpr Expression
 		if p.match(TokenFor) {
@@ -1861,11 +1861,11 @@ func (p *Parser) parsePrimary() (Expression, error) {
 				return nil, err
 			}
 		}
-		
+
 		if !p.consume(TokenRightParen, "expected ')' after SUBSTRING expression") {
 			return nil, p.lastError()
 		}
-		
+
 		return &SubstringExpr{
 			Str:    strExpr,
 			Start:  startExpr,
@@ -1875,35 +1875,35 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	case TokenExtract:
 		// Handle EXTRACT(field FROM expression)
 		p.advance() // consume 'EXTRACT'
-		
+
 		if !p.consume(TokenLeftParen, "expected '(' after EXTRACT") {
 			return nil, p.lastError()
 		}
-		
+
 		// Parse the field (YEAR, MONTH, DAY, etc.)
-		if p.current.Type != TokenYear && p.current.Type != TokenMonth && 
-		   p.current.Type != TokenDay && p.current.Type != TokenHour &&
-		   p.current.Type != TokenMinute && p.current.Type != TokenSecond {
+		if p.current.Type != TokenYear && p.current.Type != TokenMonth &&
+			p.current.Type != TokenDay && p.current.Type != TokenHour &&
+			p.current.Type != TokenMinute && p.current.Type != TokenSecond {
 			return nil, p.error("expected date field (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND) in EXTRACT")
 		}
-		
+
 		field := p.current.Value
 		p.advance()
-		
+
 		if !p.consume(TokenFrom, "expected 'FROM' in EXTRACT expression") {
 			return nil, p.lastError()
 		}
-		
+
 		// Parse the source expression
 		fromExpr, err := p.parseExpression()
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if !p.consume(TokenRightParen, "expected ')' after EXTRACT expression") {
 			return nil, p.lastError()
 		}
-		
+
 		return &ExtractExpr{
 			Field: strings.ToUpper(field),
 			From:  fromExpr,
@@ -1912,11 +1912,11 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	case TokenCase:
 		// Handle CASE expression
 		p.advance() // consume 'CASE'
-		
+
 		var expr Expression
 		var whenList []WhenClause
 		var elseExpr Expression
-		
+
 		// Check if this is a simple CASE (CASE expr WHEN...) or searched CASE (CASE WHEN...)
 		if p.current.Type != TokenWhen {
 			// Simple CASE - parse the expression after CASE
@@ -1926,37 +1926,37 @@ func (p *Parser) parsePrimary() (Expression, error) {
 				return nil, err
 			}
 		}
-		
+
 		// Parse WHEN clauses
 		for p.current.Type == TokenWhen {
 			p.advance() // consume 'WHEN'
-			
+
 			// Parse the condition
 			condition, err := p.parseComparison() // Parse at comparison level for conditions
 			if err != nil {
 				return nil, err
 			}
-			
+
 			if !p.consume(TokenThen, "expected 'THEN' after WHEN condition") {
 				return nil, p.lastError()
 			}
-			
+
 			// Parse the result
 			result, err := p.parseComparison() // Parse at comparison level for results
 			if err != nil {
 				return nil, err
 			}
-			
+
 			whenList = append(whenList, WhenClause{
 				Condition: condition,
 				Result:    result,
 			})
 		}
-		
+
 		if len(whenList) == 0 {
 			return nil, p.error("CASE expression must have at least one WHEN clause")
 		}
-		
+
 		// Parse optional ELSE clause
 		if p.match(TokenElse) {
 			var err error
@@ -1965,11 +1965,11 @@ func (p *Parser) parsePrimary() (Expression, error) {
 				return nil, err
 			}
 		}
-		
+
 		if !p.consume(TokenEnd, "expected 'END' to close CASE expression") {
 			return nil, p.lastError()
 		}
-		
+
 		return &CaseExpr{
 			Expr:     expr,
 			WhenList: whenList,
@@ -1979,14 +1979,14 @@ func (p *Parser) parsePrimary() (Expression, error) {
 	case TokenIdentifier:
 		name := p.current.Value
 		p.advance()
-		
+
 		// Check if it's a function call
 		if p.check(TokenLeftParen) {
 			p.advance() // consume '('
-			
+
 			var args []Expression
 			distinct := false
-			
+
 			// Handle COUNT(*) special case
 			if strings.ToUpper(name) == "COUNT" && p.check(TokenStar) {
 				p.advance() // consume '*'
@@ -1996,7 +1996,7 @@ func (p *Parser) parsePrimary() (Expression, error) {
 				if p.match(TokenDistinct) {
 					distinct = true
 				}
-				
+
 				// Parse function arguments
 				if !p.check(TokenRightParen) {
 					for {
@@ -2005,25 +2005,25 @@ func (p *Parser) parsePrimary() (Expression, error) {
 							return nil, err
 						}
 						args = append(args, arg)
-						
+
 						if !p.match(TokenComma) {
 							break
 						}
 					}
 				}
 			}
-			
+
 			if !p.consume(TokenRightParen, "expected ')' after function arguments") {
 				return nil, p.lastError()
 			}
-			
+
 			return &FunctionCall{
 				Name:     strings.ToUpper(name),
 				Args:     args,
 				Distinct: distinct,
 			}, nil
 		}
-		
+
 		// Check for qualified name (table.column)
 		table := ""
 		if p.match(TokenDot) {
@@ -2034,7 +2034,7 @@ func (p *Parser) parsePrimary() (Expression, error) {
 			name = p.current.Value
 			p.advance()
 		}
-		
+
 		return &Identifier{Name: name, Table: table}, nil
 
 	case TokenParam:
@@ -2183,7 +2183,7 @@ func (p *Parser) parseInExpression(expr Expression, not bool) (Expression, error
 
 	// Otherwise, parse value list
 	var values []Expression
-	
+
 	// Handle empty list case
 	if p.check(TokenRightParen) {
 		// Empty list is valid in SQL
@@ -2352,7 +2352,7 @@ func (p *Parser) parseTableExpression() (TableExpression, error) {
 		if p.peekJoinKeyword() {
 			// Explicit JOIN syntax
 			joinType := p.parseJoinType()
-			
+
 			// Parse the right side table reference or subquery
 			right, err := p.parseTableOrSubquery()
 			if err != nil {
@@ -2406,17 +2406,17 @@ func (p *Parser) parseTableOrSubquery() (TableExpression, error) {
 	if p.check(TokenLeftParen) {
 		// It's a subquery
 		p.advance() // consume '('
-		
+
 		// Parse the SELECT statement
 		subquery, err := p.parseSelect()
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if !p.consume(TokenRightParen, "expected ')' after subquery") {
 			return nil, p.lastError()
 		}
-		
+
 		// Subquery in FROM must have an alias
 		var alias string
 		if p.match(TokenAs) {
@@ -2432,13 +2432,13 @@ func (p *Parser) parseTableOrSubquery() (TableExpression, error) {
 		} else {
 			return nil, p.error("subquery in FROM must have an alias")
 		}
-		
+
 		return &SubqueryRef{
 			Query: subquery,
 			Alias: alias,
 		}, nil
 	}
-	
+
 	// It's a regular table reference
 	return p.parseTableRef()
 }
@@ -2488,7 +2488,7 @@ func (p *Parser) parseJoinType() JoinType {
 	// - JOIN (defaults to INNER)
 	// - INNER JOIN
 	// - LEFT [OUTER] JOIN
-	// - RIGHT [OUTER] JOIN  
+	// - RIGHT [OUTER] JOIN
 	// - FULL [OUTER] JOIN
 	// - CROSS JOIN
 
@@ -2559,7 +2559,7 @@ func (p *Parser) canBeIdentifier() bool {
 		// In PostgreSQL and many other databases, most keywords can be used as identifiers
 		// when they're in a context where an identifier is expected
 		// Accept any token that has a non-empty value
-		return p.current.Value != "" && p.current.Type != TokenEOF && 
+		return p.current.Value != "" && p.current.Type != TokenEOF &&
 			p.current.Type != TokenError && p.current.Type != TokenNumber &&
 			p.current.Type != TokenString && p.current.Type != TokenParam
 	}
@@ -2570,21 +2570,21 @@ func (p *Parser) parseIntervalString(s string) (types.Interval, error) {
 	// Simple interval parser - handles patterns like:
 	// '1 day', '2 days', '3 months', '1 year', '2 hours', '30 minutes', '45 seconds'
 	// '1 year 2 months', '1 day 02:30:00'
-	
+
 	parts := strings.Fields(strings.ToLower(s))
 	if len(parts) == 0 {
 		return types.Interval{}, fmt.Errorf("empty interval string")
 	}
-	
+
 	var interval types.Interval
 	i := 0
-	
+
 	for i < len(parts) {
 		// Try to parse a number
 		if i >= len(parts) {
 			break
 		}
-		
+
 		num, err := strconv.ParseInt(parts[i], 10, 64)
 		if err != nil {
 			// Maybe it's a time format like '02:30:00'
@@ -2599,18 +2599,18 @@ func (p *Parser) parseIntervalString(s string) (types.Interval, error) {
 			}
 			return types.Interval{}, fmt.Errorf("expected number, got: %s", parts[i])
 		}
-		
+
 		i++
 		if i >= len(parts) {
 			return types.Interval{}, fmt.Errorf("expected time unit after number")
 		}
-		
+
 		unit := parts[i]
 		i++
-		
+
 		// Handle singular/plural forms
 		unit = strings.TrimSuffix(unit, "s")
-		
+
 		switch unit {
 		case "year":
 			interval.Months += int32(num * 12)
@@ -2630,6 +2630,6 @@ func (p *Parser) parseIntervalString(s string) (types.Interval, error) {
 			return types.Interval{}, fmt.Errorf("unknown interval unit: %s", unit)
 		}
 	}
-	
+
 	return interval, nil
 }

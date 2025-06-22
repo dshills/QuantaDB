@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	
+
 	_ "github.com/lib/pq"
 )
 
@@ -15,16 +15,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	
+
 	// Test connection
 	if err := db.Ping(); err != nil {
 		log.Fatal(err)
 	}
-	
+
 	fmt.Println("Connected to QuantaDB successfully!")
 	fmt.Println("Running simple SQL tests...")
 	fmt.Println()
-	
+
 	// Test 1: CREATE TABLE
 	fmt.Println("1. Creating table...")
 	_, err = db.Exec(`CREATE TABLE simple_test (id INTEGER PRIMARY KEY, name VARCHAR(50))`)
@@ -33,7 +33,7 @@ func main() {
 	} else {
 		fmt.Println("   SUCCESS")
 	}
-	
+
 	// Test 2: INSERT without parameters
 	fmt.Println("\n2. Inserting data...")
 	_, err = db.Exec(`INSERT INTO simple_test (id, name) VALUES (1, 'Test')`)
@@ -42,7 +42,7 @@ func main() {
 	} else {
 		fmt.Println("   SUCCESS")
 	}
-	
+
 	// Test 3: SELECT
 	fmt.Println("\n3. Selecting data...")
 	rows, err := db.Query(`SELECT id, name FROM simple_test`)
@@ -61,7 +61,7 @@ func main() {
 		}
 		fmt.Println("   SUCCESS")
 	}
-	
+
 	// Test 4: DROP TABLE
 	fmt.Println("\n4. Dropping table...")
 	_, err = db.Exec(`DROP TABLE simple_test`)
@@ -70,6 +70,6 @@ func main() {
 	} else {
 		fmt.Println("   SUCCESS")
 	}
-	
+
 	fmt.Println("\nAll tests completed!")
 }

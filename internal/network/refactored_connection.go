@@ -23,12 +23,12 @@ type RefactoredConnection struct {
 	context *ConnectionContext
 
 	// Component handlers
-	protocolHandler   ProtocolHandler
-	authHandler       AuthenticationHandler
-	queryExecutor     QueryExecutor
-	transactionMgr    TransactionManager
-	extQueryHandler   ExtendedQueryHandler
-	resultFormatter   ResultFormatter
+	protocolHandler ProtocolHandler
+	authHandler     AuthenticationHandler
+	queryExecutor   QueryExecutor
+	transactionMgr  TransactionManager
+	extQueryHandler ExtendedQueryHandler
+	resultFormatter ResultFormatter
 }
 
 // NewRefactoredConnection creates a new refactored connection.
@@ -79,17 +79,17 @@ func NewRefactoredConnection(
 	)
 
 	return &RefactoredConnection{
-		id:                id,
-		conn:              conn,
-		server:            server,
-		logger:            logger,
-		context:           connCtx,
-		protocolHandler:   protocolHandler,
-		authHandler:       authHandler,
-		queryExecutor:     queryExecutor,
-		transactionMgr:    transactionMgr,
-		extQueryHandler:   extQueryHandler,
-		resultFormatter:   resultFormatter,
+		id:              id,
+		conn:            conn,
+		server:          server,
+		logger:          logger,
+		context:         connCtx,
+		protocolHandler: protocolHandler,
+		authHandler:     authHandler,
+		queryExecutor:   queryExecutor,
+		transactionMgr:  transactionMgr,
+		extQueryHandler: extQueryHandler,
+		resultFormatter: resultFormatter,
 	}
 }
 

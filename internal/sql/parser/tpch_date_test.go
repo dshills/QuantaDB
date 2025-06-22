@@ -64,7 +64,7 @@ func TestTPCHDateQueries(t *testing.T) {
 			ORDER BY o_year`,
 		},
 		{
-			name: "Simple date comparison",
+			name:  "Simple date comparison",
 			query: `SELECT * FROM orders WHERE o_orderdate >= date '2023-01-01'`,
 		},
 		{
@@ -93,36 +93,36 @@ func TestTPCHDateQueries(t *testing.T) {
 
 func TestDateLiteralFormats(t *testing.T) {
 	tests := []struct {
-		name     string
-		dateLit  string
-		wantErr  bool
+		name    string
+		dateLit string
+		wantErr bool
 	}{
 		{
-			name:     "Standard ISO format",
-			dateLit:  "date '2023-12-25'",
+			name:    "Standard ISO format",
+			dateLit: "date '2023-12-25'",
 		},
 		{
-			name:     "Year 2000",
-			dateLit:  "date '2000-01-01'",
+			name:    "Year 2000",
+			dateLit: "date '2000-01-01'",
 		},
 		{
-			name:     "Leap year date",
-			dateLit:  "date '2024-02-29'",
+			name:    "Leap year date",
+			dateLit: "date '2024-02-29'",
 		},
 		{
-			name:     "Invalid leap year",
-			dateLit:  "date '2023-02-29'",
-			wantErr:  true,
+			name:    "Invalid leap year",
+			dateLit: "date '2023-02-29'",
+			wantErr: true,
 		},
 		{
-			name:     "Invalid month",
-			dateLit:  "date '2023-13-01'",
-			wantErr:  true,
+			name:    "Invalid month",
+			dateLit: "date '2023-13-01'",
+			wantErr: true,
 		},
 		{
-			name:     "Invalid day",
-			dateLit:  "date '2023-01-32'",
-			wantErr:  true,
+			name:    "Invalid day",
+			dateLit: "date '2023-01-32'",
+			wantErr: true,
 		},
 	}
 

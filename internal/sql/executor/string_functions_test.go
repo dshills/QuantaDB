@@ -62,36 +62,36 @@ func TestStringFunctions(t *testing.T) {
 				"Prefix: ABC - DEF",
 			},
 		},
-		
+
 		// SUBSTRING tests
 		{
 			name: "substring from position",
 			expr: "SUBSTRING(str1 FROM 2)",
 			expected: []interface{}{
-				"ello",  // Hello starting from position 2
-				"est",   // Test starting from position 2
-				"BC",    // ABC starting from position 2
+				"ello", // Hello starting from position 2
+				"est",  // Test starting from position 2
+				"BC",   // ABC starting from position 2
 			},
 		},
 		{
 			name: "substring with length",
 			expr: "SUBSTRING(str1 FROM 1 FOR 3)",
 			expected: []interface{}{
-				"Hel",  // First 3 chars of Hello
-				"Tes",  // First 3 chars of Test
-				"ABC",  // All 3 chars of ABC
+				"Hel", // First 3 chars of Hello
+				"Tes", // First 3 chars of Test
+				"ABC", // All 3 chars of ABC
 			},
 		},
 		{
 			name: "substring from numeric column",
 			expr: "SUBSTRING(str1 FROM num)",
 			expected: []interface{}{
-				"o",    // Hello starting from position 5
-				"st",   // Test starting from position 3
-				"BC",   // ABC starting from position 2
+				"o",  // Hello starting from position 5
+				"st", // Test starting from position 3
+				"BC", // ABC starting from position 2
 			},
 		},
-		
+
 		// Combined operations
 		{
 			name: "concatenation with substring",
@@ -106,9 +106,9 @@ func TestStringFunctions(t *testing.T) {
 			name: "substring of concatenation",
 			expr: "SUBSTRING(str1 || str2 FROM 3 FOR 5)",
 			expected: []interface{}{
-				"lloWo",  // HelloWorld from position 3 for 5 chars
-				"stStr",  // TestString from position 3 for 5 chars
-				"CDEF",   // ABCDEF from position 3 for 4 chars (only 4 available)
+				"lloWo", // HelloWorld from position 3 for 5 chars
+				"stStr", // TestString from position 3 for 5 chars
+				"CDEF",  // ABCDEF from position 3 for 4 chars (only 4 available)
 			},
 		},
 	}
@@ -193,7 +193,7 @@ func TestStringFunctionEdgeCases(t *testing.T) {
 			expr:   "SUBSTRING(nullstr FROM 1)",
 			isNull: true,
 		},
-		
+
 		// Edge cases for SUBSTRING
 		{
 			name:     "substring beyond string length",
@@ -246,12 +246,12 @@ func TestStringFunctionEdgeCases(t *testing.T) {
 
 			// Evaluate
 			result, err := evaluateExpression(expr, ctx)
-			
+
 			if tt.name == "substring with negative length should error" {
 				// For now, we'll skip this as the evaluator doesn't error on negative length
 				return
 			}
-			
+
 			require.NoError(t, err)
 
 			if tt.isNull {

@@ -6,7 +6,7 @@ import (
 	"log"
 	"net"
 	"sync"
-	
+
 	_ "github.com/lib/pq"
 )
 
@@ -29,9 +29,9 @@ func (p *LoggingProxy) clientToServer() {
 			log.Printf("Client read error: %v", err)
 			return
 		}
-		
+
 		log.Printf("CLIENT->SERVER (%d bytes):\n%s", n, hex.Dump(buf[:n]))
-		
+
 		_, err = p.serverConn.Write(buf[:n])
 		if err != nil {
 			log.Printf("Server write error: %v", err)
@@ -48,9 +48,9 @@ func (p *LoggingProxy) serverToClient() {
 			log.Printf("Server read error: %v", err)
 			return
 		}
-		
+
 		log.Printf("SERVER->CLIENT (%d bytes):\n%s", n, hex.Dump(buf[:n]))
-		
+
 		_, err = p.clientConn.Write(buf[:n])
 		if err != nil {
 			log.Printf("Client write error: %v", err)
@@ -66,9 +66,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer listener.Close()
-	
+
 	log.Println("Proxy listening on :5433")
-	
+
 	go func() {
 		for {
 			client, err := listener.Accept()
@@ -76,7 +76,7 @@ func main() {
 				log.Printf("Accept error: %v", err)
 				continue
 			}
-			
+
 			// Connect to real server
 			server, err := net.Dial("tcp", "localhost:5432")
 			if err != nil {
@@ -84,7 +84,7 @@ func main() {
 				client.Close()
 				continue
 			}
-			
+
 			proxy := &LoggingProxy{
 				clientConn: client,
 				serverConn: server,
@@ -92,22 +92,22 @@ func main() {
 			proxy.Start()
 		}
 	}()
-	
+
 	// Now connect via lib/pq through the proxy
 	connStr := "host=localhost port=5433 user=postgres dbname=postgres sslmode=disable"
 	log.Printf("Connecting with: %s", connStr)
-	
+
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Failed to open: %v", err)
 	}
 	defer db.Close()
-	
+
 	log.Println("Pinging...")
 	err = db.Ping()
 	if err != nil {
 		log.Fatalf("Failed to ping: %v", err)
 	}
-	
+
 	log.Println("Success!")
 }

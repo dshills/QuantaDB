@@ -199,7 +199,7 @@ func TestDateArithmeticIntegration(t *testing.T) {
 			// Execute
 			ctx := context.Background()
 			exec := executor.NewQueryExecutor(physicalPlan)
-			
+
 			// Begin transaction for query
 			tx, err := txnManager.Begin()
 			if err != nil {

@@ -471,19 +471,19 @@ type WhenClause struct {
 func (c *CaseExpr) String() string {
 	var parts []string
 	parts = append(parts, "CASE")
-	
+
 	if c.Expr != nil {
 		parts = append(parts, c.Expr.String())
 	}
-	
+
 	for _, when := range c.WhenList {
 		parts = append(parts, "WHEN", when.Condition.String(), "THEN", when.Result.String())
 	}
-	
+
 	if c.Else != nil {
 		parts = append(parts, "ELSE", c.Else.String())
 	}
-	
+
 	parts = append(parts, "END")
 	return strings.Join(parts, " ")
 }

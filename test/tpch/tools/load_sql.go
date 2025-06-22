@@ -14,9 +14,9 @@ import (
 
 func main() {
 	var (
-		host     = flag.String("host", "localhost", "Database host")
-		port     = flag.Int("port", 5432, "Database port")
-		sqlFile  = flag.String("file", "", "SQL file to load")
+		host    = flag.String("host", "localhost", "Database host")
+		port    = flag.Int("port", 5432, "Database port")
+		sqlFile = flag.String("file", "", "SQL file to load")
 	)
 	flag.Parse()
 
@@ -42,15 +42,15 @@ func main() {
 	statements := strings.Split(string(content), ";")
 	totalStmts := 0
 	successCount := 0
-	
+
 	start := time.Now()
-	
+
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
 		if stmt == "" || strings.HasPrefix(stmt, "--") {
 			continue
 		}
-		
+
 		totalStmts++
 		_, err := db.Exec(stmt)
 		if err != nil {
@@ -59,7 +59,7 @@ func main() {
 			successCount++
 		}
 	}
-	
+
 	elapsed := time.Since(start)
 	fmt.Printf("\nLoaded %d/%d statements successfully in %v\n", successCount, totalStmts, elapsed)
 }

@@ -71,8 +71,8 @@ func (a *AlterTableAddColumnOperator) Open(ctx *ExecContext) error {
 	catalogColumnDef := catalog.ColumnDef{
 		Name:         a.column.Name,
 		DataType:     a.column.DataType,
-		IsNullable:   true,                    // Default to nullable
-		DefaultValue: types.NewNullValue(),   // Default to NULL
+		IsNullable:   true,                 // Default to nullable
+		DefaultValue: types.NewNullValue(), // Default to NULL
 	}
 
 	// Process constraints to set nullability and default values

@@ -9,9 +9,9 @@ import (
 
 func TestDateLiteral(t *testing.T) {
 	tests := []struct {
-		name    string
-		sql     string
-		wantErr bool
+		name     string
+		sql      string
+		wantErr  bool
 		wantDate string
 	}{
 		{
@@ -20,7 +20,7 @@ func TestDateLiteral(t *testing.T) {
 			wantDate: "1995-03-15",
 		},
 		{
-			name:     "Date in WHERE clause", 
+			name:     "Date in WHERE clause",
 			sql:      "SELECT * FROM orders WHERE o_orderdate < date '1995-03-15'",
 			wantDate: "1995-03-15",
 		},
@@ -61,7 +61,7 @@ func TestDateLiteral(t *testing.T) {
 
 			// Find the date literal
 			var dateLiteral *Literal
-			
+
 			// Helper function to find date literals in expressions
 			var findDateLiteral func(Expression) *Literal
 			findDateLiteral = func(expr Expression) *Literal {
@@ -87,14 +87,14 @@ func TestDateLiteral(t *testing.T) {
 				}
 				return nil
 			}
-			
+
 			// Check in SELECT columns
 			if len(selectStmt.Columns) > 0 {
 				if lit := findDateLiteral(selectStmt.Columns[0].Expr); lit != nil {
 					dateLiteral = lit
 				}
 			}
-			
+
 			// Check in WHERE clause
 			if dateLiteral == nil && selectStmt.Where != nil {
 				dateLiteral = findDateLiteral(selectStmt.Where)
@@ -130,7 +130,7 @@ func TestDateComparison(t *testing.T) {
 		t.Fatalf("Failed to parse date1: %v", err)
 	}
 
-	date2, err := types.ParseDate("1995-03-16") 
+	date2, err := types.ParseDate("1995-03-16")
 	if err != nil {
 		t.Fatalf("Failed to parse date2: %v", err)
 	}

@@ -618,11 +618,11 @@ type LogicalCopy struct {
 	basePlan
 	TableName  string
 	SchemaName string
-	Columns    []string                     // Column names (if specified)
-	Direction  parser.CopyDirection         // FROM or TO
-	Source     string                       // STDIN, STDOUT, or filename
-	Options    map[string]string            // WITH options like FORMAT, DELIMITER, etc.
-	TableRef   *catalog.Table               // Reference to table metadata
+	Columns    []string             // Column names (if specified)
+	Direction  parser.CopyDirection // FROM or TO
+	Source     string               // STDIN, STDOUT, or filename
+	Options    map[string]string    // WITH options like FORMAT, DELIMITER, etc.
+	TableRef   *catalog.Table       // Reference to table metadata
 }
 
 // NewLogicalCopy creates a new COPY plan node

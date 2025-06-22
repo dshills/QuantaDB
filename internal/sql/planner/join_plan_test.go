@@ -2,7 +2,7 @@ package planner
 
 import (
 	"testing"
-	
+
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 )
 
@@ -39,7 +39,7 @@ func TestJoinPlanning(t *testing.T) {
 			name:         "multiple joins",
 			sql:          "SELECT * FROM users u JOIN orders o ON u.id = o.user_id JOIN items i ON o.id = i.order_id",
 			expectJoin:   true,
-			expectType:   InnerJoin, // The top-level join
+			expectType:   InnerJoin,               // The top-level join
 			checkColumns: []string{"*", "*", "*"}, // Three tables
 		},
 		{
@@ -77,7 +77,7 @@ func TestJoinPlanning(t *testing.T) {
 				// For multiple joins, we need to traverse the tree
 				foundJoin := false
 				var joinPlan *LogicalJoin
-				
+
 				// Walk the plan tree to find joins
 				walkPlan(plan, func(p LogicalPlan) {
 					if j, ok := p.(*LogicalJoin); ok {
@@ -87,7 +87,7 @@ func TestJoinPlanning(t *testing.T) {
 						}
 					}
 				})
-				
+
 				if !foundJoin {
 					t.Error("Expected join in plan but found none")
 				} else if joinPlan != nil && joinPlan.JoinType != tt.expectType {
@@ -126,7 +126,7 @@ func walkPlan(plan LogicalPlan, fn func(LogicalPlan)) {
 func TestJoinConditionConversion(t *testing.T) {
 	// Test that join conditions are properly converted
 	sql := "SELECT * FROM users u JOIN orders o ON u.id = o.user_id AND o.status = 'active'"
-	
+
 	p := parser.NewParser(sql)
 	stmt, err := p.Parse()
 	if err != nil {
@@ -167,7 +167,7 @@ func TestJoinConditionConversion(t *testing.T) {
 func TestQualifiedColumnReferences(t *testing.T) {
 	// Test that qualified column references (table.column) are preserved
 	sql := "SELECT users.name, orders.amount FROM users JOIN orders ON users.id = orders.user_id"
-	
+
 	p := parser.NewParser(sql)
 	stmt, err := p.Parse()
 	if err != nil {
@@ -185,7 +185,7 @@ func TestQualifiedColumnReferences(t *testing.T) {
 	if plan == nil {
 		t.Fatal("Expected plan but got nil")
 	}
-	
+
 	// Verify we have a join somewhere in the plan
 	foundJoin := false
 	walkPlan(plan, func(p LogicalPlan) {
@@ -193,7 +193,7 @@ func TestQualifiedColumnReferences(t *testing.T) {
 			foundJoin = true
 		}
 	})
-	
+
 	if !foundJoin {
 		t.Error("Expected join in plan for query with JOIN clause")
 	}

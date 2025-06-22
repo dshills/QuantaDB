@@ -14,28 +14,28 @@ import (
 
 // ConnectionContext provides shared state and dependencies for connection components.
 type ConnectionContext struct {
-	ID              uint32
-	Catalog         catalog.Catalog
-	Engine          engine.Engine
-	Storage         executor.StorageBackend
-	IndexMgr        interface{} // Index manager interface
-	TxnManager      *txn.Manager
+	ID               uint32
+	Catalog          catalog.Catalog
+	Engine           engine.Engine
+	Storage          executor.StorageBackend
+	IndexMgr         interface{} // Index manager interface
+	TxnManager       *txn.Manager
 	TimestampService *txn.TimestampService
-	Params          map[string]string
-	SecretKey       uint32
-	CurrentTxn      *txn.MvccTransaction
-	ExtQuerySession *ExtendedQuerySession
+	Params           map[string]string
+	SecretKey        uint32
+	CurrentTxn       *txn.MvccTransaction
+	ExtQuerySession  *ExtendedQuerySession
 }
 
 // ProtocolHandler handles low-level protocol message reading/writing.
 type ProtocolHandler interface {
 	// Message routing and dispatching
 	HandleMessage(ctx context.Context, msg *protocol.Message, connCtx *ConnectionContext) error
-	
+
 	// Error and status messages
 	SendError(err error) error
 	SendReadyForQuery(txnStatus byte) error
-	
+
 	// Network configuration
 	SetReadTimeout(timeout time.Duration)
 	SetWriteTimeout(timeout time.Duration)
@@ -47,7 +47,7 @@ type AuthenticationHandler interface {
 	// Connection lifecycle
 	HandleStartup(connCtx *ConnectionContext) error
 	HandleAuthentication(connCtx *ConnectionContext) error
-	
+
 	// State management
 	SetState(state int)
 	GetState() int
@@ -57,7 +57,7 @@ type AuthenticationHandler interface {
 type QueryExecutor interface {
 	// Simple query protocol
 	HandleQuery(ctx context.Context, msg *protocol.Message, connCtx *ConnectionContext) error
-	
+
 	// Transaction helpers
 	GetSnapshotTimestamp(connCtx *ConnectionContext) int64
 	GetIsolationLevel(connCtx *ConnectionContext) txn.IsolationLevel
@@ -70,7 +70,7 @@ type TransactionManager interface {
 	HandleBegin(ctx context.Context, query string, connCtx *ConnectionContext) error
 	HandleCommit(ctx context.Context, connCtx *ConnectionContext) error
 	HandleRollback(ctx context.Context, connCtx *ConnectionContext) error
-	
+
 	// Transaction completion
 	EndTransaction(commit bool, tag string, connCtx *ConnectionContext) error
 }
@@ -90,7 +90,7 @@ type ExtendedQueryHandler interface {
 type ResultFormatter interface {
 	// Result formatting and transmission
 	SendResults(result executor.Result, stmt parser.Statement, connCtx *ConnectionContext) error
-	
+
 	// Helper methods for result formatting
 	GetTypeOID(dataType string) uint32
 	GetTypeSize(dataType string) int16

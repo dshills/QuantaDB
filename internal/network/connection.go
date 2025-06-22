@@ -272,7 +272,7 @@ func (c *Connection) handleStartup() error {
 		if param.name == "" && param.value == "" {
 			continue
 		}
-		
+
 		ps := &protocol.ParameterStatus{
 			Name:  param.name,
 			Value: param.value,
@@ -312,7 +312,7 @@ func (c *Connection) handleStartup() error {
 
 	// Set state after successful startup
 	c.setState(StateReady)
-	
+
 	return nil
 }
 
@@ -360,7 +360,15 @@ func (c *Connection) handleMessage(ctx context.Context, msg *protocol.Message) e
 }
 
 // handleQuery handles a simple query
-func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) error {
+func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) (err error) {
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Error("Panic in handleQuery", "panic", r, "stack", fmt.Sprintf("%+v", r))
+			err = fmt.Errorf("query execution panicked: %v", r)
+		}
+	}()
+
 	c.setState(StateBusy)
 
 	// Parse query
@@ -404,9 +412,11 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	}
 
 	// Parse SQL
+	c.logger.Debug("Starting SQL parsing", "query", query)
 	p := parser.NewParser(query)
 	stmt, err := p.Parse()
 	if err != nil {
+		c.logger.Error("Parse error", "error", err)
 		// Parser errors should already have position info
 		// but wrap them in case they don't
 		if pErr, ok := err.(*parser.ParseError); ok && pErr.Line > 0 {
@@ -414,11 +424,14 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 		}
 		return errors.SyntaxErrorf(0, "parse error: %v", err)
 	}
+	c.logger.Debug("Parsing successful", "statement_type", fmt.Sprintf("%T", stmt))
 
 	// Plan query
+	c.logger.Debug("Starting query planning")
 	planr := planner.NewBasicPlannerWithCatalog(c.catalog)
 	plan, err := planr.Plan(stmt)
 	if err != nil {
+		c.logger.Error("Planning error", "error", err)
 		// Convert planner errors to appropriate PostgreSQL errors
 		// Check for common error patterns
 		errStr := err.Error()
@@ -449,6 +462,7 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 	}
 
 	// Execute query
+	c.logger.Debug("Starting query execution", "plan_type", fmt.Sprintf("%T", plan))
 	exec := executor.NewBasicExecutor(c.catalog, c.engine)
 	if c.storage != nil {
 		exec.SetStorageBackend(c.storage)
@@ -466,8 +480,10 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 		Stats:          &executor.ExecStats{},
 	}
 
+	c.logger.Info("About to execute query", "conn_id", c.id, "stmt_type", fmt.Sprintf("%T", stmt))
 	result, err := exec.Execute(plan, execCtx)
 	if err != nil {
+		c.logger.Error("Execution error", "conn_id", c.id, "error", err)
 		// Convert executor errors to appropriate PostgreSQL errors
 		errStr := err.Error()
 		if strings.Contains(errStr, "division by zero") {
@@ -487,15 +503,16 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) err
 		}
 		return errors.InternalErrorf("execution error: %v", err)
 	}
+	c.logger.Info("Execution successful", "conn_id", c.id, "result_type", fmt.Sprintf("%T", result))
 	defer result.Close()
 
 	// Send results
-	c.logger.Debug("Sending results")
+	c.logger.Info("Sending results", "conn_id", c.id)
 	if err := c.sendResults(result, stmt); err != nil {
-		c.logger.Debug("Failed to send results", "error", err)
+		c.logger.Error("Failed to send results", "conn_id", c.id, "error", err)
 		return err
 	}
-	c.logger.Debug("Results sent")
+	c.logger.Info("Results sent", "conn_id", c.id)
 
 	// Send ready for query
 	c.logger.Debug("Sending ready for query")
@@ -587,21 +604,23 @@ func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) 
 	if c.server.config.WriteTimeout > 0 {
 		c.conn.SetWriteDeadline(time.Now().Add(c.server.config.WriteTimeout))
 	}
-	
+
 	// Check if result is nil
 	if result == nil {
 		c.logger.Debug("Result is nil, returning early")
 		return nil
 	}
-	
+
+	c.logger.Info("Getting schema from result", "conn_id", c.id)
 	schema := result.Schema()
 	if schema == nil {
-		c.logger.Debug("Schema is nil, returning early")
+		c.logger.Error("Schema is nil, returning early", "conn_id", c.id)
 		return nil
 	}
-	c.logger.Debug("Got schema", "columns", len(schema.Columns))
+	c.logger.Info("Got schema", "conn_id", c.id, "columns", len(schema.Columns))
 
 	// Send row description
+	c.logger.Info("Creating row description", "conn_id", c.id, "fieldCount", len(schema.Columns))
 	rowDesc := &protocol.RowDescription{
 		Fields: make([]protocol.FieldDescription, len(schema.Columns)),
 	}
@@ -610,6 +629,7 @@ func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) 
 		if i >= math.MaxInt16 {
 			return fmt.Errorf("too many columns: %d exceeds max int16", i+1)
 		}
+		c.logger.Info("Processing column", "conn_id", c.id, "index", i, "name", col.Name, "type", col.Type)
 		rowDesc.Fields[i] = protocol.FieldDescription{
 			Name:         col.Name,
 			TableOID:     0,            // TODO: Add table OID
@@ -621,20 +641,28 @@ func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) 
 		}
 	}
 
+	c.logger.Info("Sending row description message", "conn_id", c.id)
 	if err := protocol.WriteMessage(c.writer, rowDesc.ToMessage()); err != nil {
+		c.logger.Error("Failed to send row description", "conn_id", c.id, "error", err)
 		return err
 	}
+	c.logger.Info("Row description sent successfully", "conn_id", c.id)
 
 	// Send data rows
 	rowCount := 0
+	c.logger.Info("Starting data row iteration", "conn_id", c.id)
 	for {
+		c.logger.Info("Calling result.Next()", "conn_id", c.id, "rowCount", rowCount)
 		row, err := result.Next()
 		if err != nil {
+			c.logger.Error("Error from result.Next()", "conn_id", c.id, "error", err)
 			return err
 		}
 		if row == nil {
+			c.logger.Info("Got nil row, ending iteration", "conn_id", c.id, "totalRows", rowCount)
 			break
 		}
+		c.logger.Info("Got row", "conn_id", c.id, "rowCount", rowCount, "columnCount", len(row.Values))
 
 		dataRow := &protocol.DataRow{
 			Values: make([][]byte, len(row.Values)),
@@ -643,8 +671,23 @@ func (c *Connection) sendResults(result executor.Result, stmt parser.Statement) 
 		for i, val := range row.Values {
 			if val.IsNull() {
 				dataRow.Values[i] = nil
+				c.logger.Info("Serializing NULL value", "conn_id", c.id, "row", rowCount, "col", i)
 			} else {
-				dataRow.Values[i] = []byte(val.String())
+				// Add safety around val.String() which might panic for GROUP BY results
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							c.logger.Error("Panic during value serialization", "conn_id", c.id, "row", rowCount, "col", i, "panic", r, "val_type", fmt.Sprintf("%T", val))
+							// Set a default value to prevent crash
+							dataRow.Values[i] = []byte("ERROR")
+						}
+					}()
+
+					c.logger.Info("Serializing value", "conn_id", c.id, "row", rowCount, "col", i, "val_type", fmt.Sprintf("%T", val))
+					valueStr := val.String()
+					c.logger.Info("Value serialized", "conn_id", c.id, "row", rowCount, "col", i, "length", len(valueStr))
+					dataRow.Values[i] = []byte(valueStr)
+				}()
 			}
 		}
 

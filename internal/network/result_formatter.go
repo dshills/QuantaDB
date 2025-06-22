@@ -26,12 +26,12 @@ func NewBasicResultFormatter(protocolHandler *BasicProtocolHandler) *BasicResult
 // SendResults formats and sends query results to the client.
 func (rf *BasicResultFormatter) SendResults(result executor.Result, stmt parser.Statement, connCtx *ConnectionContext) error {
 	writer := rf.protocolHandler.GetWriter()
-	
+
 	// Set write deadline for all result writes
 	rf.protocolHandler.SetWriteTimeout(10 * time.Second) // TODO: Make configurable
 
 	schema := result.Schema()
-	
+
 	// Only send row description for statements that return data
 	if rf.StatementReturnsData(stmt) {
 		if err := rf.sendRowDescription(writer, schema); err != nil {
@@ -65,8 +65,8 @@ func (rf *BasicResultFormatter) sendRowDescription(writer *bufio.Writer, schema 
 		}
 		rowDesc.Fields[i] = protocol.FieldDescription{
 			Name:         col.Name,
-			TableOID:     0,                          // TODO: Add table OID
-			ColumnNumber: int16(i + 1),               // PostgreSQL uses 1-based indexing
+			TableOID:     0,            // TODO: Add table OID
+			ColumnNumber: int16(i + 1), // PostgreSQL uses 1-based indexing
 			DataTypeOID:  rf.GetTypeOID(col.Type.Name()),
 			DataTypeSize: rf.GetTypeSize(col.Type.Name()),
 			TypeModifier: -1,

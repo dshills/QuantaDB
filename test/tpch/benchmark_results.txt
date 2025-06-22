@@ -1,0 +1,51 @@
+Connecting to localhost:5432/quantadb...
+Connected successfully!
+Warming up...
+  Warming up Q3...
+    Warning: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_mktsegment not resolved
+  Warming up Q5...
+    Warning: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_custkey not resolved
+  Warming up Q8...
+    Warning: pq: execution error: failed to build operator: failed to build projection 2: unsupported expression type: *planner.AggregateExpr
+  Warming up Q10...
+    Warning: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_custkey not resolved
+Warmup complete
+
+Running TPC-H benchmarks...
+Running Q3...
+  ERROR: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_mktsegment not resolved
+Running Q5...
+  ERROR: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_custkey not resolved
+Running Q8...
+  ERROR: pq: execution error: failed to build operator: failed to build projection 2: unsupported expression type: *planner.AggregateExpr
+Running Q10...
+  ERROR: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_custkey not resolved
+
+TPC-H Benchmark Results
+Scale Factor: 0.01
+Timestamp: 2025-06-22T07:25:37-05:00
+
+Query Results:
+─────────────
+
+Q3 - Customer Market Segment - Find high-value unshipped orders
+  Status: FAILED
+  Error: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_mktsegment not resolved
+
+Q5 - Local Supplier Volume - Revenue through local suppliers by nation
+  Status: FAILED
+  Error: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_custkey not resolved
+
+Q8 - National Market Share - Market share changes over time
+  Status: FAILED
+  Error: pq: execution error: failed to build operator: failed to build projection 2: unsupported expression type: *planner.AggregateExpr
+
+Q10 - Returned Item Reporting - Customers with returned items
+  Status: FAILED
+  Error: pq: execution error: failed to open operator: error reading row for aggregation: predicate evaluation failed: column c_custkey not resolved
+
+─────────────
+Summary:
+  Successful: 0/4
+
+exit status 1

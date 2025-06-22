@@ -116,41 +116,41 @@ func TestParseCopy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewParser(tt.input)
 			stmt, err := p.Parse()
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-			
+
 			if stmt == nil {
 				t.Fatal("expected statement, got nil")
 			}
-			
+
 			copyStmt, ok := stmt.(*CopyStmt)
 			if !ok {
 				t.Fatalf("expected *CopyStmt, got %T", stmt)
 			}
-			
+
 			// Compare fields
 			if copyStmt.TableName != tt.expected.TableName {
 				t.Errorf("TableName: expected %s, got %s", tt.expected.TableName, copyStmt.TableName)
 			}
-			
+
 			if copyStmt.Direction != tt.expected.Direction {
 				t.Errorf("Direction: expected %v, got %v", tt.expected.Direction, copyStmt.Direction)
 			}
-			
+
 			if copyStmt.Source != tt.expected.Source {
 				t.Errorf("Source: expected %s, got %s", tt.expected.Source, copyStmt.Source)
 			}
-			
+
 			// Compare columns
 			if len(copyStmt.Columns) != len(tt.expected.Columns) {
 				t.Errorf("Columns length: expected %d, got %d", len(tt.expected.Columns), len(copyStmt.Columns))
@@ -161,7 +161,7 @@ func TestParseCopy(t *testing.T) {
 					}
 				}
 			}
-			
+
 			// Compare options
 			if len(copyStmt.Options) != len(tt.expected.Options) {
 				t.Errorf("Options length: expected %d, got %d", len(tt.expected.Options), len(copyStmt.Options))

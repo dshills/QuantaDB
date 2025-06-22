@@ -101,23 +101,23 @@ func TestParsePrepare(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewParser(tt.input)
 			stmt, err := p.Parse()
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			prepStmt, ok := stmt.(*PrepareStmt)
 			if !ok {
 				t.Fatalf("expected *PrepareStmt, got %T", stmt)
 			}
-			
+
 			if tt.validate != nil {
 				tt.validate(t, prepStmt)
 			}
@@ -184,23 +184,23 @@ func TestParseExecute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewParser(tt.input)
 			stmt, err := p.Parse()
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			execStmt, ok := stmt.(*ExecuteStmt)
 			if !ok {
 				t.Fatalf("expected *ExecuteStmt, got %T", stmt)
 			}
-			
+
 			if tt.validate != nil {
 				tt.validate(t, execStmt)
 			}
@@ -249,23 +249,23 @@ func TestParseDeallocate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewParser(tt.input)
 			stmt, err := p.Parse()
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			deallocStmt, ok := stmt.(*DeallocateStmt)
 			if !ok {
 				t.Fatalf("expected *DeallocateStmt, got %T", stmt)
 			}
-			
+
 			if tt.validate != nil {
 				tt.validate(t, deallocStmt)
 			}
@@ -313,7 +313,7 @@ func TestPreparedStatementString(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse error: %v", err)
 			}
-			
+
 			got := stmt.String()
 			if got != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got)

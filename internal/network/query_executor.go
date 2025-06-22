@@ -39,7 +39,7 @@ func (qe *BasicQueryExecutor) HandleQuery(ctx context.Context, msg *protocol.Mes
 	if err := q.Parse(msg.Data); err != nil {
 		return fmt.Errorf("failed to parse query: %w", err)
 	}
-	
+
 	query := q.Query
 
 	// Handle special transaction commands

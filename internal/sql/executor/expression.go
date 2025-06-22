@@ -34,10 +34,22 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 		// Resolve column index if schema is provided
 		columnIdx := -1
 		if schema != nil {
+			// First try exact match with column name
 			for i, col := range schema.Columns {
 				if col.Name == e.ColumnName {
 					columnIdx = i
 					break
+				}
+			}
+
+			// If not found and we have a table alias, try with qualified name
+			if columnIdx == -1 && e.TableAlias != "" {
+				qualifiedName := e.TableAlias + "." + e.ColumnName
+				for i, col := range schema.Columns {
+					if col.Name == qualifiedName {
+						columnIdx = i
+						break
+					}
 				}
 			}
 		}
@@ -87,17 +99,17 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 			if len(e.Args) < 2 || len(e.Args) > 3 {
 				return nil, fmt.Errorf("SUBSTRING requires 2 or 3 arguments")
 			}
-			
+
 			strEval, err := buildExprEvaluatorWithExecutor(e.Args[0], schema, executor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build string evaluator for SUBSTRING: %w", err)
 			}
-			
+
 			startEval, err := buildExprEvaluatorWithExecutor(e.Args[1], schema, executor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build start evaluator for SUBSTRING: %w", err)
 			}
-			
+
 			var lengthEval ExprEvaluator
 			if len(e.Args) == 3 && e.Args[2] != nil {
 				lengthEval, err = buildExprEvaluatorWithExecutor(e.Args[2], schema, executor)
@@ -105,13 +117,13 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 					return nil, fmt.Errorf("failed to build length evaluator for SUBSTRING: %w", err)
 				}
 			}
-			
+
 			return &substringEvaluator{
 				strEval:    strEval,
 				startEval:  startEval,
 				lengthEval: lengthEval,
 			}, nil
-			
+
 		default:
 			return nil, fmt.Errorf("unsupported function: %s", e.Name)
 		}

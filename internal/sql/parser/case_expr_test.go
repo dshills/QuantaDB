@@ -54,19 +54,19 @@ func TestParseCaseExpression(t *testing.T) {
 			expected: "SELECT CASE WHEN quantity > 10 THEN (price * 8106479329266893/9007199254740992) ELSE price END",
 		},
 		{
-			name:     "error - missing END",
-			input:    "SELECT CASE WHEN x = 1 THEN 'one'",
-			wantErr:  true,
+			name:    "error - missing END",
+			input:   "SELECT CASE WHEN x = 1 THEN 'one'",
+			wantErr: true,
 		},
 		{
-			name:     "error - missing THEN",
-			input:    "SELECT CASE WHEN x = 1 'one' END",
-			wantErr:  true,
+			name:    "error - missing THEN",
+			input:   "SELECT CASE WHEN x = 1 'one' END",
+			wantErr: true,
 		},
 		{
-			name:     "error - empty CASE",
-			input:    "SELECT CASE END",
-			wantErr:  true,
+			name:    "error - empty CASE",
+			input:   "SELECT CASE END",
+			wantErr: true,
 		},
 	}
 

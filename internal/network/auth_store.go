@@ -37,12 +37,12 @@ func (store *InMemoryUserStore) RemoveUser(username string) {
 func (store *InMemoryUserStore) Authenticate(username, password string) bool {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
-	
+
 	storedPassword, exists := store.users[username]
 	if !exists {
 		return false
 	}
-	
+
 	return storedPassword == password
 }
 
@@ -51,19 +51,19 @@ func (store *InMemoryUserStore) Authenticate(username, password string) bool {
 func (store *InMemoryUserStore) GetUserMD5(username, salt string) (string, bool) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
-	
+
 	password, exists := store.users[username]
 	if !exists {
 		return "", false
 	}
-	
+
 	// PostgreSQL MD5 calculation: md5(md5(password + username) + salt)
 	firstHash := md5.Sum([]byte(password + username))
 	firstHashHex := fmt.Sprintf("%x", firstHash)
-	
+
 	secondHash := md5.Sum([]byte(firstHashHex + salt))
 	secondHashHex := fmt.Sprintf("md5%x", secondHash)
-	
+
 	return secondHashHex, true
 }
 
@@ -71,7 +71,7 @@ func (store *InMemoryUserStore) GetUserMD5(username, salt string) (string, bool)
 func (store *InMemoryUserStore) UserExists(username string) bool {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
-	
+
 	_, exists := store.users[username]
 	return exists
 }
@@ -80,7 +80,7 @@ func (store *InMemoryUserStore) UserExists(username string) bool {
 func (store *InMemoryUserStore) ListUsers() []string {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
-	
+
 	users := make([]string, 0, len(store.users))
 	for username := range store.users {
 		users = append(users, username)

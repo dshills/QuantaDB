@@ -117,7 +117,7 @@ func generateLineitemData(g *tpch.Generator, scaleFactor float64, filename strin
 
 	// Generate 1-7 line items per order
 	for orderKey := 1; orderKey <= orderCount; orderKey++ {
-		numLines := 1 + (orderKey%7)
+		numLines := 1 + (orderKey % 7)
 		for lineNum := 1; lineNum <= numLines; lineNum++ {
 			insert := g.GenerateLineitem(orderKey, lineNum, int(200000*scaleFactor), int(10000*scaleFactor))
 			if _, err := fmt.Fprintln(file, insert); err != nil {

@@ -36,7 +36,7 @@ func (eqh *BasicExtendedQueryHandler) HandleParse(ctx context.Context, msg *prot
 
 // HandleBind processes Bind message for parameter binding.
 func (eqh *BasicExtendedQueryHandler) HandleBind(ctx context.Context, msg *protocol.Message, connCtx *ConnectionContext) error {
-	// TODO: Implement full Bind message handling  
+	// TODO: Implement full Bind message handling
 	// For now, just send BindComplete to acknowledge
 	bindComplete := &protocol.BindComplete{}
 	return protocol.WriteMessage(eqh.protocolHandler.GetWriter(), bindComplete.ToMessage())

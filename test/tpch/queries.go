@@ -14,8 +14,7 @@ WHERE c_mktsegment = 'BUILDING'
   AND o_orderdate < date '1995-03-15'
   AND l_shipdate > date '1995-03-15'
 GROUP BY l_orderkey, o_orderdate, o_shippriority
-ORDER BY revenue desc, o_orderdate
-LIMIT 10;`
+ORDER BY revenue desc, o_orderdate;`
 
 // Query5 - Local Supplier Volume Query
 // This query lists the revenue volume done through local suppliers.

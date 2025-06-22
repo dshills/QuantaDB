@@ -60,7 +60,7 @@ func TestDateIntegration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse the expression
 			p := NewParser(tt.expr)
-			
+
 			// We need to parse this as part of a SELECT to get a proper expression
 			selectSQL := "SELECT " + tt.expr
 			p = NewParser(selectSQL)
@@ -80,14 +80,14 @@ func TestDateIntegration(t *testing.T) {
 
 			// Get the expression
 			expr := selectStmt.Columns[0].Expr
-			
+
 			// For now, we'll just verify the expression was parsed correctly
 			// In a real integration test, we'd use the executor to evaluate this
 			compExpr, ok := expr.(*ComparisonExpr)
 			if !ok {
 				t.Fatalf("Expected ComparisonExpr, got %T", expr)
 			}
-			
+
 			// Verify both sides are date literals
 			leftLit, ok := compExpr.Left.(*Literal)
 			if !ok {
@@ -97,7 +97,7 @@ func TestDateIntegration(t *testing.T) {
 			if !ok {
 				t.Fatalf("Expected right side to be Literal, got %T", compExpr.Right)
 			}
-			
+
 			// Verify they're time values
 			_, ok = leftLit.Value.Data.(time.Time)
 			if !ok {
@@ -107,7 +107,7 @@ func TestDateIntegration(t *testing.T) {
 			if !ok {
 				t.Fatalf("Expected right literal to be time.Time, got %T", rightLit.Value.Data)
 			}
-			
+
 			// Manually evaluate the comparison using CompareValues
 			cmp := types.CompareValues(leftLit.Value, rightLit.Value)
 			var boolResult bool
@@ -127,7 +127,6 @@ func TestDateIntegration(t *testing.T) {
 			default:
 				t.Fatalf("Unexpected operator: %v", compExpr.Operator)
 			}
-
 
 			if boolResult != tt.expected {
 				t.Errorf("Expression %s: expected %v, got %v", tt.expr, tt.expected, boolResult)
@@ -174,9 +173,9 @@ func TestDateStorageRoundtrip(t *testing.T) {
 			// Verify the actual date matches
 			origTime := dateVal.Data.(time.Time)
 			deserTime := deserialized.Data.(time.Time)
-			
+
 			if !origTime.Equal(deserTime) {
-				t.Errorf("Date %s: times not equal after roundtrip. Original: %v, Deserialized: %v", 
+				t.Errorf("Date %s: times not equal after roundtrip. Original: %v, Deserialized: %v",
 					dateStr, origTime, deserTime)
 			}
 		})

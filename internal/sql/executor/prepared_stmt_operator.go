@@ -46,9 +46,9 @@ func (op *PrepareOperator) Next() (*Row, error) {
 	if op.done {
 		return nil, nil
 	}
-	
+
 	op.done = true
-	
+
 	// Store the prepared statement in the context
 	if op.ctx.PreparedStatements == nil {
 		op.ctx.PreparedStatements = make(map[string]*PreparedStatement)
@@ -210,4 +210,3 @@ func (op *DeallocateOperator) Next() (*Row, error) {
 func (op *DeallocateOperator) Close() error {
 	return nil
 }
-
