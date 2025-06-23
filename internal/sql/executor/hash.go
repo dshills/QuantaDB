@@ -27,6 +27,8 @@ func writeValueToHasher(hasher hash.Hash, val types.Value) {
 			} else {
 				hasher.Write([]byte("false"))
 			}
+		case []byte:
+			hasher.Write(v)
 		default:
 			fmt.Fprintf(hasher, "%v", v)
 		}

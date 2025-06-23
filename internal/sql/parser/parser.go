@@ -325,6 +325,9 @@ func (p *Parser) parseDataType() (types.DataType, error) {
 			p.advance()
 		}
 		return types.Double, nil
+	case TokenBytea:
+		p.advance()
+		return types.Bytea, nil
 	default:
 		return nil, p.error(fmt.Sprintf("expected data type, got %s", p.current))
 	}

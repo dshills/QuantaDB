@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 )
@@ -118,6 +119,8 @@ func (v Value) Type() DataType {
 		return Float
 	case float64:
 		return Double
+	case []byte:
+		return Bytea
 	default:
 		return Unknown
 	}
@@ -234,6 +237,10 @@ func CompareValues(a, b Value) int {
 			}
 			return 0
 		}
+	case []byte:
+		if v2, ok := b.Data.([]byte); ok {
+			return bytes.Compare(v1, v2)
+		}
 	}
 	// For unsupported types or type mismatches, panic to catch bugs early
 	panic(fmt.Sprintf("CompareValues: unsupported or mismatched types: %T vs %T", a.Data, b.Data))
@@ -254,6 +261,7 @@ var (
 	IntervalType DataType
 	Float        DataType
 	Double       DataType
+	Bytea        DataType
 )
 
 // TypeID represents the internal ID of a data type
@@ -273,6 +281,7 @@ const (
 	TypeIDDecimal
 	TypeIDFloat
 	TypeIDDouble
+	TypeIDBytea
 )
 
 // Column represents a column definition

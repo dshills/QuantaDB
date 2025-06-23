@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
@@ -761,6 +762,13 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 				} else if l && !r {
 					cmp = 1
 				}
+			} else {
+				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			}
+
+		case []byte:
+			if r, ok := right.Data.([]byte); ok {
+				cmp = bytes.Compare(l, r)
 			} else {
 				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
 			}

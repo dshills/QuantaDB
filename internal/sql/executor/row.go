@@ -21,6 +21,7 @@ const (
 	typeREAL      = "REAL"
 	typeTIMESTAMP = "TIMESTAMP"
 	typeDATE      = "DATE"
+	typeBYTEA     = "BYTEA"
 )
 
 // RowFormat defines the serialization format for rows.
@@ -215,6 +216,24 @@ func (rf *RowFormat) serializeValue(w io.Writer, val types.Value, dataType types
 			return fmt.Errorf("expected int64 or time.Time, got %T", val.Data)
 		}
 
+	case typeBYTEA:
+		v, ok := val.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("expected []byte, got %T", val.Data)
+		}
+		// Write byte array length
+		arrayLen := len(v)
+		if arrayLen > 4294967295 { // uint32 max
+			return fmt.Errorf("byte array too long: %d bytes", arrayLen)
+		}
+		if err := binary.Write(w, binary.LittleEndian, uint32(arrayLen)); err != nil {
+			return err
+		}
+		// Write byte array data
+		if _, err := w.Write(v); err != nil {
+			return err
+		}
+
 	default:
 		return fmt.Errorf("unsupported type: %v", dataType.Name())
 	}
@@ -310,6 +329,19 @@ func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (typ
 			return types.Value{}, err
 		}
 		return types.NewValue(v), nil
+
+	case typeBYTEA:
+		// Read byte array length
+		var length uint32
+		if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+			return types.Value{}, err
+		}
+		// Read byte array data
+		data := make([]byte, length)
+		if _, err := io.ReadFull(r, data); err != nil {
+			return types.Value{}, err
+		}
+		return types.NewValue(data), nil
 
 	default:
 		return types.Value{}, fmt.Errorf("unsupported type: %v", dataType.Name())

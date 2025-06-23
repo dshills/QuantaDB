@@ -97,6 +97,7 @@ const (
 	TokenDouble
 	TokenReal
 	TokenPrecision
+	TokenBytea
 
 	// Functions and date parts
 	TokenExtract
@@ -233,6 +234,7 @@ var tokenStrings = map[TokenType]string{
 	TokenDouble:       "DOUBLE",
 	TokenReal:         "REAL",
 	TokenPrecision:    "PRECISION",
+	TokenBytea:        "BYTEA",
 	TokenExtract:      "EXTRACT",
 	TokenYear:         "YEAR",
 	TokenMonth:        "MONTH",
@@ -389,6 +391,7 @@ var keywords = map[string]TokenType{
 	"DOUBLE":     TokenDouble,
 	"REAL":       TokenReal,
 	"PRECISION":  TokenPrecision,
+	"BYTEA":      TokenBytea,
 	"FOREIGN":    TokenForeign,
 	"REFERENCES": TokenReferences,
 	"CHECK":      TokenCheck,
