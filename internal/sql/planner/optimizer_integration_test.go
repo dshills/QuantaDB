@@ -89,12 +89,22 @@ func TestOptimizerMultipleRulesWithSubqueries(t *testing.T) {
 		Type:     types.Boolean,
 	}
 	filteredSubquery := NewLogicalFilter(subqueryScan, subqueryFilter)
+	
+	// Add projection to subquery to select order_id column
+	subqueryProjSchema := &Schema{
+		Columns: []Column{
+			{Name: "order_id", DataType: types.Integer, Nullable: false},
+		},
+	}
+	projectedSubquery := NewLogicalProject(filteredSubquery, []Expression{
+		&ColumnRef{ColumnName: "order_id", TableAlias: ""},
+	}, []string{}, subqueryProjSchema)
 
 	// Create the IN expression with filtered subquery
 	inExpr := &InExpr{
 		Expr: &ColumnRef{ColumnName: "user_id", TableAlias: ""},
 		Subquery: &SubqueryExpr{
-			Subplan: filteredSubquery,
+			Subplan: projectedSubquery,
 			Type:    types.Integer,
 		},
 		Not: false,
@@ -132,6 +142,12 @@ func TestOptimizerMultipleRulesWithSubqueries(t *testing.T) {
 
 	t.Logf("Original plan: %s", plan.String())
 	t.Logf("Optimized plan: %s", optimizedPlan.String())
+	
+	// Debug - print plan tree
+	t.Logf("Original plan tree:")
+	printPlanTree(t, plan, 0)
+	t.Logf("Optimized plan tree:")
+	printPlanTree(t, optimizedPlan, 0)
 
 	// The optimized plan should have:
 	// 1. Decorrelated the subquery (converted to join)
@@ -145,6 +161,21 @@ func TestOptimizerMultipleRulesWithSubqueries(t *testing.T) {
 	// Verify the optimization applied successfully
 	if optimizedPlan == plan {
 		t.Errorf("Expected plan to be transformed by optimization")
+	}
+}
+
+// Helper function to print plan tree for debugging
+func printPlanTree(t *testing.T, plan Plan, indent int) {
+	if plan == nil {
+		return
+	}
+	prefix := ""
+	for i := 0; i < indent; i++ {
+		prefix += "  "
+	}
+	t.Logf("%s%s", prefix, plan.String())
+	for _, child := range plan.Children() {
+		printPlanTree(t, child, indent+1)
 	}
 }
 

@@ -179,8 +179,8 @@ func TestExtendedQueryProtocol(t *testing.T) {
 		if len(retrieved.ParamValues) != 1 {
 			t.Errorf("Expected 1 parameter value, got %d", len(retrieved.ParamValues))
 		}
-		if retrieved.ParamValues[0].Data != int32(123) {
-			t.Errorf("Expected parameter value 123, got %v", retrieved.ParamValues[0].Data)
+		if retrieved.ParamValues[0].Data != int64(123) {
+			t.Errorf("Expected parameter value 123 (int64), got %v (%T)", retrieved.ParamValues[0].Data, retrieved.ParamValues[0].Data)
 		}
 	})
 
@@ -346,7 +346,7 @@ func TestParameterParsing(t *testing.T) {
 			data:     []byte("42"),
 			dataType: types.Integer,
 			format:   0,
-			expected: int32(42),
+			expected: int64(42),
 		},
 		{
 			name:     "String text format",
@@ -388,7 +388,7 @@ func TestParameterParsing(t *testing.T) {
 			data:     []byte("123"),
 			dataType: types.Unknown,
 			format:   0,
-			expected: int32(123),
+			expected: int64(123),
 		},
 		{
 			name:     "Unknown type infers string",

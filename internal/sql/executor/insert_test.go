@@ -70,7 +70,7 @@ func TestInsertOperatorWithParameters(t *testing.T) {
 
 	// Check values
 	if v, ok := insertedRow.Values[0].Data.(int64); !ok || v != 1 {
-		t.Errorf("expected first value to be int64(1), got %v", insertedRow.Values[0])
+		t.Errorf("expected first value to be int64(1), got %v (%T)", insertedRow.Values[0].Data, insertedRow.Values[0].Data)
 	}
 
 	if v, ok := insertedRow.Values[1].Data.(string); !ok || v != "John Doe" {

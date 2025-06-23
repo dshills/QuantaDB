@@ -87,7 +87,7 @@ func TestDateArithmeticIntegration(t *testing.T) {
 		// Create row for storage backend
 		row := &executor.Row{
 			Values: []types.Value{
-				types.NewIntegerValue(int32(testRow.id)),
+				types.NewBigIntValue(int64(testRow.id)),
 				types.NewDateValue(testRow.event_date),
 				types.NewTimestampValue(testRow.event_time),
 				types.NewTextValue(testRow.name),
@@ -179,6 +179,8 @@ func TestDateArithmeticIntegration(t *testing.T) {
 			// Execute
 			exec := executor.NewBasicExecutor(cat, nil)
 			exec.SetStorageBackend(storageBackend)
+			
+			// Create execution context
 			execCtx := &executor.ExecContext{
 				Catalog: cat,
 			}

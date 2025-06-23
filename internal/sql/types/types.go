@@ -143,19 +143,39 @@ func CompareValues(a, b Value) int {
 	// Both non-null, compare actual values based on type
 	switch v1 := a.Data.(type) {
 	case int32:
-		if v2, ok := b.Data.(int32); ok {
+		switch v2 := b.Data.(type) {
+		case int32:
 			if v1 < v2 {
 				return -1
 			} else if v1 > v2 {
 				return 1
 			}
 			return 0
+		case int64:
+			// Convert int32 to int64 for comparison
+			i1 := int64(v1)
+			if i1 < v2 {
+				return -1
+			} else if i1 > v2 {
+				return 1
+			}
+			return 0
 		}
 	case int64:
-		if v2, ok := b.Data.(int64); ok {
+		switch v2 := b.Data.(type) {
+		case int64:
 			if v1 < v2 {
 				return -1
 			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		case int32:
+			// Convert int32 to int64 for comparison
+			i2 := int64(v2)
+			if v1 < i2 {
+				return -1
+			} else if v1 > i2 {
 				return 1
 			}
 			return 0

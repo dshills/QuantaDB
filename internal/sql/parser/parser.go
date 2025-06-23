@@ -1745,13 +1745,8 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		// Try to parse as integer first
 		if !strings.Contains(value, ".") {
 			if i, err := strconv.ParseInt(value, 10, 64); err == nil {
-				// Use int32 for values that fit, int64 for larger values
-				// This provides consistency with PostgreSQL INTEGER type
-				if i >= -2147483648 && i <= 2147483647 {
-					return &Literal{Value: types.NewValue(int32(i))}, nil
-				} else {
-					return &Literal{Value: types.NewValue(i)}, nil
-				}
+				// Always use int64 for consistency
+				return &Literal{Value: types.NewValue(i)}, nil
 			}
 		}
 
@@ -1760,7 +1755,8 @@ func (p *Parser) parsePrimary() (Expression, error) {
 		if err != nil {
 			return nil, p.error("invalid number")
 		}
-		return &Literal{Value: types.NewDecimalValueFromFloat(f)}, nil
+		// For now, use float64 for decimal values until we have proper decimal support
+		return &Literal{Value: types.NewValue(f)}, nil
 
 	case TokenString:
 		value := p.current.Value

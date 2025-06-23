@@ -179,6 +179,9 @@ func (d *SubqueryDecorrelation) transformExists(exists *ExistsExpr, leftPlan Log
 func (d *SubqueryDecorrelation) transformInSubquery(inExpr *InExpr, leftPlan LogicalPlan) (Expression, LogicalPlan, bool) {
 	// Get the subquery plan
 	subqueryPlan := inExpr.Subquery.Subplan
+	if subqueryPlan == nil {
+		return nil, leftPlan, false
+	}
 
 	// Determine join type
 	joinType := SemiJoin
@@ -187,10 +190,18 @@ func (d *SubqueryDecorrelation) transformInSubquery(inExpr *InExpr, leftPlan Log
 	}
 
 	// Create join condition: leftExpr = subquery.column
-	// For now, assume the subquery returns one column and create an equality condition
+	// Get the first column from the subquery's schema
+	var rightColumn string
+	if subquerySchema := subqueryPlan.Schema(); subquerySchema != nil && len(subquerySchema.Columns) > 0 {
+		rightColumn = subquerySchema.Columns[0].Name
+	} else {
+		// Fallback column name
+		rightColumn = "subquery_col"
+	}
+	
 	joinCondition := &BinaryOp{
 		Left:     inExpr.Expr,
-		Right:    &ColumnRef{ColumnName: "subquery_col", TableAlias: "sub"},
+		Right:    &ColumnRef{ColumnName: rightColumn, TableAlias: ""},
 		Operator: OpEqual,
 		Type:     types.Boolean,
 	}

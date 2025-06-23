@@ -78,12 +78,12 @@ func TestConcurrentTransactionIsolation(t *testing.T) {
 		insertOp := NewInsertOperator(table, storageBackend, nil)
 		insertOp.values = [][]parser.Expression{
 			{
-				&parser.Literal{Value: types.Value{Data: int32(1)}},
-				&parser.Literal{Value: types.Value{Data: int32(100)}},
+				&parser.Literal{Value: types.Value{Data: int64(1)}},
+				&parser.Literal{Value: types.Value{Data: int64(100)}},
 			},
 			{
-				&parser.Literal{Value: types.Value{Data: int32(2)}},
-				&parser.Literal{Value: types.Value{Data: int32(200)}},
+				&parser.Literal{Value: types.Value{Data: int64(2)}},
+				&parser.Literal{Value: types.Value{Data: int64(200)}},
 			},
 		}
 

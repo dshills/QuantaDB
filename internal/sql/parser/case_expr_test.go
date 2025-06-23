@@ -51,7 +51,7 @@ func TestParseCaseExpression(t *testing.T) {
 		{
 			name:     "case with arithmetic",
 			input:    "SELECT CASE WHEN quantity > 10 THEN price * 0.9 ELSE price END",
-			expected: "SELECT CASE WHEN quantity > 10 THEN (price * 8106479329266893/9007199254740992) ELSE price END",
+			expected: "SELECT CASE WHEN quantity > 10 THEN (price * 0.9) ELSE price END",
 		},
 		{
 			name:    "error - missing END",
