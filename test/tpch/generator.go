@@ -173,7 +173,7 @@ func (g *Generator) GenerateOrders() []string {
 		shipPriority := 0
 		comment := g.randomText(19, 78)
 
-		insert := fmt.Sprintf("INSERT INTO orders VALUES (%d, %d, '%s', %.2f, '%s', '%s', '%s', %d, '%s');",
+		insert := fmt.Sprintf("INSERT INTO orders VALUES (%d, %d, '%s', %.2f, DATE '%s', '%s', '%s', %d, '%s');",
 			i, custKey, orderStatus, totalPrice, orderDate.Format("2006-01-02"),
 			orderPriority, clerk, shipPriority, comment)
 		inserts = append(inserts, insert)
@@ -256,7 +256,7 @@ func (g *Generator) GenerateLineitem(orderKey, lineNumber, maxPartKey, maxSuppKe
 	shipMode := []string{"REG AIR", "AIR", "RAIL", "SHIP", "TRUCK", "MAIL", "FOB"}[g.rng.Intn(7)]
 	comment := g.randomText(10, 43)
 
-	return fmt.Sprintf("INSERT INTO lineitem VALUES (%d, %d, %d, %d, %.2f, %.2f, %.2f, %.2f, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');",
+	return fmt.Sprintf("INSERT INTO lineitem VALUES (%d, %d, %d, %d, %.2f, %.2f, %.2f, %.2f, '%s', '%s', DATE '%s', DATE '%s', DATE '%s', '%s', '%s', '%s');",
 		orderKey, partKey, suppKey, lineNumber, quantity, extendedPrice, discount, tax,
 		returnFlag, lineStatus, shipDate.Format("2006-01-02"), commitDate.Format("2006-01-02"),
 		receiptDate.Format("2006-01-02"), shipInstruct, shipMode, comment)
