@@ -1072,10 +1072,18 @@ func (p *BasicPlanner) convertSelectColumns(columns []parser.SelectColumn) ([]Ex
 			colName = expr.String()
 		}
 
+		// Preserve table information from column references
+		var tableAlias string
+		if colRef, ok := expr.(*ColumnRef); ok {
+			tableAlias = colRef.TableAlias
+		}
+
 		schemaCols = append(schemaCols, Column{
-			Name:     colName,
-			DataType: expr.DataType(),
-			Nullable: true, // TODO: Determine nullability
+			Name:       colName,
+			DataType:   expr.DataType(),
+			Nullable:   true, // TODO: Determine nullability
+			TableName:  "",    // Table name is resolved during planning
+			TableAlias: tableAlias,
 		})
 	}
 
@@ -1308,15 +1316,21 @@ func (p *BasicPlanner) planTableRef(ref *parser.TableRef) (LogicalPlan, error) {
 	if err != nil {
 		// If table doesn't exist in catalog, use a placeholder schema
 		// This allows tests to work without setting up catalog
-		schema := &Schema{
-			Columns: []Column{
-				{Name: "*", DataType: types.Unknown, Nullable: true},
-			},
-		}
 		// Use alias if provided, otherwise use table name
 		alias := ref.Alias
 		if alias == "" {
 			alias = ref.TableName
+		}
+		schema := &Schema{
+			Columns: []Column{
+				{
+					Name:       "*",
+					DataType:   types.Unknown,
+					Nullable:   true,
+					TableName:  ref.TableName,
+					TableAlias: alias,
+				},
+			},
 		}
 		return NewLogicalScan(ref.TableName, alias, schema), nil
 	}
@@ -1325,19 +1339,21 @@ func (p *BasicPlanner) planTableRef(ref *parser.TableRef) (LogicalPlan, error) {
 	schema := &Schema{
 		Columns: make([]Column, len(table.Columns)),
 	}
-	for i, col := range table.Columns {
-		schema.Columns[i] = Column{
-			Name:     col.Name,
-			DataType: col.DataType,
-			Nullable: col.IsNullable,
-		}
-	}
-
 	// Use alias if provided, otherwise use table name
 	alias := ref.Alias
 	if alias == "" {
 		alias = ref.TableName
 	}
+	for i, col := range table.Columns {
+		schema.Columns[i] = Column{
+			Name:       col.Name,
+			DataType:   col.DataType,
+			Nullable:   col.IsNullable,
+			TableName:  ref.TableName,
+			TableAlias: alias,
+		}
+	}
+
 	return NewLogicalScan(ref.TableName, alias, schema), nil
 }
 

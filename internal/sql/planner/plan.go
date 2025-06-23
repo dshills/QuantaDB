@@ -23,9 +23,11 @@ type Schema struct {
 
 // Column represents a column in a schema.
 type Column struct {
-	Name     string
-	DataType types.DataType
-	Nullable bool
+	Name       string
+	DataType   types.DataType
+	Nullable   bool
+	TableName  string // Source table name
+	TableAlias string // Table alias used in query
 }
 
 // LogicalPlan represents a logical plan node.

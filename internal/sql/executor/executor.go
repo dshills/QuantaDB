@@ -70,9 +70,11 @@ type Schema struct {
 
 // Column represents a column in a schema.
 type Column struct {
-	Name     string
-	Type     types.DataType
-	Nullable bool
+	Name       string
+	Type       types.DataType
+	Nullable   bool
+	TableName  string // Source table name
+	TableAlias string // Table alias used in query
 }
 
 // ExecStats collects execution statistics.
@@ -1038,9 +1040,11 @@ func convertSchema(planSchema *planner.Schema) *Schema {
 
 	for i, col := range planSchema.Columns {
 		schema.Columns[i] = Column{
-			Name:     col.Name,
-			Type:     col.DataType,
-			Nullable: col.Nullable,
+			Name:       col.Name,
+			Type:       col.DataType,
+			Nullable:   col.Nullable,
+			TableName:  col.TableName,
+			TableAlias: col.TableAlias,
 		}
 	}
 

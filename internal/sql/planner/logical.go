@@ -108,7 +108,10 @@ type LogicalJoin struct {
 func (j *LogicalJoin) logicalNode() {}
 
 func (j *LogicalJoin) String() string {
-	return fmt.Sprintf("%sJoin(%s)", j.JoinType.String(), j.Condition.String())
+	if j.Condition != nil {
+		return fmt.Sprintf("%sJoin(%s)", j.JoinType.String(), j.Condition.String())
+	}
+	return fmt.Sprintf("%sJoin()", j.JoinType.String())
 }
 
 // LogicalAggregate represents an aggregation operation.

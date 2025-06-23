@@ -34,22 +34,33 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 		// Resolve column index if schema is provided
 		columnIdx := -1
 		if schema != nil {
-			// First try exact match with column name
-			for i, col := range schema.Columns {
-				if col.Name == e.ColumnName {
-					columnIdx = i
-					break
-				}
-			}
-
-			// If not found and we have a table alias, try with qualified name
-			if columnIdx == -1 && e.TableAlias != "" {
-				qualifiedName := e.TableAlias + "." + e.ColumnName
+			// If we have a table alias, try to match by table alias and column name
+			if e.TableAlias != "" {
 				for i, col := range schema.Columns {
-					if col.Name == qualifiedName {
+					if col.Name == e.ColumnName && col.TableAlias == e.TableAlias {
 						columnIdx = i
 						break
 					}
+				}
+			}
+			
+			// If not found or no table alias, try exact match with column name
+			if columnIdx == -1 {
+				// Count how many columns match the name (for ambiguity detection)
+				matches := 0
+				for i, col := range schema.Columns {
+					if col.Name == e.ColumnName {
+						if matches == 0 {
+							columnIdx = i
+						}
+						matches++
+					}
+				}
+				
+				// If multiple matches and no table alias specified, it's ambiguous
+				if matches > 1 && e.TableAlias == "" {
+					// For now, we'll use the first match, but this should ideally return an error
+					// TODO: Return ambiguous column error
 				}
 			}
 		}
