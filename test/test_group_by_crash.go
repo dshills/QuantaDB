@@ -1,0 +1,174 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/engine"
+	"github.com/dshills/QuantaDB/internal/sql/executor"
+	"github.com/dshills/QuantaDB/internal/sql/parser"
+	"github.com/dshills/QuantaDB/internal/sql/planner"
+	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/txn"
+)
+
+func main() {
+	fmt.Println("=== Testing GROUP BY Crash ===")
+
+	// Create a test catalog
+	cat := catalog.NewMemoryCatalog()
+	eng := engine.NewMemoryEngine()
+	defer eng.Close()
+
+	// Create storage backend
+	diskManager, err := storage.NewDiskManager(":memory:")
+	if err != nil {
+		log.Fatal("Failed to create disk manager:", err)
+	}
+	defer diskManager.Close()
+
+	bufferPool := storage.NewBufferPool(diskManager, 10)
+	txnManager := txn.NewManager(eng, nil)
+	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
+
+	// Create a simple test table
+	fmt.Println("\n1. Creating test table...")
+
+	testSchema := &catalog.TableSchema{
+		SchemaName: "public",
+		TableName:  "test",
+		Columns: []catalog.ColumnDef{
+			{Name: "id", DataType: types.Integer, IsNullable: false},
+			{Name: "category", DataType: types.Text, IsNullable: false},
+			{Name: "value", DataType: types.Integer, IsNullable: false},
+		},
+	}
+	testTable, err := cat.CreateTable(testSchema)
+	if err != nil {
+		log.Fatal("Failed to create test table:", err)
+	}
+	fmt.Println("   ✅ Created test table")
+
+	// Create table in storage backend
+	err = storageBackend.CreateTable(testTable)
+	if err != nil {
+		log.Fatal("Failed to create test table in storage:", err)
+	}
+
+	// Insert test data
+	fmt.Println("\n2. Inserting test data...")
+	testData := []struct {
+		id       int32
+		category string
+		value    int32
+	}{
+		{1, "A", 10},
+		{2, "B", 20},
+		{3, "A", 30},
+		{4, "B", 40},
+	}
+
+	for _, row := range testData {
+		r := &executor.Row{
+			Values: []types.Value{
+				types.NewValue(row.id),
+				types.NewValue(row.category),
+				types.NewValue(row.value),
+			},
+		}
+		_, err := storageBackend.InsertRow(testTable.ID, r)
+		if err != nil {
+			log.Fatal("Failed to insert row:", err)
+		}
+	}
+	fmt.Printf("   ✅ Inserted %d rows\n", len(testData))
+
+	// Test simple GROUP BY query
+	fmt.Println("\n3. Testing simple GROUP BY query...")
+	query := "SELECT category, SUM(value) FROM test GROUP BY category"
+	fmt.Printf("   Query: %s\n", query)
+
+	// Parse the query
+	p := parser.NewParser(query)
+	stmt, err := p.Parse()
+	if err != nil {
+		fmt.Printf("   ❌ Parse error: %v\n", err)
+		return
+	}
+
+	// Create planner and build plan
+	pl := planner.NewBasicPlannerWithCatalog(cat)
+	plan, err := pl.Plan(stmt)
+	if err != nil {
+		fmt.Printf("   ❌ Planning error: %v\n", err)
+		return
+	}
+
+	// Create executor with storage backend
+	exec := executor.NewBasicExecutor(cat, eng)
+	exec.SetStorageBackend(storageBackend)
+
+	// Start a transaction
+	txnObj, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+	if err != nil {
+		fmt.Printf("   ❌ Failed to begin transaction: %v\n", err)
+		return
+	}
+
+	// Create execution context
+	ctx := &executor.ExecContext{
+		Catalog:    cat,
+		Engine:     eng,
+		Stats:      &executor.ExecStats{},
+		TxnManager: txnManager,
+		Txn:        txnObj,
+	}
+
+	fmt.Println("   About to execute query...")
+	fmt.Println("   If server crashes here, GROUP BY has the bug!")
+
+	// Execute the plan - THIS IS WHERE IT MIGHT CRASH
+	result, err := exec.Execute(plan, ctx)
+	if err != nil {
+		fmt.Printf("   ❌ Execution error: %v\n", err)
+		return
+	}
+
+	schema := result.Schema()
+	if schema == nil {
+		fmt.Printf("   ❌ Failed to get schema: nil schema\n")
+		return
+	}
+
+	fmt.Printf("   ✅ Query executed successfully!\n")
+	fmt.Printf("   Schema columns: %d\n", len(schema.Columns))
+
+	// Read results
+	fmt.Println("\n   Results:")
+	for {
+		row, err := result.Next()
+		if err != nil {
+			fmt.Printf("   ❌ Error reading result: %v\n", err)
+			break
+		}
+		if row == nil {
+			break
+		}
+		fmt.Printf("   ")
+		for i, val := range row.Values {
+			if i > 0 {
+				fmt.Printf(", ")
+			}
+			fmt.Printf("%v", val.Data)
+		}
+		fmt.Printf("\n")
+	}
+
+	result.Close()
+	txnManager.CommitTransaction(txnObj)
+
+	fmt.Println("\n=== GROUP BY Test Complete ===")
+}

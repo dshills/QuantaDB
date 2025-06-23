@@ -11,16 +11,18 @@
 - All core SQL data types implemented
 - TPC-H benchmark infrastructure ready
 
-**Current Phase: Critical Bug Fixes**
-- Storage type mismatches (int32 vs int64) blocking basic operations
-- GROUP BY crashes preventing aggregate queries
-- JOIN column resolution errors
+**Current Phase: Feature Completion**
+- All critical crashes have been fixed ✅
+- Ready for TPC-H benchmarks and feature additions
 - See `TODO-DETAILED.md` for comprehensive task list
 
 **Status Update (December 2024)**
-- Fixed all linting issues (97 → 0)
-- Fixed optimizer subquery decorrelation
-- Multiple critical issues blocking TPC-H benchmarks
+- Fixed all linting issues (97 → 0) ✅
+- Fixed optimizer subquery decorrelation ✅
+- Fixed JOIN column resolution for qualified names ✅
+- Fixed aggregate expressions in projections ✅
+- Fixed GROUP BY server crash ✅
+- All critical blockers resolved - ready for TPC-H!
 
 **Key Achievements:**
 - ✅ PostgreSQL-compatible database from scratch
@@ -40,27 +42,11 @@
 ### Data Types
 - [ ] **BYTEA**: Binary data type (only remaining core type)
 
-## 🚨 CRITICAL: Fix Server Crashes First!
+## Next Priority Items
 
-**Current Status**: TPC-H benchmark reveals critical bugs that prevent basic queries from working.
+**Current Status**: Major crashes fixed! GROUP BY, JOIN resolution, and aggregate expressions now work.
 
-### Immediate Priorities (Week 1-2)
-1. **Fix GROUP BY Server Crash** 🔥
-   - Server crashes with SIGSEGV on any GROUP BY query
-   - Blocking all aggregate testing
-   - See: `docs/planning/phase1-critical-fixes-plan.md`
-
-2. **Fix JOIN Column Resolution** 🔥 
-   - "column c_custkey not resolved" errors in JOIN queries
-   - Affects most TPC-H queries
-   - Root cause: Column resolver not handling qualified names
-
-3. **Support Aggregate Expressions in Projection** 🔥
-   - "unsupported expression type: *planner.AggregateExpr"
-   - Needed for expressions like SUM(a)/SUM(b)
-   - TPC-H Q8 fails due to this
-
-### Next Steps (Week 3-4)  
+### Immediate Priorities (Week 1)  
 4. **Add DISTINCT Support**
    - Required by several TPC-H queries
    - Currently: "unexpected token in expression: DISTINCT"

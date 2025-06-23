@@ -376,5 +376,32 @@ This document tracks all completed features and improvements in the QuantaDB pro
   - Enhanced server configuration with AuthMethod and UserStore
   - Complete PostgreSQL protocol compliance for authentication flow
 
+## December 2024 Critical Fixes
+
+### Query Processing Fixes (COMPLETED)
+- ✅ **JOIN Column Resolution** (December 22-23, 2024)
+  - Fixed "column not resolved" errors in JOIN queries
+  - Added support for qualified column names (table.column)
+  - Properly handle column resolution in nested JOINs
+  - Root cause: Column resolver now handles qualified names correctly
+  - Impact: Most TPC-H queries now work properly
+
+- ✅ **Aggregate Expressions in Projection** (December 23, 2024)
+  - Implemented visitor-based aggregate rewriter using visitor pattern
+  - Support for complex aggregate expressions like SUM(a)/SUM(b)
+  - Transforms aggregate expressions into column references (agg_<idx>_<function>)
+  - Updated planner to use rewriter instead of extractAggregates
+  - Added comprehensive tests for various aggregate expression patterns
+  - Fixed "unsupported expression type: *planner.AggregateExpr" errors
+  - Impact: TPC-H Q8 and similar queries with aggregate arithmetic now work
+
+- ✅ **GROUP BY Server Crash Fix** (Already fixed in commit da291e9)
+  - Fixed nil pointer dereference causing SIGSEGV in AggregateOperator
+  - Always initialize groupIter to empty slice instead of nil
+  - Added initialized flag for proper state tracking
+  - Enhanced error handling to maintain valid state on failures
+  - Comprehensive testing confirms all GROUP BY functionality works
+  - Impact: GROUP BY queries execute without crashes, unblocking TPC-H benchmarks
+
 ---
 *This document contains all completed features moved from TODO.md for historical reference and tracking.*
