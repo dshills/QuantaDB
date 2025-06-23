@@ -176,10 +176,12 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 	}
 
 	// Check if we have aggregates in the SELECT clause
-	aggregates, nonAggregates, _, err := p.extractAggregates(stmt.Columns)
+	rewriter := NewAggregateRewriter()
+	projections, aliases, err := p.rewriteSelectColumns(stmt.Columns, rewriter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process select columns: %w", err)
 	}
+	aggregates := rewriter.GetAggregates()
 
 	// Handle GROUP BY and aggregates
 	if len(stmt.GroupBy) > 0 || len(aggregates) > 0 {
@@ -211,42 +213,12 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 			plan = NewLogicalFilter(plan, having)
 		}
 
-		// Project final columns if needed
-		if len(nonAggregates) > 0 {
-			// Need final projection to include non-aggregate expressions
-			finalProjections := make([]Expression, 0, len(groupByExprs)+len(aggregates)+len(nonAggregates))
-			finalAliases := make([]string, 0, len(groupByExprs)+len(aggregates)+len(nonAggregates))
-
-			// Add group by columns
-			for i := range groupByExprs {
-				finalProjections = append(finalProjections, &ColumnRef{
-					ColumnName: fmt.Sprintf("group_%d", i),
-					ColumnType: types.Unknown,
-				})
-				finalAliases = append(finalAliases, "")
-			}
-
-			// Add aggregate columns
-			for _, agg := range aggregates {
-				name := agg.Alias
-				if name == "" {
-					name = fmt.Sprintf("agg_%s", agg.Function.String())
-				}
-				finalProjections = append(finalProjections, &ColumnRef{
-					ColumnName: name,
-					ColumnType: agg.Type,
-				})
-				finalAliases = append(finalAliases, agg.Alias)
-			}
-
-			// Add non-aggregate expressions
-			finalProjections = append(finalProjections, nonAggregates...)
-			for range nonAggregates {
-				finalAliases = append(finalAliases, "")
-			}
-
-			plan = NewLogicalProject(plan, finalProjections, finalAliases, nil)
+		// Now add the final projection with the rewritten expressions
+		projSchema, err := p.buildProjectionSchema(projections, aliases)
+		if err != nil {
+			return nil, err
 		}
+		plan = NewLogicalProject(plan, projections, aliases, projSchema)
 	} else {
 		// No GROUP BY - normal projection
 		projections, aliases, projSchema, err := p.convertSelectColumns(stmt.Columns)
@@ -1082,7 +1054,7 @@ func (p *BasicPlanner) convertSelectColumns(columns []parser.SelectColumn) ([]Ex
 			Name:       colName,
 			DataType:   expr.DataType(),
 			Nullable:   true, // TODO: Determine nullability
-			TableName:  "",    // Table name is resolved during planning
+			TableName:  "",   // Table name is resolved during planning
 			TableAlias: tableAlias,
 		})
 	}
@@ -1141,28 +1113,28 @@ func isAggregateFunction(name string) bool {
 	}
 }
 
-// extractAggregates separates aggregate and non-aggregate expressions from SELECT columns.
-func (p *BasicPlanner) extractAggregates(columns []parser.SelectColumn) ([]AggregateExpr, []Expression, []string, error) {
-	var aggregates []AggregateExpr
-	var nonAggregates []Expression
+// rewriteSelectColumns processes SELECT columns, extracting aggregates and rewriting expressions.
+func (p *BasicPlanner) rewriteSelectColumns(columns []parser.SelectColumn, rewriter *AggregateRewriter) ([]Expression, []string, error) {
+	var projections []Expression
 	var aliases []string
 
 	for _, col := range columns {
 		expr, err := p.convertExpression(col.Expr)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
-		if aggExpr, ok := expr.(*AggregateExpr); ok {
-			aggExpr.Alias = col.Alias
-			aggregates = append(aggregates, *aggExpr)
-		} else {
-			nonAggregates = append(nonAggregates, expr)
-			aliases = append(aliases, col.Alias)
+		// Rewrite the expression to extract aggregates
+		rewritten, err := rewriter.RewriteExpression(expr)
+		if err != nil {
+			return nil, nil, err
 		}
+
+		projections = append(projections, rewritten)
+		aliases = append(aliases, col.Alias)
 	}
 
-	return aggregates, nonAggregates, aliases, nil
+	return projections, aliases, nil
 }
 
 // buildAggregateSchema builds the output schema for an aggregate operation.
@@ -1179,11 +1151,9 @@ func (p *BasicPlanner) buildAggregateSchema(groupBy []Expression, aggregates []A
 	}
 
 	// Add aggregate columns
-	for _, agg := range aggregates {
-		name := agg.Alias
-		if name == "" {
-			name = fmt.Sprintf("agg_%s", agg.Function.String())
-		}
+	for i, agg := range aggregates {
+		// Use the same naming convention as the rewriter
+		name := fmt.Sprintf("agg_%d_%s", i, agg.Function.String())
 		columns = append(columns, Column{
 			Name:     name,
 			DataType: agg.Type,
@@ -1192,6 +1162,26 @@ func (p *BasicPlanner) buildAggregateSchema(groupBy []Expression, aggregates []A
 	}
 
 	return &Schema{Columns: columns}
+}
+
+// buildProjectionSchema builds the output schema for a projection.
+func (p *BasicPlanner) buildProjectionSchema(projections []Expression, aliases []string) (*Schema, error) {
+	columns := make([]Column, len(projections))
+
+	for i, expr := range projections {
+		name := aliases[i]
+		if name == "" {
+			name = expr.String()
+		}
+
+		columns[i] = Column{
+			Name:     name,
+			DataType: expr.DataType(),
+			Nullable: true,
+		}
+	}
+
+	return &Schema{Columns: columns}, nil
 }
 
 // validateExpressionColumns validates that all column references in an expression exist in the table
