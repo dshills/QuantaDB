@@ -17,9 +17,9 @@ QuantaDB is a PostgreSQL-compatible distributed database written in Go. The proj
 - ✅ Write-Ahead Logging (WAL) with crash recovery
 - ✅ All major SQL data types (including DATE, TIMESTAMP, INTERVAL, BYTEA)
 - ✅ GROUP BY, HAVING, DISTINCT, all JOIN types
-- ❌ CASCADE DELETE for foreign keys
-- ❌ Full CHECK constraint expression parsing
-- ❌ LIMIT/OFFSET clauses
+- ✅ CASCADE DELETE for foreign keys (including SET NULL, SET DEFAULT)
+- ✅ Full CHECK constraint expression parsing with functions and operators
+- ✅ LIMIT/OFFSET clauses (already implemented)
 - ❌ Distributed features
 
 ## Tech Stack

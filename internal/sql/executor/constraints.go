@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
-	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -67,9 +66,10 @@ func (cv *SimpleConstraintValidator) ValidateUpdate(table *catalog.Table, oldRow
 
 // ValidateDelete validates constraints for a DELETE operation.
 func (cv *SimpleConstraintValidator) ValidateDelete(table *catalog.Table, row *Row) error {
-	// For now, we just check if any rows reference this one and block the delete
-	// In a full implementation, we would handle CASCADE, SET NULL, etc.
-	return cv.checkReferencingTables(table, row)
+	// Check if any rows reference this one
+	// For RESTRICT/NO ACTION, we block the delete
+	// For CASCADE/SET NULL/SET DEFAULT, we allow it (handled by DeleteOperator)
+	return cv.checkReferencingTablesForRestrict(table, row)
 }
 
 // validateForeignKey validates a foreign key constraint.
@@ -152,9 +152,8 @@ func (cv *SimpleConstraintValidator) validateForeignKey(table *catalog.Table, ro
 
 // validateCheck validates a CHECK constraint.
 func (cv *SimpleConstraintValidator) validateCheck(table *catalog.Table, row *Row, check *catalog.CheckConstraint) error {
-	// Parse the check expression
-	p := parser.NewParser(check.Expression)
-	expr, err := p.ParseExpression()
+	// Get the parsed expression from cache
+	expr, err := globalExprCache.GetOrParse(check.Expression)
 	if err != nil {
 		return fmt.Errorf("invalid check constraint expression: %v", err)
 	}
@@ -191,8 +190,8 @@ func (cv *SimpleConstraintValidator) validateCheck(table *catalog.Table, row *Ro
 	return nil
 }
 
-// checkReferencingTables checks if any tables reference this row.
-func (cv *SimpleConstraintValidator) checkReferencingTables(table *catalog.Table, row *Row) error {
+// checkReferencingTablesForRestrict checks if any tables reference this row with RESTRICT/NO ACTION.
+func (cv *SimpleConstraintValidator) checkReferencingTablesForRestrict(table *catalog.Table, row *Row) error {
 	// Get all tables in the same schema
 	tables, err := cv.catalog.ListTables(table.SchemaName)
 	if err != nil {
@@ -253,7 +252,12 @@ func (cv *SimpleConstraintValidator) checkReferencingTables(table *catalog.Table
 				}
 
 				if matches {
-					return fmt.Errorf("foreign key constraint %s violated: rows still reference this record", fk.Name)
+					// Check the referential action
+					if fk.OnDelete == catalog.Restrict || fk.OnDelete == catalog.NoAction || fk.OnDelete == "" {
+						return fmt.Errorf("foreign key constraint %s violated: rows still reference this record", fk.Name)
+					}
+					// For CASCADE, SET NULL, SET DEFAULT, we allow the delete
+					// The actual cascade operation will be handled by DeleteOperator
 				}
 			}
 		}

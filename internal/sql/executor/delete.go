@@ -16,6 +16,7 @@ type DeleteOperator struct {
 	whereClause      parser.Expression
 	rowsDeleted      int64
 	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance
+	cascadeHandler   *CascadeDeleteHandler    // Handles cascade deletes
 }
 
 // NewDeleteOperator creates a new delete operator
@@ -97,6 +98,21 @@ func (d *DeleteOperator) Open(ctx *ExecContext) error {
 		if d.ctx.ConstraintValidator != nil {
 			if err := d.ctx.ConstraintValidator.ValidateDelete(d.table, row); err != nil {
 				return fmt.Errorf("constraint violation: %w", err)
+			}
+		}
+
+		// Handle cascade deletes if cascade handler is available
+		if d.cascadeHandler == nil && d.ctx.ConstraintValidator != nil {
+			// Create cascade handler on first use
+			if validator, ok := d.ctx.ConstraintValidator.(*SimpleConstraintValidator); ok {
+				d.cascadeHandler = NewCascadeDeleteHandler(d.ctx.Catalog, d.storage, validator, d.ctx)
+			}
+		}
+
+		if d.cascadeHandler != nil {
+			// Process cascade deletes (this will handle CASCADE, SET NULL, SET DEFAULT)
+			if err := d.cascadeHandler.ProcessDelete(d.table, row, rowID); err != nil {
+				return fmt.Errorf("cascade delete failed: %w", err)
 			}
 		}
 

@@ -28,6 +28,8 @@
 - Fixed date/time deserialization for proper arithmetic ✅
 - Added interval type support in planner ✅
 - LIMIT/OFFSET already implemented ✅
+- Implemented CASCADE DELETE for foreign keys ✅
+- Implemented full CHECK constraint expression parsing ✅
 - All critical blockers resolved - ready for TPC-H!
 
 **Key Achievements:**
@@ -40,7 +42,8 @@
 - ✅ Full JOIN support (INNER, LEFT, RIGHT, FULL, CROSS)
 - ✅ Aggregate functions with GROUP BY/HAVING
 - ✅ Subqueries, IN/EXISTS, and CTEs
-- ✅ Foreign Keys and CHECK constraints
+- ✅ Foreign Keys with CASCADE DELETE, SET NULL, SET DEFAULT
+- ✅ CHECK constraints with full expression support
 - ✅ COPY protocol for bulk data loading
 - ✅ BYTEA binary data type with PostgreSQL compatibility
 
@@ -54,9 +57,12 @@
 **Current Status**: All core data types implemented! Major crashes fixed! GROUP BY, JOIN resolution, aggregate expressions, and DISTINCT now work.
 
 ### Immediate Priorities (Week 1)  
-1. **Fix CASCADE DELETE and CHECK Constraints**
-   - CASCADE DELETE action for foreign keys
-   - CHECK constraint expression parsing (currently limited)
+1. **CASCADE DELETE and CHECK Constraints** ✅ COMPLETED
+   - CASCADE DELETE action for foreign keys ✅
+   - SET NULL and SET DEFAULT actions ✅
+   - CHECK constraint expression parsing with full support ✅
+   - Expression caching for performance ✅
+   - Support for complex expressions, functions, operators ✅
 
 ### After Critical Fixes (Week 2-3)
 2. **Index-Query Integration**

@@ -438,6 +438,56 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 		// typically not used in production as queries go through the planner first.
 		return types.Value{}, fmt.Errorf("EXISTS/NOT EXISTS evaluation not supported in direct parser expression evaluation")
 
+	case *parser.IsNullExpr:
+		// Handle IS NULL / IS NOT NULL
+		val, err := evaluateExpression(e.Expr, ctx)
+		if err != nil {
+			return types.Value{}, err
+		}
+
+		if e.Not {
+			return types.NewValue(!val.IsNull()), nil
+		}
+		return types.NewValue(val.IsNull()), nil
+
+	case *parser.BetweenExpr:
+		// Handle BETWEEN expressions
+		val, err := evaluateExpression(e.Expr, ctx)
+		if err != nil {
+			return types.Value{}, err
+		}
+
+		lower, err := evaluateExpression(e.Lower, ctx)
+		if err != nil {
+			return types.Value{}, err
+		}
+
+		upper, err := evaluateExpression(e.Upper, ctx)
+		if err != nil {
+			return types.Value{}, err
+		}
+
+		// If any value is NULL, result is NULL
+		if val.IsNull() || lower.IsNull() || upper.IsNull() {
+			return types.NewNullValue(), nil
+		}
+
+		// Check if value is between lower and upper
+		result := types.CompareValues(val, lower) >= 0 && types.CompareValues(val, upper) <= 0
+
+		if e.Not {
+			return types.NewValue(!result), nil
+		}
+		return types.NewValue(result), nil
+
+	case *parser.FunctionCall:
+		// Handle function calls
+		return evaluateFunction(e, ctx)
+
+	case *parser.ParenExpr:
+		// Parentheses are just for grouping, evaluate the inner expression
+		return evaluateExpression(e.Expr, ctx)
+
 	default:
 		return types.Value{}, fmt.Errorf("unsupported expression type: %T", expr)
 	}
