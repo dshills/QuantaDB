@@ -11,12 +11,12 @@ import (
 // AggregateOperator implements GROUP BY and aggregation.
 type AggregateOperator struct {
 	baseOperator
-	child      Operator
-	groupBy    []ExprEvaluator
-	aggregates []AggregateExpr
-	groups     map[uint64]*aggregateGroup
-	groupIter  []*aggregateGroup
-	iterIndex  int
+	child       Operator
+	groupBy     []ExprEvaluator
+	aggregates  []AggregateExpr
+	groups      map[uint64]*aggregateGroup
+	groupIter   []*aggregateGroup
+	iterIndex   int
 	initialized bool // Track if Open() completed successfully
 }
 
@@ -93,11 +93,11 @@ func NewAggregateOperatorWithNames(child Operator, groupBy []ExprEvaluator, aggr
 		baseOperator: baseOperator{
 			schema: schema,
 		},
-		child:      child,
-		groupBy:    groupBy,
-		aggregates: aggregates,
-		groups:     make(map[uint64]*aggregateGroup),
-		groupIter:  make([]*aggregateGroup, 0), // Initialize to empty slice
+		child:       child,
+		groupBy:     groupBy,
+		aggregates:  aggregates,
+		groups:      make(map[uint64]*aggregateGroup),
+		groupIter:   make([]*aggregateGroup, 0), // Initialize to empty slice
 		initialized: false,
 	}
 }

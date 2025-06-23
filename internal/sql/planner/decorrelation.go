@@ -198,7 +198,7 @@ func (d *SubqueryDecorrelation) transformInSubquery(inExpr *InExpr, leftPlan Log
 		// Fallback column name
 		rightColumn = "subquery_col"
 	}
-	
+
 	joinCondition := &BinaryOp{
 		Left:     inExpr.Expr,
 		Right:    &ColumnRef{ColumnName: rightColumn, TableAlias: ""},

@@ -35,10 +35,10 @@ func NewNestedLoopJoinOperator(left, right Operator, predicate ExprEvaluator, jo
 	rightSchema := right.Schema()
 
 	columns := make([]Column, 0, len(leftSchema.Columns)+len(rightSchema.Columns))
-	
+
 	// Copy columns from left side, preserving table information
 	columns = append(columns, leftSchema.Columns...)
-	
+
 	// Copy columns from right side, preserving table information
 	columns = append(columns, rightSchema.Columns...)
 

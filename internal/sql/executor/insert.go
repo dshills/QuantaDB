@@ -257,7 +257,7 @@ func (i *InsertOperator) convertValueToColumnType(value types.Value, col *catalo
 		default:
 			return types.Value{}, fmt.Errorf("cannot convert %T to DOUBLE", v)
 		}
-		
+
 	case "DECIMAL", "NUMERIC":
 		// Convert to float64 (for now, we don't have a decimal type)
 		switch v := value.Data.(type) {

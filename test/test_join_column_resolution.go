@@ -19,26 +19,26 @@ import (
 
 func main() {
 	fmt.Println("=== Testing JOIN Column Resolution Fix ===")
-	
+
 	// Create a test catalog
 	cat := catalog.NewMemoryCatalog()
 	eng := engine.NewMemoryEngine()
 	defer eng.Close()
-	
+
 	// Create storage backend
 	diskManager, err := storage.NewDiskManager(":memory:")
 	if err != nil {
 		log.Fatal("Failed to create disk manager:", err)
 	}
 	defer diskManager.Close()
-	
+
 	bufferPool := storage.NewBufferPool(diskManager, 10)
 	txnManager := txn.NewManager(eng, nil)
 	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
 
 	// Create test tables
 	fmt.Println("\n1. Creating test tables...")
-	
+
 	customersSchema := &catalog.TableSchema{
 		SchemaName: "public",
 		TableName:  "customers",
@@ -52,7 +52,7 @@ func main() {
 		log.Fatal("Failed to create customers table:", err)
 	}
 	fmt.Println("   ✅ Created customers table")
-	
+
 	// Create table in storage backend
 	err = storageBackend.CreateTable(customersTable)
 	if err != nil {
@@ -72,7 +72,7 @@ func main() {
 		log.Fatal("Failed to create orders table:", err)
 	}
 	fmt.Println("   ✅ Created orders table")
-	
+
 	// Create table in storage backend
 	err = storageBackend.CreateTable(ordersTable)
 	if err != nil {
@@ -105,7 +105,7 @@ func main() {
 	for i, test := range queries {
 		fmt.Printf("\n%d. Testing: %s\n", i+2, test.name)
 		fmt.Printf("   Query: %s\n", test.query)
-		
+
 		// Parse the query
 		p := parser.NewParser(test.query)
 		stmt, err := p.Parse()
@@ -125,14 +125,14 @@ func main() {
 		// Create executor with storage backend
 		exec := executor.NewBasicExecutor(cat, eng)
 		exec.SetStorageBackend(storageBackend)
-		
+
 		// Start a transaction
 		txnObj, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		if err != nil {
 			fmt.Printf("   ❌ Failed to begin transaction: %v\n", err)
 			continue
 		}
-		
+
 		// Create execution context
 		ctx := &executor.ExecContext{
 			Catalog:    cat,
@@ -161,7 +161,7 @@ func main() {
 		for _, col := range schema.Columns {
 			fmt.Printf("      - %s (table: %s, alias: %s)\n", col.Name, col.TableName, col.TableAlias)
 		}
-		
+
 		result.Close()
 	}
 

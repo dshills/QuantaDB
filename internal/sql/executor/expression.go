@@ -43,7 +43,7 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 					}
 				}
 			}
-			
+
 			// If not found or no table alias, try exact match with column name
 			if columnIdx == -1 {
 				// Count how many columns match the name (for ambiguity detection)
@@ -56,7 +56,7 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 						matches++
 					}
 				}
-				
+
 				// If multiple matches and no table alias specified, it's ambiguous
 				if matches > 1 && e.TableAlias == "" {
 					// For now, we'll use the first match, but this should ideally return an error

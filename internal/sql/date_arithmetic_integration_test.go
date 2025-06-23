@@ -179,7 +179,7 @@ func TestDateArithmeticIntegration(t *testing.T) {
 			// Execute
 			exec := executor.NewBasicExecutor(cat, nil)
 			exec.SetStorageBackend(storageBackend)
-			
+
 			// Create execution context
 			execCtx := &executor.ExecContext{
 				Catalog: cat,

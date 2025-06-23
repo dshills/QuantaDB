@@ -89,7 +89,7 @@ func TestOptimizerMultipleRulesWithSubqueries(t *testing.T) {
 		Type:     types.Boolean,
 	}
 	filteredSubquery := NewLogicalFilter(subqueryScan, subqueryFilter)
-	
+
 	// Add projection to subquery to select order_id column
 	subqueryProjSchema := &Schema{
 		Columns: []Column{
@@ -142,7 +142,7 @@ func TestOptimizerMultipleRulesWithSubqueries(t *testing.T) {
 
 	t.Logf("Original plan: %s", plan.String())
 	t.Logf("Optimized plan: %s", optimizedPlan.String())
-	
+
 	// Debug - print plan tree
 	t.Logf("Original plan tree:")
 	printPlanTree(t, plan, 0)

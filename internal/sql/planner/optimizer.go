@@ -2,6 +2,7 @@ package planner
 
 import (
 	"fmt"
+
 	"github.com/dshills/QuantaDB/internal/catalog"
 )
 
@@ -100,10 +101,10 @@ func (o *Optimizer) planFingerprint(plan Plan) string {
 	if plan == nil {
 		return "nil"
 	}
-	
+
 	// Start with the node's own string representation
 	result := fmt.Sprintf("%T:%s", plan, plan.String())
-	
+
 	// Add child fingerprints
 	children := plan.Children()
 	if len(children) > 0 {
@@ -116,7 +117,7 @@ func (o *Optimizer) planFingerprint(plan Plan) string {
 		}
 		result += "]"
 	}
-	
+
 	return result
 }
 
