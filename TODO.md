@@ -27,6 +27,7 @@
 - Fixed column resolution in filter predicates ✅
 - Fixed date/time deserialization for proper arithmetic ✅
 - Added interval type support in planner ✅
+- LIMIT/OFFSET already implemented ✅
 - All critical blockers resolved - ready for TPC-H!
 
 **Key Achievements:**
@@ -53,11 +54,7 @@
 **Current Status**: All core data types implemented! Major crashes fixed! GROUP BY, JOIN resolution, aggregate expressions, and DISTINCT now work.
 
 ### Immediate Priorities (Week 1)  
-1. **Implement LIMIT/OFFSET**
-   - TPC-H Q18 uses LIMIT 100
-   - Basic SQL feature gap
-
-2. **Fix CASCADE DELETE and CHECK Constraints**
+1. **Fix CASCADE DELETE and CHECK Constraints**
    - CASCADE DELETE action for foreign keys
    - CHECK constraint expression parsing (currently limited)
 
@@ -99,7 +96,7 @@ See detailed plans in `docs/planning/`:
 - [ ] **Window Functions**: Required for Q2 (rank), Q17, Q18, Q20
 - [ ] **Correlated Subqueries in SELECT**: Q2, Q17, Q20, Q21, Q22
 - [ ] **Multiple Subqueries**: Q21, Q22 have complex nested subqueries
-- [ ] **LIMIT/OFFSET**: Q18 uses LIMIT 100
+- [x] **LIMIT/OFFSET**: Already implemented - Q18 can use LIMIT 100
 - [ ] **Additional Aggregate Functions**: STDDEV (Q17)
 - [ ] **Query Optimization**: Many queries need better join ordering and index usage
 
