@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/dshills/QuantaDB/internal/sql/types"
@@ -249,6 +250,15 @@ func (ke *KeyEncoder) EncodeValue(val types.Value) ([]byte, error) {
 	case string:
 		// TEXT/VARCHAR - String values are already comparable
 		return []byte(v), nil
+
+	case time.Time:
+		// DATE/TIMESTAMP - For indexing purposes, we encode all time.Time values
+		// as Unix nanoseconds (8 bytes) to ensure consistent ordering
+		// This works for both DATE and TIMESTAMP types
+		nano := v.UnixNano()
+		var buf [8]byte
+		binary.BigEndian.PutUint64(buf[:], uint64(nano))
+		return buf[:], nil
 
 	default:
 		return nil, fmt.Errorf("unsupported type for indexing: %T", val.Data)

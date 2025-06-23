@@ -34,6 +34,9 @@
   - INSERT/UPDATE/DELETE now maintain indexes
   - CREATE INDEX populates existing data
   - Query planner already uses indexes for optimization
+- **Fixed Date/Time Indexing** ✅
+  - B+Tree indexes now support DATE and TIMESTAMP columns
+  - Enables TPC-H data loading with date column indexes
 - All critical blockers resolved - ready for TPC-H!
 
 **Key Achievements:**
@@ -108,6 +111,9 @@ See detailed plans in `docs/planning/`:
 - [ ] **Multiple Subqueries**: Q21, Q22 have complex nested subqueries
 - [x] **LIMIT/OFFSET**: Already implemented - Q18 can use LIMIT 100
 - [ ] **Additional Aggregate Functions**: STDDEV (Q17)
+- [x] **EXTRACT Function**: Already implemented for date/time operations (Q8)
+- [x] **CASE Expressions**: Already implemented for conditional logic (Q8)
+- [ ] **Table Aliases**: Q8 needs support for `nation n1, nation n2` syntax
 - [ ] **Query Optimization**: Many queries need better join ordering and index usage
 
 ## Technical Debt & Architecture Improvements
