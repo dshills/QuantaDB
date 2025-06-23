@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-QuantaDB has evolved from a memory-only SQL database to a disk-based system with persistent storage. The core SQL functionality is complete, and we're now focused on production-ready features.
+QuantaDB has evolved from a memory-only SQL database to a disk-based system with persistent storage. The core SQL functionality is complete, including full B+Tree index integration with the query planner. All major SQL data types are supported, and date/time arithmetic works correctly. We're now focused on production-ready features and performance optimization.
 
 ## Architecture Overview
 
@@ -141,6 +141,8 @@ QuantaDB has evolved from a memory-only SQL database to a disk-based system with
 4. **Memory Management**: No memory limits on buffer pool or query execution
 5. **Extended Query Protocol**: 🚨 **CRITICAL** - Infrastructure complete but parameters don't work (planner doesn't handle ParameterRef nodes)
 6. **Error Codes**: Generic error codes used instead of specific PostgreSQL SQLSTATE codes
+7. **CASCADE DELETE**: Not implemented for foreign key constraints
+8. **CHECK Constraints**: Limited expression parsing (no comparison operators)
 
 ## Performance Characteristics
 

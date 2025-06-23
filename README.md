@@ -11,10 +11,14 @@ A PostgreSQL-compatible distributed database written in Go, featuring persistent
 - **MVCC Transactions**: Multi-version concurrency control with multiple isolation levels
 - **Crash Recovery**: Write-Ahead Logging (WAL) with automatic recovery on startup
 - **Query Optimization**: Cost-based query planner with join reordering and predicate pushdown
-- **B+Tree Indexes**: Complete implementation (integration with planner pending)
+- **B+Tree Indexes**: Complete implementation with full query planner integration
+- **Data Types**: All major SQL types including DATE, TIMESTAMP, INTERVAL, and BYTEA
+- **Advanced SQL**: GROUP BY, HAVING, DISTINCT, JOINs (all types), subqueries, CTEs
 
 ### 🚧 In Development
-- Index-query planner integration
+- CASCADE DELETE and CHECK constraint expression parsing
+- LIMIT/OFFSET clauses
+- Window functions
 - Authentication and user management
 - Distributed features (replication, sharding)
 
@@ -179,7 +183,8 @@ QuantaDB/
 
 - [Current Status](docs/CURRENT_STATUS.md) - Detailed component status
 - [Roadmap](docs/ROADMAP.md) - Future development plans
-- [Architecture](docs/ARCHITECTURE.md) - System design details
+- [Architecture](docs/architecture/overview.md) - System design details
+- [TODO List](TODO.md) - Current tasks and priorities
 - [Contributing](CONTRIBUTING.md) - How to contribute
 
 ## Contributing

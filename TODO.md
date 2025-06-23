@@ -24,6 +24,9 @@
 - Fixed GROUP BY server crash ✅
 - Implemented DISTINCT support ✅
 - Implemented BYTEA binary data type ✅
+- Fixed column resolution in filter predicates ✅
+- Fixed date/time deserialization for proper arithmetic ✅
+- Added interval type support in planner ✅
 - All critical blockers resolved - ready for TPC-H!
 
 **Key Achievements:**
@@ -53,6 +56,10 @@
 1. **Implement LIMIT/OFFSET**
    - TPC-H Q18 uses LIMIT 100
    - Basic SQL feature gap
+
+2. **Fix CASCADE DELETE and CHECK Constraints**
+   - CASCADE DELETE action for foreign keys
+   - CHECK constraint expression parsing (currently limited)
 
 ### After Critical Fixes (Week 2-3)
 2. **Index-Query Integration**

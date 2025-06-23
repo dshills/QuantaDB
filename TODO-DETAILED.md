@@ -3,86 +3,79 @@ Last Updated: December 2024
 
 ## 🔥 CRITICAL: Immediate Fixes (Blocking Basic Functionality)
 
-### 1. Storage Type Mismatch Issue [HIGH PRIORITY]
-**Problem**: int32 vs int64 serialization causing widespread test failures
-**Symptoms**: 
-- "expected int32, got int64" errors in multiple tests
-- Affects: INSERT operations, foreign keys, transactions
-**Files to Fix**:
-- `internal/storage/page.go` - SerializeRow function
-- `internal/sql/executor/insert.go` - Type conversion logic
-- `internal/sql/types/types.go` - Value type handling
-**Solution**: Standardize all integer handling to int64 throughout storage layer
+### ✅ COMPLETED FIXES (December 2024)
 
-### 2. GROUP BY Server Crash [HIGH PRIORITY]
-**Problem**: Server crashes with SIGSEGV on GROUP BY queries
-**Symptoms**: 
-- Simple COUNT(*) works, but GROUP BY crashes
-- Blocking all aggregate query testing
-**Files to Fix**:
-- `internal/sql/executor/group_by.go` - Add nil checks and proper initialization
-- `internal/network/connection.go` - Ensure result handling safety
-**Solution**: See `docs/planning/phase1-critical-fixes-plan.md` for detailed fix
+1. **Storage Type Mismatch Issue** - FIXED ✅
+   - Standardized all integer handling to int64
+   - Fixed serialization/deserialization consistency
 
-### 3. JOIN Column Resolution [HIGH PRIORITY]
-**Problem**: "column not resolved" errors in JOIN queries
-**Symptoms**:
-- Qualified column names (table.column) not working
-- Affects most TPC-H queries
-**Files to Fix**:
-- `internal/sql/planner/resolve.go` - Column resolver logic
-- `internal/sql/planner/join.go` - Schema merging in joins
-**Solution**: Implement proper qualified name resolution
+2. **GROUP BY Server Crash** - FIXED ✅
+   - Added proper nil checks and initialization
+   - Server no longer crashes on GROUP BY queries
 
-### 4. Aggregate Expressions in Projection [HIGH PRIORITY]
-**Problem**: Cannot use expressions like SUM(a)/SUM(b) in SELECT
-**Symptoms**:
-- "unsupported expression type: *planner.AggregateExpr"
-- TPC-H Q8 fails
-**Files to Fix**:
-- `internal/sql/executor/builder.go` - Add aggregate expression support
-- `internal/sql/executor/projection.go` - Handle complex expressions
+3. **JOIN Column Resolution** - FIXED ✅
+   - Implemented qualified column name resolution
+   - table.column syntax now works properly
 
-### 5. CHECK Constraint Parser Issue [HIGH PRIORITY]
-**Problem**: Parser fails on CHECK constraints with comparison operators
+4. **Aggregate Expressions in Projection** - FIXED ✅
+   - Added support for complex aggregate expressions
+   - SUM(a)/SUM(b) type expressions now work
+
+5. **Column Resolution in Filter Predicates** - FIXED ✅
+   - Filter operators now properly resolve column references
+   - WHERE clauses work with all column types
+
+6. **Date/Time Arithmetic** - FIXED ✅
+   - Fixed date/time deserialization to return time.Time objects
+   - Date + Interval operations now work correctly
+   - Added interval type support in planner
+
+### 🚧 REMAINING CRITICAL ISSUES
+
+### 1. CHECK Constraint Expression Parsing [HIGH PRIORITY]
+**Problem**: Limited expression parser for CHECK constraints
 **Symptoms**:
 - "unexpected token in expression: >" error
+- Cannot parse comparison operators in CHECK expressions
 **Files to Fix**:
 - `internal/sql/parser/parser.go` - CHECK constraint parsing logic
 - `internal/sql/parser/expression.go` - Expression parsing in constraints
 
 ## 📋 SQL Feature Gaps (Required for TPC-H)
 
-### 6. DISTINCT Support [MEDIUM PRIORITY]
-**Required by**: Several TPC-H queries
-**Implementation**:
-- Add DISTINCT operator to executor
-- Update planner to recognize DISTINCT
-- Consider hash-based vs sort-based implementation
+### ✅ COMPLETED SQL FEATURES (December 2024)
 
-### 7. LIMIT/OFFSET Support [MEDIUM PRIORITY]
+1. **DISTINCT Support** - COMPLETED ✅
+   - Hash-based deduplication implemented
+   - Fully integrated with query planner
+
+2. **BYTEA Data Type** - COMPLETED ✅
+   - PostgreSQL-compatible binary data type
+   - Full serialization/deserialization support
+
+### 🚧 REMAINING SQL FEATURES
+
+### 1. LIMIT/OFFSET Support [MEDIUM PRIORITY]
 **Required by**: TPC-H Q18 (LIMIT 100)
 **Implementation**:
 - Add LIMIT/OFFSET to parser AST
 - Implement LimitOperator in executor
 - Update planner to handle LIMIT/OFFSET
 
-### 8. BYTEA Data Type [MEDIUM PRIORITY]
-**Status**: Only remaining core PostgreSQL type
+### 2. CASCADE DELETE [MEDIUM PRIORITY]
+**Required by**: Foreign key constraints
 **Implementation**:
-- Add BYTEA to types system
-- Implement serialization/deserialization
-- Add escape/unescape functions
+- Add CASCADE action support to constraint validator
+- Implement recursive deletion logic
+- Handle other actions (SET NULL, SET DEFAULT)
 
 ## 🔧 Performance & Optimization
 
-### 9. Index-Query Integration [MEDIUM PRIORITY]
-**Current State**: Indexes created but not used by queries
-**Implementation**:
-- Complete IndexScanOperator
-- Add cost estimation for index scans
-- Update optimizer to choose index scans
-**Note**: Requires basic queries to work first
+### ✅ Index-Query Integration - COMPLETED ✅
+**Status**: Full B+Tree index integration with cost-based optimization
+- IndexScanOperator fully implemented
+- Cost estimation for index vs sequential scans
+- Optimizer chooses best access path based on statistics
 
 ### 10. Complete TPC-H Benchmark Suite [LOW PRIORITY]
 **Status**: 4/22 queries implemented
