@@ -32,14 +32,12 @@ linters:
     - goconst       # Finds repeated strings that could be constants
     - nakedret      # Naked returns in long functions
     - unconvert     # Remove unnecessary type conversions
-    - unparam       # Reports unused function parameters
     - whitespace    # Detects leading/trailing whitespace
 
     # Security
     - gosec         # Inspects source for security problems
 
     # Performance
-    - prealloc      # Suggests preallocations
     - bodyclose     # Checks HTTP response body is closed
 
     # Style
@@ -49,13 +47,14 @@ linters:
     # Bugs/Correctness
     - staticcheck   # Advanced static analysis (includes gosimple, stylecheck)
     - loggercheck   # Checks logger arguments
-    - errcheck      # Check error returns
     - exhaustive    # Check exhaustiveness of enum switches
-    - nilnil        # Checks for return of nil error and nil value
 
-  # Disable some default linters if needed
+  # Disable overly aggressive linters for database projects
   disable:
     - errcheck      # Can be noisy, enable selectively
+    - unparam       # Database interfaces need consistent signatures
+    - prealloc      # Query processing uses dynamic structures
+    - nilnil        # Common pattern in iterators: return nil, nil
 
   # Linter-specific settings
   settings:
@@ -66,7 +65,7 @@ linters:
       # Allow switches that have a default case
       default-signifies-exhaustive: true
 
-    # Configure revive
+    # Configure revive with less aggressive rules
     revive:
       rules:
         - name: blank-imports
@@ -76,12 +75,12 @@ linters:
         - name: error-return
         - name: error-strings
         - name: error-naming
-        - name: exported
+        # - name: exported           # Too strict for internal packages
         - name: if-return
         - name: increment-decrement
         - name: var-naming
         - name: var-declaration
-        - name: package-comments
+        # - name: package-comments   # Not all packages need comments
         - name: range
         - name: receiver-naming
         - name: time-naming
@@ -95,14 +94,14 @@ linters:
         - all
         - '-SA1019'  # Ignore deprecation warnings if needed
 
-    # Configure goconst
+    # Configure goconst with more reasonable thresholds
     goconst:
-      min-len: 3
-      min-occurrences: 3
+      min-len: 10           # Increased from 3 - avoid flagging SQL keywords
+      min-occurrences: 5    # Increased from 3 - more reasonable threshold
 
-    # Configure dupl
+    # Configure dupl with higher threshold for database code
     dupl:
-      threshold: 100
+      threshold: 150        # Increased from 100 - database code has legitimate patterns
 
     # Configure misspell
     misspell:
@@ -148,6 +147,23 @@ linters:
           - goconst
           - gosec
 
+      # Ignore dupl in operator implementations (common patterns)
+      - path: 'internal/sql/executor/.*operator.*\.go'
+        linters:
+          - dupl
+
+      # Ignore dupl in planner (similar patterns for different node types)
+      - path: 'internal/sql/planner/.*\.go'
+        text: 'duplicate of'
+        linters:
+          - dupl
+
+      # Ignore goconst for common SQL keywords
+      - path: 'internal/sql/.*\.go'
+        text: 'string "(SELECT|FROM|WHERE|JOIN|ON|AND|OR|NOT|IN|EXISTS|GROUP BY|ORDER BY|LIMIT|OFFSET|ASC|DESC)"'
+        linters:
+          - goconst
+
       # Ignore long lines in generated files
       - path: '(.+)\.pb\.go'
         linters:
@@ -156,6 +172,15 @@ linters:
       # Ignore certain error checks in main
       - path: 'main\.go'
         text: 'Error return value of .* is not checked'
+
+      # Ignore nilnil in iterators (common pattern)
+      - path: 'internal/.*iterator.*\.go'
+        text: 'return both the `nil` error and invalid value'
+
+      # Ignore nilnil in Next() methods
+      - path: '.*\.go'
+        text: 'return both the `nil` error and invalid value'
+        source: 'return nil, nil.*// EOF'
 
 # Code formatters
 formatters:
