@@ -68,9 +68,9 @@ func TestInsertOperatorWithParameters(t *testing.T) {
 		t.Fatalf("expected 2 values, got %d", len(insertedRow.Values))
 	}
 
-	// Check values
-	if v, ok := insertedRow.Values[0].Data.(int64); !ok || v != 1 {
-		t.Errorf("expected first value to be int64(1), got %v (%T)", insertedRow.Values[0].Data, insertedRow.Values[0].Data)
+	// Check values (INTEGER is int32)
+	if v, ok := insertedRow.Values[0].Data.(int32); !ok || v != 1 {
+		t.Errorf("expected first value to be int32(1), got %v (%T)", insertedRow.Values[0].Data, insertedRow.Values[0].Data)
 	}
 
 	if v, ok := insertedRow.Values[1].Data.(string); !ok || v != "John Doe" {

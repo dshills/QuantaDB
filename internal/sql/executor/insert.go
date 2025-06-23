@@ -278,18 +278,30 @@ func (i *InsertOperator) convertValueToColumnType(value types.Value, col *catalo
 		}
 
 	case typeINTEGER:
-		// Convert to int64
+		// Convert to int32 (INTEGER is 32-bit in PostgreSQL)
 		switch v := value.Data.(type) {
 		case int32:
-			return types.NewValue(int64(v)), nil
-		case int64:
 			return value, nil // Already correct type
+		case int64:
+			// Check bounds for int32
+			if v < -2147483648 || v > 2147483647 {
+				return types.Value{}, fmt.Errorf("value %d out of range for INTEGER", v)
+			}
+			return types.NewValue(int32(v)), nil
 		case float32:
-			return types.NewValue(int64(v)), nil
+			// Check bounds for int32
+			if v < -2147483648 || v > 2147483647 {
+				return types.Value{}, fmt.Errorf("value %f out of range for INTEGER", v)
+			}
+			return types.NewValue(int32(v)), nil
 		case float64:
-			return types.NewValue(int64(v)), nil
+			// Check bounds for int32
+			if v < -2147483648 || v > 2147483647 {
+				return types.Value{}, fmt.Errorf("value %f out of range for INTEGER", v)
+			}
+			return types.NewValue(int32(v)), nil
 		case *big.Rat:
-			// Convert big.Rat to int64
+			// Convert big.Rat to int32
 			i := v.Num()
 			if v.Denom().Cmp(big.NewInt(1)) != 0 {
 				return types.Value{}, fmt.Errorf("cannot convert decimal %v to INTEGER", v)
@@ -297,7 +309,11 @@ func (i *InsertOperator) convertValueToColumnType(value types.Value, col *catalo
 			if !i.IsInt64() {
 				return types.Value{}, fmt.Errorf("value %v out of range for INTEGER", i)
 			}
-			return types.NewValue(i.Int64()), nil
+			i64 := i.Int64()
+			if i64 < -2147483648 || i64 > 2147483647 {
+				return types.Value{}, fmt.Errorf("value %d out of range for INTEGER", i64)
+			}
+			return types.NewValue(int32(i64)), nil
 		default:
 			return types.Value{}, fmt.Errorf("cannot convert %T to INTEGER", v)
 		}

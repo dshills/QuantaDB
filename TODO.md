@@ -11,10 +11,16 @@
 - All core SQL data types implemented
 - TPC-H benchmark infrastructure ready
 
-**Current Phase: Phase 7 - Performance & Benchmarking**
-- TPC-H benchmark suite completion (4/22 queries done)
-- Performance optimization and measurement
-- Cost model calibration
+**Current Phase: Critical Bug Fixes**
+- Storage type mismatches (int32 vs int64) blocking basic operations
+- GROUP BY crashes preventing aggregate queries
+- JOIN column resolution errors
+- See `TODO-DETAILED.md` for comprehensive task list
+
+**Status Update (December 2024)**
+- Fixed all linting issues (97 → 0)
+- Fixed optimizer subquery decorrelation
+- Multiple critical issues blocking TPC-H benchmarks
 
 **Key Achievements:**
 - ✅ PostgreSQL-compatible database from scratch

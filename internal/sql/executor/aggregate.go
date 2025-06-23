@@ -17,6 +17,7 @@ type AggregateOperator struct {
 	groups     map[uint64]*aggregateGroup
 	groupIter  []*aggregateGroup
 	iterIndex  int
+	initialized bool // Track if Open() completed successfully
 }
 
 // AggregateExpr represents an aggregate expression.
@@ -96,6 +97,8 @@ func NewAggregateOperatorWithNames(child Operator, groupBy []ExprEvaluator, aggr
 		groupBy:    groupBy,
 		aggregates: aggregates,
 		groups:     make(map[uint64]*aggregateGroup),
+		groupIter:  make([]*aggregateGroup, 0), // Initialize to empty slice
+		initialized: false,
 	}
 }
 
@@ -103,8 +106,14 @@ func NewAggregateOperatorWithNames(child Operator, groupBy []ExprEvaluator, aggr
 func (a *AggregateOperator) Open(ctx *ExecContext) error {
 	a.ctx = ctx
 	a.groups = make(map[uint64]*aggregateGroup)
-	a.groupIter = nil
+	a.groupIter = make([]*aggregateGroup, 0) // Always initialize to empty slice
 	a.iterIndex = 0
+	a.initialized = false
+
+	// Validate child operator
+	if a.child == nil {
+		return fmt.Errorf("aggregate operator has no child")
+	}
 
 	// Open child
 	if err := a.child.Open(ctx); err != nil {
@@ -112,7 +121,15 @@ func (a *AggregateOperator) Open(ctx *ExecContext) error {
 	}
 
 	// Process all input rows
-	return a.processInput()
+	if err := a.processInput(); err != nil {
+		// Ensure we're in a valid state even if processing fails
+		a.groupIter = make([]*aggregateGroup, 0)
+		return fmt.Errorf("failed to process input: %w", err)
+	}
+
+	// Mark as successfully initialized
+	a.initialized = true
+	return nil
 }
 
 // processInput reads all rows from the child and groups them.
@@ -120,6 +137,9 @@ func (a *AggregateOperator) processInput() error {
 	if a.groups == nil {
 		return fmt.Errorf("aggregate operator groups map is nil")
 	}
+
+	// Track rows read for statistics
+	rowsProcessed := 0
 
 	for {
 		row, err := a.child.Next()
@@ -176,6 +196,11 @@ func (a *AggregateOperator) processInput() error {
 				return fmt.Errorf("error accumulating aggregate %d: %w", i, err)
 			}
 		}
+
+		rowsProcessed++
+		if a.ctx != nil && a.ctx.Stats != nil {
+			a.ctx.Stats.RowsRead++
+		}
 	}
 
 	// Convert map to slice for iteration
@@ -189,8 +214,14 @@ func (a *AggregateOperator) processInput() error {
 
 // Next returns the next aggregated row.
 func (a *AggregateOperator) Next() (*Row, error) {
+	// Check if operator was properly initialized
+	if !a.initialized {
+		return nil, fmt.Errorf("aggregate operator not properly initialized")
+	}
+
+	// Safety check for groupIter
 	if a.groupIter == nil {
-		return nil, fmt.Errorf("group iterator is nil")
+		return nil, fmt.Errorf("group iterator is nil (internal error)")
 	}
 
 	if a.iterIndex >= len(a.groupIter) {
