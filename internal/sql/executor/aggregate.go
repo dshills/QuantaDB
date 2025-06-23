@@ -209,6 +209,20 @@ func (a *AggregateOperator) processInput() error {
 		a.groupIter = append(a.groupIter, group)
 	}
 
+	// Special case: if no GROUP BY and no groups were created (no input rows),
+	// we still need to return one row with aggregate results
+	if len(a.groupBy) == 0 && len(a.groups) == 0 {
+		// Create a single group with initialized aggregate states
+		group := &aggregateGroup{
+			key:    []types.Value{}, // Empty key for no GROUP BY
+			states: make([]AggregateState, len(a.aggregates)),
+		}
+		for i, agg := range a.aggregates {
+			group.states[i] = agg.Function.Initialize()
+		}
+		a.groupIter = append(a.groupIter, group)
+	}
+
 	return nil
 }
 
