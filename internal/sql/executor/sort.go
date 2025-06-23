@@ -183,9 +183,105 @@ func compareValues(a, b types.Value) int {
 
 	// Compare based on type
 	switch av := a.Data.(type) {
+	case int32:
+		switch bv := b.Data.(type) {
+		case int32:
+			if av < bv {
+				return -1
+			}
+			if av > bv {
+				return 1
+			}
+			return 0
+		case int64:
+			ai := int64(av)
+			if ai < bv {
+				return -1
+			}
+			if ai > bv {
+				return 1
+			}
+			return 0
+		case float32:
+			af := float32(av)
+			if af < bv {
+				return -1
+			}
+			if af > bv {
+				return 1
+			}
+			return 0
+		case float64:
+			af := float64(av)
+			if af < bv {
+				return -1
+			}
+			if af > bv {
+				return 1
+			}
+			return 0
+		}
 	case int64:
 		switch bv := b.Data.(type) {
+		case int32:
+			bi := int64(bv)
+			if av < bi {
+				return -1
+			}
+			if av > bi {
+				return 1
+			}
+			return 0
 		case int64:
+			if av < bv {
+				return -1
+			}
+			if av > bv {
+				return 1
+			}
+			return 0
+		case float32:
+			af := float64(av)
+			bf := float64(bv)
+			if af < bf {
+				return -1
+			}
+			if af > bf {
+				return 1
+			}
+			return 0
+		case float64:
+			af := float64(av)
+			if af < bv {
+				return -1
+			}
+			if af > bv {
+				return 1
+			}
+			return 0
+		}
+	case float32:
+		switch bv := b.Data.(type) {
+		case int32:
+			bf := float32(bv)
+			if av < bf {
+				return -1
+			}
+			if av > bf {
+				return 1
+			}
+			return 0
+		case int64:
+			af := float64(av)
+			bf := float64(bv)
+			if af < bf {
+				return -1
+			}
+			if af > bf {
+				return 1
+			}
+			return 0
+		case float32:
 			if av < bv {
 				return -1
 			}
@@ -205,7 +301,25 @@ func compareValues(a, b types.Value) int {
 		}
 	case float64:
 		switch bv := b.Data.(type) {
+		case int32:
+			bf := float64(bv)
+			if av < bf {
+				return -1
+			}
+			if av > bf {
+				return 1
+			}
+			return 0
 		case int64:
+			bf := float64(bv)
+			if av < bf {
+				return -1
+			}
+			if av > bf {
+				return 1
+			}
+			return 0
+		case float32:
 			bf := float64(bv)
 			if av < bf {
 				return -1

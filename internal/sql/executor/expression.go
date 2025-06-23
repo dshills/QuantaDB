@@ -453,6 +453,8 @@ func (e *binaryOpEvaluator) createArithmeticOp(
 				return int32Op(a, b)
 			case int64:
 				return int64Op(int64(a), b)
+			case float32:
+				return float64Op(float64(a), float64(b))
 			case float64:
 				return float64Op(float64(a), b)
 			}
@@ -462,6 +464,19 @@ func (e *binaryOpEvaluator) createArithmeticOp(
 				return int64Op(a, int64(b))
 			case int64:
 				return int64Op(a, b)
+			case float32:
+				return float64Op(float64(a), float64(b))
+			case float64:
+				return float64Op(float64(a), b)
+			}
+		case float32:
+			switch b := b.(type) {
+			case int32:
+				return float64Op(float64(a), float64(b))
+			case int64:
+				return float64Op(float64(a), float64(b))
+			case float32:
+				return float64Op(float64(a), float64(b))
 			case float64:
 				return float64Op(float64(a), b)
 			}
@@ -470,6 +485,8 @@ func (e *binaryOpEvaluator) createArithmeticOp(
 			case int32:
 				return float64Op(a, float64(b))
 			case int64:
+				return float64Op(a, float64(b))
+			case float32:
 				return float64Op(a, float64(b))
 			case float64:
 				return float64Op(a, b)
@@ -494,6 +511,9 @@ func (e *binaryOpEvaluator) createDivisionOp() func(a, b interface{}) interface{
 		case int64:
 			dividend = float64(v)
 			ok = true
+		case float32:
+			dividend = float64(v)
+			ok = true
 		case float64:
 			dividend = v
 			ok = true
@@ -507,6 +527,9 @@ func (e *binaryOpEvaluator) createDivisionOp() func(a, b interface{}) interface{
 			divisor = float64(v)
 			ok = true
 		case int64:
+			divisor = float64(v)
+			ok = true
+		case float32:
 			divisor = float64(v)
 			ok = true
 		case float64:
@@ -535,6 +558,8 @@ func (e *binaryOpEvaluator) evalIntervalMultiply(left, right types.Value) (types
 		case int32:
 			return float64(v), true
 		case int64:
+			return float64(v), true
+		case float32:
 			return float64(v), true
 		case float64:
 			return v, true
@@ -714,6 +739,37 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
 			}
 
+		case float32:
+			switch r := right.Data.(type) {
+			case int32:
+				if l < float32(r) {
+					cmp = -1
+				} else if l > float32(r) {
+					cmp = 1
+				}
+			case int64:
+				if l < float32(r) {
+					cmp = -1
+				} else if l > float32(r) {
+					cmp = 1
+				}
+			case float32:
+				if l < r {
+					cmp = -1
+				} else if l > r {
+					cmp = 1
+				}
+			case float64:
+				// Promote float32 to float64 for comparison
+				if float64(l) < r {
+					cmp = -1
+				} else if float64(l) > r {
+					cmp = 1
+				}
+			default:
+				return types.NewNullValue(), fmt.Errorf("type mismatch in comparison")
+			}
+
 		case float64:
 			switch r := right.Data.(type) {
 			case int32:
@@ -728,6 +784,13 @@ func (e *binaryOpEvaluator) evalComparison(left, right types.Value, op func(int)
 				if l < rf {
 					cmp = -1
 				} else if l > rf {
+					cmp = 1
+				}
+			case float32:
+				// Compare with float32 promoted to float64
+				if l < float64(r) {
+					cmp = -1
+				} else if l > float64(r) {
 					cmp = 1
 				}
 			case float64:
@@ -807,7 +870,11 @@ func (e *unaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error)
 			return types.NewNullValue(), nil
 		}
 		switch v := val.Data.(type) {
+		case int32:
+			return types.NewValue(-v), nil
 		case int64:
+			return types.NewValue(-v), nil
+		case float32:
 			return types.NewValue(-v), nil
 		case float64:
 			return types.NewValue(-v), nil

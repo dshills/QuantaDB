@@ -163,6 +163,15 @@ func CompareValues(a, b Value) int {
 				return 1
 			}
 			return 0
+		case float32:
+			// Convert int32 to float32 for comparison
+			f1 := float32(v1)
+			if f1 < v2 {
+				return -1
+			} else if f1 > v2 {
+				return 1
+			}
+			return 0
 		case float64:
 			// Convert int32 to float64 for comparison
 			f1 := float64(v1)
@@ -188,6 +197,15 @@ func CompareValues(a, b Value) int {
 			if v1 < i2 {
 				return -1
 			} else if v1 > i2 {
+				return 1
+			}
+			return 0
+		case float32:
+			// Convert int64 to float32 for comparison (may lose precision)
+			f1 := float32(v1)
+			if f1 < v2 {
+				return -1
+			} else if f1 > v2 {
 				return 1
 			}
 			return 0
@@ -229,10 +247,33 @@ func CompareValues(a, b Value) int {
 			return 0
 		}
 	case float32:
-		if v2, ok := b.Data.(float32); ok {
+		switch v2 := b.Data.(type) {
+		case float32:
 			if v1 < v2 {
 				return -1
 			} else if v1 > v2 {
+				return 1
+			}
+			return 0
+		case int32:
+			if v1 < float32(v2) {
+				return -1
+			} else if v1 > float32(v2) {
+				return 1
+			}
+			return 0
+		case int64:
+			if v1 < float32(v2) {
+				return -1
+			} else if v1 > float32(v2) {
+				return 1
+			}
+			return 0
+		case float64:
+			// Promote float32 to float64 for comparison
+			if float64(v1) < v2 {
+				return -1
+			} else if float64(v1) > v2 {
 				return 1
 			}
 			return 0
@@ -257,6 +298,15 @@ func CompareValues(a, b Value) int {
 			return 0
 		case int32:
 			// Convert int32 to float64 for comparison
+			f2 := float64(v2)
+			if v1 < f2 {
+				return -1
+			} else if v1 > f2 {
+				return 1
+			}
+			return 0
+		case float32:
+			// Convert float32 to float64 for comparison
 			f2 := float64(v2)
 			if v1 < f2 {
 				return -1
