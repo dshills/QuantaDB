@@ -37,7 +37,15 @@
 - **Fixed Date/Time Indexing** ✅
   - B+Tree indexes now support DATE and TIMESTAMP columns
   - Enables TPC-H data loading with date column indexes
-- All critical blockers resolved - ready for TPC-H!
+- **Fixed Float32 Support** ✅
+  - Added float32 cases to SUM/AVG aggregates
+  - Added float32 comparison support in expressions
+  - Fixed TPC-H queries with FLOAT columns
+- **TPC-H Progress** 🚀
+  - Successfully loaded complete TPC-H dataset (scale 0.01)
+  - Q6 (Forecasting Revenue) working ✅
+  - Q1 (Pricing Summary) partially working
+  - 2/22 queries functional
 
 **Key Achievements:**
 - ✅ PostgreSQL-compatible database from scratch
@@ -61,22 +69,50 @@
 
 ## Next Priority Items
 
-**Current Status**: All core data types implemented! Major crashes fixed! GROUP BY, JOIN resolution, aggregate expressions, and DISTINCT now work.
+**Current Status**: TPC-H infrastructure ready! Q6 working, Q1 partial, 4 queries implemented but need testing.
 
-### Immediate Priorities (Week 1)  
-1. **CASCADE DELETE and CHECK Constraints** ✅ COMPLETED
-   - CASCADE DELETE action for foreign keys ✅
-   - SET NULL and SET DEFAULT actions ✅
-   - CHECK constraint expression parsing with full support ✅
-   - Expression caching for performance ✅
-   - Support for complex expressions, functions, operators ✅
+### Immediate Priorities (Week 1) - TPC-H Quick Wins
+1. **Fix Q1 Type Issues** 🔴 HIGH
+   - Debug type coercion in complex aggregate expressions
+   - Q1 is simple aggregation - should be easy win
 
-### After Critical Fixes (Week 2-3)
-2. **Index-Query Integration** ✅ COMPLETED
-   - Indexes are now properly maintained during DML operations ✅
-   - CREATE INDEX populates existing data ✅
-   - Query planner already had index scan operators ✅
-   - Cost-based optimization for index selection already exists ✅
+2. **Optimize Q3 Performance** 🔴 HIGH  
+   - Currently times out on 3-way join
+   - Add indexes on foreign keys (c_custkey, o_custkey, l_orderkey)
+   - Consider hash join implementation
+
+3. **Test Implemented Queries** 🔴 HIGH
+   - Test Q5 (Local Supplier Volume)
+   - Test Q10 (Returned Item Reporting)
+   - Fix Q8 table alias issue (nation n1, nation n2)
+
+4. **Implement Q14** 🟡 MEDIUM
+   - Promotion Effect query
+   - Uses only features we already have
+   - Should work with current implementation
+
+### Week 2 - Core SQL Features
+1. **Table Alias Enhancement** 🔴 HIGH
+   - Support multiple aliases for same table
+   - Blocks Q8, Q21
+
+2. **Correlated Subqueries in SELECT** 🔴 HIGH
+   - Implement correlation resolution
+   - Blocks Q2, Q17, Q20, Q21, Q22 (5 queries!)
+
+3. **Statistical Functions** 🟡 MEDIUM
+   - Implement STDDEV aggregate
+   - Blocks Q17
+
+### Week 3 - Advanced Features
+1. **Window Functions Framework** 🟡 MEDIUM
+   - Start with ROW_NUMBER() OVER
+   - Blocks Q2, Q17, Q18, Q20
+
+2. **Performance Infrastructure** 🟢 LOW
+   - Add query plan caching
+   - Implement hash joins
+   - Better statistics collection
 
 ## 📋 Implementation Plans
 
@@ -90,14 +126,40 @@ See detailed plans in `docs/planning/`:
 ### TPC-H Benchmark Status
 - [x] **TPC-H Infrastructure**: Complete benchmark framework
   - Schema definitions for all 8 TPC-H tables
-  - Data generator with configurable scale factors
-  - 4 implemented queries (Q3, Q5, Q8, Q10)
+  - Data generator with configurable scale factors (fixed DATE literal format)
+  - 4 queries in codebase (Q3, Q5, Q8, Q10) - need testing
   - Benchmark runner with performance measurement
   - SQL loader utility for data import
-- [ ] **Complete TPC-H Suite**: Implement remaining 18 queries
-  - Currently 4/22 queries implemented
-  - Need to add Q1, Q2, Q4, Q6, Q7, Q9, Q11-Q22
-  - Some queries require additional SQL features (see below)
+  - Successfully loaded complete dataset at scale 0.01
+- [ ] **Complete TPC-H Suite**: Implement all 22 queries
+
+#### TPC-H Query Implementation Status
+| Query | Name | Status | Blockers |
+|-------|------|--------|----------|
+| Q1 | Pricing Summary Report | ⚠️ Partial | Type coercion in complex expressions |
+| Q2 | Minimum Cost Supplier | ❌ Not Started | Correlated subquery, window functions |
+| Q3 | Shipping Priority | 🕰️ Implemented | Performance (times out) |
+| Q4 | Order Priority Checking | ❌ Not Started | EXISTS subquery |
+| Q5 | Local Supplier Volume | 🕰️ Implemented | Needs testing |
+| Q6 | Forecasting Revenue Change | ✅ Working | None |
+| Q7 | Volume Shipping | ❌ Not Started | Complex joins |
+| Q8 | National Market Share | 🕰️ Implemented | Multiple table aliases (nation n1, n2) |
+| Q9 | Product Type Profit Measure | ❌ Not Started | Complex expressions |
+| Q10 | Returned Item Reporting | 🕰️ Implemented | Needs testing |
+| Q11 | Important Stock Identification | ❌ Not Started | Correlated subquery in HAVING |
+| Q12 | Shipping Modes and Order Priority | ❌ Not Started | IN operator |
+| Q13 | Customer Distribution | ❌ Not Started | LEFT OUTER JOIN |
+| Q14 | Promotion Effect | ❌ Not Started | None (should work) |
+| Q15 | Top Supplier Query | ❌ Not Started | Views or CTEs |
+| Q16 | Parts/Supplier Relationship | ❌ Not Started | NOT IN with subquery |
+| Q17 | Small-Quantity-Order Revenue | ❌ Not Started | Correlated subquery, STDDEV |
+| Q18 | Large Volume Customer | ❌ Not Started | IN with subquery, window functions |
+| Q19 | Discounted Revenue | ❌ Not Started | Complex OR conditions |
+| Q20 | Potential Part Promotion | ❌ Not Started | Correlated subquery, EXISTS |
+| Q21 | Suppliers Who Kept Orders Waiting | ❌ Not Started | Multiple correlated subqueries, table aliases |
+| Q22 | Global Sales Opportunity | ❌ Not Started | Correlated subquery, SUBSTRING |
+
+**Legend**: ✅ Working | ⚠️ Partial | 🕰️ Implemented but untested | ❌ Not Started
 
 ### Performance Infrastructure
 - [ ] Performance regression detection framework
@@ -105,16 +167,63 @@ See detailed plans in `docs/planning/`:
 - [ ] Query plan comparison and analysis tools
 - [ ] Automated benchmark CI/CD integration
 
-### SQL Features for Remaining TPC-H Queries
-- [ ] **Window Functions**: Required for Q2 (rank), Q17, Q18, Q20
-- [ ] **Correlated Subqueries in SELECT**: Q2, Q17, Q20, Q21, Q22
-- [ ] **Multiple Subqueries**: Q21, Q22 have complex nested subqueries
-- [x] **LIMIT/OFFSET**: Already implemented - Q18 can use LIMIT 100
-- [ ] **Additional Aggregate Functions**: STDDEV (Q17)
-- [x] **EXTRACT Function**: Already implemented for date/time operations (Q8)
-- [x] **CASE Expressions**: Already implemented for conditional logic (Q8)
-- [ ] **Table Aliases**: Q8 needs support for `nation n1, nation n2` syntax
-- [ ] **Query Optimization**: Many queries need better join ordering and index usage
+### Advanced SQL Features for TPC-H Completion
+
+#### High Priority (Blocks most queries)
+- [ ] **Table Alias Enhancement**: Support same table multiple times
+  - Required for Q8 (`nation n1, nation n2`), Q21
+  - Basic aliases work ✅, but not multiple aliases for same table
+- [ ] **Correlated Subqueries in SELECT**: Critical for 5 queries
+  - Required for Q2, Q17, Q20, Q21, Q22
+  - Example: `SELECT (SELECT AVG(x) FROM t2 WHERE t2.id = t1.id) FROM t1`
+- [ ] **Statistical Aggregate Functions**
+  - STDDEV() / STDDEV_POP() / STDDEV_SAMP() - Required for Q17
+  - VARIANCE() / VAR_POP() / VAR_SAMP()
+- [ ] **ALL/ANY/SOME Operators**: For advanced comparisons
+  - Required for Q20, Q21
+  - Example: `WHERE p_size = ANY (SELECT ...)`
+
+#### Medium Priority (Enables remaining queries)
+- [ ] **Window Functions Framework**: Required for 4 queries
+  - ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...) - Q2, Q17, Q18, Q20
+  - RANK() OVER (...)
+  - DENSE_RANK() OVER (...)
+  - Running aggregates with OVER clause
+- [ ] **Common Table Expressions (WITH clause)**
+  - Simplifies complex queries like Q15
+  - Non-recursive CTEs first
+- [ ] **Views Support**
+  - Alternative to CTEs for Q15
+  - CREATE VIEW / DROP VIEW
+- [ ] **String Functions**
+  - SUBSTRING() - Required for Q22
+  - String concatenation (||)
+  - Already have: LIKE pattern matching ✅
+
+#### Low Priority (Nice to have)
+- [ ] **Set Operations**
+  - UNION / UNION ALL
+  - INTERSECT / EXCEPT
+- [ ] **Advanced GROUP BY**
+  - ROLLUP / CUBE / GROUPING SETS
+  - Not required for TPC-H but useful
+- [ ] **Additional Window Functions**
+  - LAG() / LEAD()
+  - FIRST_VALUE() / LAST_VALUE()
+  - NTILE()
+
+#### Already Implemented ✅
+- [x] Basic subqueries (EXISTS, IN, NOT EXISTS, NOT IN)
+- [x] Scalar subqueries in WHERE
+- [x] CASE expressions (simple and searched)
+- [x] EXTRACT function for dates
+- [x] INTERVAL arithmetic
+- [x] BETWEEN operator
+- [x] Basic table aliases (e.g., `customer c`)
+- [x] Derived tables in FROM clause
+- [x] LIMIT/OFFSET
+- [x] All basic aggregates (SUM, COUNT, AVG, MIN, MAX)
+- [x] Arithmetic in aggregate expressions
 
 ## Technical Debt & Architecture Improvements
 
