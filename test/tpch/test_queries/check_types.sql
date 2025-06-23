@@ -1,0 +1,1 @@
+SELECT l_quantity, l_extendedprice, l_discount, l_tax FROM lineitem LIMIT 1;

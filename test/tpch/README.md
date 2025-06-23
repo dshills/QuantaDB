@@ -1,105 +1,63 @@
-# TPC-H Benchmarks for QuantaDB
+# TPC-H Test Suite for QuantaDB
 
-This directory contains TPC-H benchmark implementations for testing QuantaDB's query optimization and performance.
-
-## Overview
-
-TPC-H is an industry-standard decision support benchmark that consists of a suite of business-oriented ad-hoc queries. We've implemented queries 3, 5, 8, and 10 which test:
-
-- **Query 3**: Customer Market Segment - Join performance, aggregation, sorting
-- **Query 5**: Local Supplier Volume - Multi-way joins, aggregation
-- **Query 8**: National Market Share - Complex joins, subqueries, date functions
-- **Query 10**: Returned Item Reporting - Outer joins, aggregation
+This directory contains the TPC-H benchmark implementation for QuantaDB.
 
 ## Directory Structure
 
 ```
-test/tpch/
-├── schema.sql          # TPC-H table definitions
-├── generator.go        # Data generation logic
-├── queries.go          # TPC-H query definitions
-├── benchmark.go        # Benchmark runner
-├── cmd/
-│   ├── generate/       # Data generation tool
-│   └── benchmark/      # Benchmark execution tool
-└── data/              # Generated data files (gitignored)
+tpch/
+├── data/           # TPC-H table data (scale factor 0.01)
+├── queries/        # TPC-H query implementations (Q1, Q6)
+├── schema/         # SQL scripts to create TPC-H tables
+├── test_programs/  # Go programs for testing
+├── test_queries/   # SQL test queries for validation
+├── tools/          # Data loading and generation tools
+└── utilities/      # Helper scripts and programs
 ```
 
-## Usage
+## Quick Start
 
-### 1. Generate Test Data
+1. **Start QuantaDB server**:
+   ```bash
+   cd ../.. && make run
+   ```
 
-Generate TPC-H data at scale factor 0.01 (1% of full size):
+2. **Create tables**:
+   ```bash
+   cd test/tpch
+   go run tools/load_sql.go -file schema/create_all_tables.sql
+   ```
 
+3. **Load data**:
+   ```bash
+   cd utilities && ./load_all_data.sh
+   ```
+
+4. **Run a query**:
+   ```bash
+   go run ../tools/load_sql.go -file ../queries/q6.sql
+   ```
+
+## TPC-H Query Status
+
+| Query | Status | Notes |
+|-------|--------|-------|
+| Q1 | ⚠️ Partial | Type coercion issues |
+| Q6 | ✅ Working | Fully functional |
+| Others | 🚧 In Progress | See docs/tpch-feature-matrix.md |
+
+## Data Generation
+
+To regenerate data with different scale factors:
 ```bash
-go run cmd/generate/main.go -sf 0.01 -output ./data
+cd utilities
+go run regenerate_data.go  # Uses scale factor 0.01
 ```
 
-Options:
-- `-sf`: Scale factor (0.01 = ~60MB, 0.1 = ~600MB, 1.0 = ~6GB)
-- `-output`: Output directory for SQL files
-- `-combined`: Generate single combined file instead of per-table files
+## Testing
 
-### 2. Load Schema and Data
-
-First, create the schema:
-
-```bash
-psql -h localhost -p 5432 -U postgres -d quantadb -f schema.sql
-```
-
-Then load the generated data:
-
-```bash
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/region.sql
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/nation.sql
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/supplier.sql
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/customer.sql
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/part.sql
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/partsupp.sql
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/orders.sql
-psql -h localhost -p 5432 -U postgres -d quantadb -f data/lineitem.sql
-```
-
-### 3. Run Benchmarks
-
-Run the TPC-H benchmark suite:
-
-```bash
-go run cmd/benchmark/main.go -host localhost -port 5432 -dbname quantadb
-```
-
-Options:
-- `-host`: Database host (default: localhost)
-- `-port`: Database port (default: 5432)
-- `-user`: Database user (default: postgres)
-- `-password`: Database password
-- `-dbname`: Database name (default: quantadb)
-- `-warmup`: Run warmup queries first (default: true)
-- `-report`: Output report to file instead of stdout
-
-## Data Sizes
-
-Approximate data sizes by scale factor:
-
-| Scale Factor | Database Size | Row Count     |
-|-------------|--------------|---------------|
-| 0.01        | ~60 MB       | ~86K rows     |
-| 0.1         | ~600 MB      | ~860K rows    |
-| 1.0         | ~6 GB        | ~8.6M rows    |
-
-## Expected Results
-
-The benchmarks measure:
-- Query execution time
-- Row counts returned
-- Optimizer effectiveness
-
-Results are compared before and after optimizer improvements to measure performance gains.
-
-## Notes
-
-- The data generator creates TPC-H compliant data with appropriate distributions
-- Indexes are created on common join columns to test index usage
-- Statistics should be updated (ANALYZE) after data loading
-- QuantaDB currently doesn't support all SQL features (e.g., EXTRACT, CASE), so some queries may need modification
+Various test queries are available in `test_queries/` to validate functionality:
+- `check_all_counts.sql` - Verify row counts
+- `test_alias.sql` - Test table aliases
+- `test_interval.sql` - Test date arithmetic
+- etc.

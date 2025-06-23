@@ -1,0 +1,1 @@
+INSERT INTO orders VALUES (1, 1, 'O', 73422.45, DATE '1993-04-09', '3-MEDIUM', 'Clerk#000000866', 0, 'test comment');

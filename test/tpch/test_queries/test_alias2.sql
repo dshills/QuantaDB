@@ -1,0 +1,1 @@
+SELECT c.c_custkey, c.c_name FROM customer c WHERE c.c_mktsegment = 'BUILDING' LIMIT 5;
