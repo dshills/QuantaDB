@@ -109,13 +109,13 @@ func NewByteaValue(v []byte) Value {
 func ParseByteaLiteral(s string) ([]byte, error) {
 	// Remove quotes if present
 	s = strings.Trim(s, "'\"")
-	
+
 	// Check for hex format
 	if strings.HasPrefix(s, "\\x") {
 		hexStr := s[2:]
 		return hex.DecodeString(hexStr)
 	}
-	
+
 	// For now, only support hex format
 	// TODO: Add support for escape format
 	return nil, fmt.Errorf("unsupported bytea format, use \\xHEX format")
@@ -125,3 +125,4 @@ func ParseByteaLiteral(s string) ([]byte, error) {
 func FormatByteaLiteral(data []byte) string {
 	return "\\x" + hex.EncodeToString(data)
 }
+

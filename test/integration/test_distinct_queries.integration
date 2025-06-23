@@ -60,29 +60,29 @@ func main() {
 
 	// Insert test data with duplicates
 	fmt.Println("\n2. Inserting test data with duplicates...")
-	
+
 	// Start a transaction for inserts
 	insertTxn, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 	if err != nil {
 		log.Fatal("Failed to begin insert transaction:", err)
 	}
-	
+
 	// Set transaction ID for storage backend
 	storageBackend.SetTransactionID(uint64(insertTxn.ID()))
-	
+
 	testData := []struct {
 		product string
 		region  string
 		amount  int32
 	}{
 		{"Widget", "North", 100},
-		{"Widget", "North", 100},  // Duplicate of row 1
+		{"Widget", "North", 100}, // Duplicate of row 1
 		{"Widget", "South", 150},
 		{"Gadget", "North", 200},
-		{"Gadget", "North", 200},  // Duplicate of row 4
-		{"Widget", "North", 100},  // Another duplicate of row 1
+		{"Gadget", "North", 200}, // Duplicate of row 4
+		{"Widget", "North", 100}, // Another duplicate of row 1
 		{"Gizmo", "East", 300},
-		{"Gizmo", "East", 400},   // Same product/region, different amount
+		{"Gizmo", "East", 400}, // Same product/region, different amount
 	}
 
 	for _, row := range testData {
@@ -98,7 +98,7 @@ func main() {
 			log.Fatal("Failed to insert row:", err)
 		}
 	}
-	
+
 	// Commit insert transaction
 	txnManager.CommitTransaction(insertTxn)
 	fmt.Printf("   ✅ Inserted %d rows (with duplicates)\n", len(testData))
@@ -206,7 +206,7 @@ func main() {
 			if row == nil {
 				break
 			}
-			
+
 			// Create a string representation of the row for tracking
 			var rowStr string
 			for j, val := range row.Values {
@@ -215,7 +215,7 @@ func main() {
 				}
 				rowStr += fmt.Sprintf("%v", val.Data)
 			}
-			
+
 			// Check for duplicates in DISTINCT queries
 			if test.name != "Regular SELECT for comparison" {
 				if seenValues[rowStr] {
@@ -223,7 +223,7 @@ func main() {
 				}
 				seenValues[rowStr] = true
 			}
-			
+
 			if rowCount < 10 { // Print first few rows
 				fmt.Printf("     Row %d: %s\n", rowCount+1, rowStr)
 			}

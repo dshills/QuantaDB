@@ -68,13 +68,13 @@ func (d *DistinctOperator) collectUniqueRows() error {
 		if _, exists := d.seen[hash]; !exists {
 			// First time seeing this row - add to buffer
 			d.seen[hash] = struct{}{}
-			
+
 			// Make a copy of the row to avoid data corruption
 			rowCopy := &Row{
 				Values: make([]types.Value, len(row.Values)),
 			}
 			copy(rowCopy.Values, row.Values)
-			
+
 			d.buffer = append(d.buffer, rowCopy)
 		}
 	}
@@ -85,7 +85,7 @@ func (d *DistinctOperator) collectUniqueRows() error {
 // hashRow computes a hash value for a row based on all its column values.
 func (d *DistinctOperator) hashRow(row *Row) uint64 {
 	hasher := fnv.New64()
-	
+
 	for i, val := range row.Values {
 		if i > 0 {
 			// Add separator between values to avoid collisions
@@ -93,7 +93,7 @@ func (d *DistinctOperator) hashRow(row *Row) uint64 {
 		}
 		writeValueToHasher(hasher, val)
 	}
-	
+
 	return hasher.Sum64()
 }
 
@@ -123,5 +123,3 @@ func (d *DistinctOperator) Close() error {
 	d.buffer = nil
 	return d.child.Close()
 }
-
-// The writeValueToHasher function is already defined in hash.go

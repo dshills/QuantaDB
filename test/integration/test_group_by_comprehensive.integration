@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Testing Aggregate NULL Semantics ===")
+	fmt.Println("=== Comprehensive GROUP BY Test ===")
 
 	// Create a test catalog
 	cat := catalog.NewMemoryCatalog()
@@ -34,119 +34,124 @@ func main() {
 	txnManager := txn.NewManager(eng, nil)
 	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
 
-	// Create a test table
+	// Create a simple test table
 	fmt.Println("\n1. Creating test table...")
 
-	testSchema := &catalog.TableSchema{
+	salesSchema := &catalog.TableSchema{
 		SchemaName: "public",
-		TableName:  "test",
+		TableName:  "sales",
 		Columns: []catalog.ColumnDef{
-			{Name: "id", DataType: types.Integer, IsNullable: false},
-			{Name: "value", DataType: types.Integer, IsNullable: true},
+			{Name: "product", DataType: types.Text, IsNullable: false},
+			{Name: "region", DataType: types.Text, IsNullable: false},
+			{Name: "amount", DataType: types.Integer, IsNullable: false},
+			{Name: "quantity", DataType: types.Integer, IsNullable: false},
 		},
 	}
-	testTable, err := cat.CreateTable(testSchema)
+	salesTable, err := cat.CreateTable(salesSchema)
 	if err != nil {
-		log.Fatal("Failed to create test table:", err)
+		log.Fatal("Failed to create sales table:", err)
 	}
-	fmt.Println("   ✅ Created test table")
+	fmt.Println("   ✅ Created sales table")
 
 	// Create table in storage backend
-	err = storageBackend.CreateTable(testTable)
+	err = storageBackend.CreateTable(salesTable)
 	if err != nil {
-		log.Fatal("Failed to create test table in storage:", err)
+		log.Fatal("Failed to create sales table in storage:", err)
 	}
 
-	// Insert test data with transaction
+	// Insert test data
 	fmt.Println("\n2. Inserting test data...")
-	
+
+	// Start a transaction for inserts
 	insertTxn, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 	if err != nil {
 		log.Fatal("Failed to begin insert transaction:", err)
 	}
-	
+
+	// Set transaction ID for storage backend
 	storageBackend.SetTransactionID(uint64(insertTxn.ID()))
-	
-	// Insert some rows (we'll test with WHERE FALSE to get empty results)
+
 	testData := []struct {
-		id    int32
-		value interface{}
+		product  string
+		region   string
+		amount   int32
+		quantity int32
 	}{
-		{1, int32(10)},
-		{2, int32(20)},
-		{3, nil}, // NULL value
-		{4, int32(30)},
+		{"Widget", "North", 100, 10},
+		{"Widget", "South", 150, 15},
+		{"Widget", "North", 200, 20},
+		{"Gadget", "North", 300, 30},
+		{"Gadget", "South", 250, 25},
+		{"Gadget", "East", 400, 40},
+		{"Gizmo", "North", 500, 50},
+		{"Gizmo", "East", 600, 60},
 	}
 
 	for _, row := range testData {
-		var valueVal types.Value
-		if row.value == nil {
-			valueVal = types.NewNullValue()
-		} else {
-			valueVal = types.NewValue(row.value)
-		}
-		
 		r := &executor.Row{
 			Values: []types.Value{
-				types.NewValue(row.id),
-				valueVal,
+				types.NewValue(row.product),
+				types.NewValue(row.region),
+				types.NewValue(row.amount),
+				types.NewValue(row.quantity),
 			},
 		}
-		_, err := storageBackend.InsertRow(testTable.ID, r)
+		_, err := storageBackend.InsertRow(salesTable.ID, r)
 		if err != nil {
 			log.Fatal("Failed to insert row:", err)
 		}
 	}
-	
+
+	// Commit insert transaction
 	txnManager.CommitTransaction(insertTxn)
 	fmt.Printf("   ✅ Inserted %d rows\n", len(testData))
 
-	// Test queries for NULL semantics
+	// Test various GROUP BY queries
 	queries := []struct {
-		name     string
-		query    string
-		expected string
+		name  string
+		query string
 	}{
 		{
-			name:     "COUNT(*) with no rows (WHERE FALSE)",
-			query:    "SELECT COUNT(*) FROM test WHERE 1=0",
-			expected: "Should return one row with value 0",
+			name:  "Simple GROUP BY with COUNT",
+			query: "SELECT product, COUNT(*) FROM sales GROUP BY product",
 		},
 		{
-			name:     "SUM with no rows (WHERE FALSE)",
-			query:    "SELECT SUM(value) FROM test WHERE 1=0",
-			expected: "Should return one row with NULL",
+			name:  "GROUP BY with SUM",
+			query: "SELECT product, SUM(amount) FROM sales GROUP BY product",
 		},
 		{
-			name:     "AVG with no rows (WHERE FALSE)",
-			query:    "SELECT AVG(value) FROM test WHERE 1=0",
-			expected: "Should return one row with NULL",
+			name:  "GROUP BY with multiple aggregates",
+			query: "SELECT product, COUNT(*), SUM(amount), AVG(amount) FROM sales GROUP BY product",
 		},
 		{
-			name:     "Multiple aggregates with no rows",
-			query:    "SELECT COUNT(*), SUM(value), AVG(value) FROM test WHERE id < 0",
-			expected: "Should return one row: 0, NULL, NULL",
+			name:  "GROUP BY multiple columns",
+			query: "SELECT product, region, SUM(amount) FROM sales GROUP BY product, region",
 		},
 		{
-			name:     "SUM with all NULL values",
-			query:    "SELECT SUM(value) FROM test WHERE id = 3",
-			expected: "Should return one row with NULL",
+			name:  "GROUP BY with HAVING",
+			query: "SELECT product, SUM(amount) FROM sales GROUP BY product HAVING SUM(amount) > 500",
 		},
 		{
-			name:     "COUNT with all NULL values",
-			query:    "SELECT COUNT(value) FROM test WHERE id = 3",
-			expected: "Should return one row with 0 (COUNT ignores NULLs)",
+			name:  "GROUP BY with complex expression",
+			query: "SELECT product, SUM(amount) / SUM(quantity) as avg_price FROM sales GROUP BY product",
+		},
+		{
+			name:  "GROUP BY without aggregates",
+			query: "SELECT DISTINCT product FROM sales GROUP BY product",
+		},
+		{
+			name:  "Empty GROUP BY result",
+			query: "SELECT product, SUM(amount) FROM sales WHERE product = 'NonExistent' GROUP BY product",
 		},
 	}
 
-	// Create executor
+	// Create executor with storage backend
 	exec := executor.NewBasicExecutor(cat, eng)
 	exec.SetStorageBackend(storageBackend)
 
 	for i, test := range queries {
 		fmt.Printf("\n%d. Testing: %s\n", i+3, test.name)
 		fmt.Printf("   Query: %s\n", test.query)
-		fmt.Printf("   Expected: %s\n", test.expected)
 
 		// Parse the query
 		p := parser.NewParser(test.query)
@@ -189,41 +194,47 @@ func main() {
 			continue
 		}
 
-		// Read the result
-		row, err := result.Next()
-		if err != nil {
-			fmt.Printf("   ❌ Error reading result: %v\n", err)
+		schema := result.Schema()
+		if schema == nil {
+			fmt.Printf("   ❌ Failed to get schema: nil schema\n")
 			result.Close()
 			txnManager.AbortTransaction(txnObj)
 			continue
 		}
 
-		if row == nil {
-			fmt.Printf("   ❌ No rows returned (expected 1 row)\n")
-		} else {
-			fmt.Printf("   ✅ Got 1 row: ")
+		fmt.Printf("   ✅ Query executed successfully!\n")
+		fmt.Printf("   Schema columns: %d\n", len(schema.Columns))
+		for j, col := range schema.Columns {
+			fmt.Printf("     Column %d: %s (type: %s)\n", j, col.Name, col.Type)
+		}
+
+		// Read all results
+		fmt.Println("   Results:")
+		rowCount := 0
+		for {
+			row, err := result.Next()
+			if err != nil {
+				fmt.Printf("   ❌ Error reading result: %v\n", err)
+				break
+			}
+			if row == nil {
+				break
+			}
+			fmt.Printf("   ")
 			for j, val := range row.Values {
 				if j > 0 {
 					fmt.Printf(", ")
 				}
-				if val.IsNull() {
-					fmt.Printf("NULL")
-				} else {
-					fmt.Printf("%v", val.Data)
-				}
+				fmt.Printf("%v", val.Data)
 			}
 			fmt.Printf("\n")
+			rowCount++
 		}
-
-		// Verify no more rows
-		row2, _ := result.Next()
-		if row2 != nil {
-			fmt.Printf("   ⚠️  Warning: Got more than 1 row\n")
-		}
+		fmt.Printf("   Total rows: %d\n", rowCount)
 
 		result.Close()
 		txnManager.CommitTransaction(txnObj)
 	}
 
-	fmt.Println("\n=== Aggregate NULL Semantics Test Complete ===")
+	fmt.Println("\n=== Comprehensive GROUP BY Test Complete ===")
 }
