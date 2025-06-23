@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -53,6 +54,9 @@ func (t *byteaType) Serialize(v Value) ([]byte, error) {
 	// Serialize as length-prefixed byte array
 	// Format: [4 bytes length][n bytes data]
 	length := len(val)
+	if length > math.MaxUint32 {
+		return nil, fmt.Errorf("bytea value too large: %d bytes", length)
+	}
 	buf := make([]byte, 4+length)
 	binary.BigEndian.PutUint32(buf[:4], uint32(length))
 	copy(buf[4:], val)
@@ -125,4 +129,3 @@ func ParseByteaLiteral(s string) ([]byte, error) {
 func FormatByteaLiteral(data []byte) string {
 	return "\\x" + hex.EncodeToString(data)
 }
-

@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -64,9 +65,9 @@ func (t *intervalType) Serialize(v Value) ([]byte, error) {
 	}
 
 	buf := make([]byte, 16)
-	binary.BigEndian.PutUint32(buf[0:4], uint32(val.Months))
-	binary.BigEndian.PutUint32(buf[4:8], uint32(val.Days))
-	binary.BigEndian.PutUint64(buf[8:16], uint64(val.Duration))
+	binary.BigEndian.PutUint32(buf[0:4], uint32(val.Months))    // #nosec G115 - Serialization format
+	binary.BigEndian.PutUint32(buf[4:8], uint32(val.Days))      // #nosec G115 - Serialization format
+	binary.BigEndian.PutUint64(buf[8:16], uint64(val.Duration)) // #nosec G115 - Serialization format
 	return buf, nil
 }
 
@@ -79,9 +80,9 @@ func (t *intervalType) Deserialize(data []byte) (Value, error) {
 		return Value{}, fmt.Errorf("expected 16 bytes for INTERVAL, got %d", len(data))
 	}
 
-	months := int32(binary.BigEndian.Uint32(data[0:4]))
-	days := int32(binary.BigEndian.Uint32(data[4:8]))
-	seconds := time.Duration(binary.BigEndian.Uint64(data[8:16]))
+	months := int32(binary.BigEndian.Uint32(data[0:4]))           // #nosec G115 - Deserialization format
+	days := int32(binary.BigEndian.Uint32(data[4:8]))             // #nosec G115 - Deserialization format
+	seconds := time.Duration(binary.BigEndian.Uint64(data[8:16])) // #nosec G115 - Deserialization format
 
 	return NewValue(Interval{
 		Months:   months,
@@ -136,10 +137,31 @@ func NewInterval(months, days int32, seconds time.Duration) Interval {
 func NewIntervalFromField(field IntervalField, value int64) Interval {
 	switch field {
 	case IntervalYear:
+		if value > math.MaxInt32/12 || value < math.MinInt32/12 {
+			// Clamp to prevent overflow
+			if value > 0 {
+				return NewInterval(math.MaxInt32, 0, 0)
+			}
+			return NewInterval(math.MinInt32, 0, 0)
+		}
 		return NewInterval(int32(value)*12, 0, 0)
 	case IntervalMonth:
+		if value > math.MaxInt32 || value < math.MinInt32 {
+			// Clamp to int32 range
+			if value > 0 {
+				return NewInterval(math.MaxInt32, 0, 0)
+			}
+			return NewInterval(math.MinInt32, 0, 0)
+		}
 		return NewInterval(int32(value), 0, 0)
 	case IntervalDay:
+		if value > math.MaxInt32 || value < math.MinInt32 {
+			// Clamp to int32 range
+			if value > 0 {
+				return NewInterval(0, math.MaxInt32, 0)
+			}
+			return NewInterval(0, math.MinInt32, 0)
+		}
 		return NewInterval(0, int32(value), 0)
 	case IntervalHour:
 		return NewInterval(0, 0, time.Duration(value)*time.Hour)

@@ -63,10 +63,14 @@ func (rf *BasicResultFormatter) sendRowDescription(writer *bufio.Writer, schema 
 		if i >= math.MaxInt16 {
 			return fmt.Errorf("too many columns: %d exceeds max int16", i+1)
 		}
+		columnNum := i + 1
+		if columnNum > 32767 { // max int16
+			columnNum = 32767
+		}
 		rowDesc.Fields[i] = protocol.FieldDescription{
 			Name:         col.Name,
-			TableOID:     0,            // TODO: Add table OID
-			ColumnNumber: int16(i + 1), // PostgreSQL uses 1-based indexing
+			TableOID:     0,                // TODO: Add table OID
+			ColumnNumber: int16(columnNum), // #nosec G115 - Checked above
 			DataTypeOID:  rf.GetTypeOID(col.Type.Name()),
 			DataTypeSize: rf.GetTypeSize(col.Type.Name()),
 			TypeModifier: -1,

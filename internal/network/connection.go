@@ -215,23 +215,22 @@ func (c *Connection) handleStartup() error {
 		// IMPORTANT: Recursively call handleStartup to read the actual startup message
 		// The client will send a completely new startup message after SSL negotiation
 		return c.handleStartup()
-	} else {
-		// Not an SSL request, parse as normal startup message
-		c.logger.Debug("Regular startup message detected")
-
-		// Create a reader with the full message (including length)
-		fullMsg := make([]byte, length)
-		copy(fullMsg[:4], lengthBuf)
-		copy(fullMsg[4:], msgBuf)
-		msgReader := bytes.NewReader(fullMsg)
-
-		// Use the standard protocol.ReadStartupMessage
-		params, err := protocol.ReadStartupMessage(msgReader)
-		if err != nil {
-			return fmt.Errorf("failed to parse startup message: %w", err)
-		}
-		c.params = params
 	}
+	// Not an SSL request, parse as normal startup message
+	c.logger.Debug("Regular startup message detected")
+
+	// Create a reader with the full message (including length)
+	fullMsg := make([]byte, length)
+	copy(fullMsg[:4], lengthBuf)
+	copy(fullMsg[4:], msgBuf)
+	msgReader := bytes.NewReader(fullMsg)
+
+	// Use the standard protocol.ReadStartupMessage
+	params, err := protocol.ReadStartupMessage(msgReader)
+	if err != nil {
+		return fmt.Errorf("failed to parse startup message: %w", err)
+	}
+	c.params = params
 
 	c.logger.Info("Client connected",
 		"user", c.params["user"],

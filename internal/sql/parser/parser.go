@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -694,10 +695,7 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 	}
 
 	// Check for DISTINCT
-	distinct := false
-	if p.match(TokenDistinct) {
-		distinct = true
-	}
+	distinct := p.match(TokenDistinct)
 
 	// Parse select columns
 	var columns []SelectColumn
@@ -2617,12 +2615,26 @@ func (p *Parser) parseIntervalString(s string) (types.Interval, error) {
 
 		switch unit {
 		case "year":
-			interval.Months += int32(num * 12)
+			yearMonths := num * 12
+			if yearMonths > math.MaxInt32 || yearMonths < math.MinInt32 {
+				return interval, fmt.Errorf("interval year value too large: %d", num)
+			}
+			interval.Months += int32(yearMonths)
 		case "month":
+			if num > math.MaxInt32 || num < math.MinInt32 {
+				return interval, fmt.Errorf("interval month value too large: %d", num)
+			}
 			interval.Months += int32(num)
 		case "week":
-			interval.Days += int32(num * 7)
+			weekDays := num * 7
+			if weekDays > math.MaxInt32 || weekDays < math.MinInt32 {
+				return interval, fmt.Errorf("interval week value too large: %d", num)
+			}
+			interval.Days += int32(weekDays)
 		case "day":
+			if num > math.MaxInt32 || num < math.MinInt32 {
+				return interval, fmt.Errorf("interval day value too large: %d", num)
+			}
 			interval.Days += int32(num)
 		case "hour":
 			interval.Duration += time.Duration(num) * time.Hour

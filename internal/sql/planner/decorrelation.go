@@ -107,41 +107,38 @@ func (d *SubqueryDecorrelation) transformFilterPredicate(predicate Expression, c
 							Operator: OpAnd,
 							Type:     pred.Type,
 						}, finalJoin, true
-					} else if leftPred != nil {
-						return leftPred, finalJoin, true
-					} else if rightPred != nil {
-						return rightPred, finalJoin, true
-					} else {
-						return nil, finalJoin, true
 					}
-				} else {
-					// Only left side transformed
 					if leftPred != nil {
-						return &BinaryOp{
-							Left:     leftPred,
-							Right:    pred.Right,
-							Operator: OpAnd,
-							Type:     pred.Type,
-						}, leftJoin, true
-					} else {
-						return pred.Right, leftJoin, true
+						return leftPred, finalJoin, true
 					}
-				}
-			} else {
-				// Try to transform right side
-				rightPred, rightJoin, rightTransformed := d.transformFilterPredicate(pred.Right, child)
-				if rightTransformed {
 					if rightPred != nil {
-						return &BinaryOp{
-							Left:     pred.Left,
-							Right:    rightPred,
-							Operator: OpAnd,
-							Type:     pred.Type,
-						}, rightJoin, true
-					} else {
-						return pred.Left, rightJoin, true
+						return rightPred, finalJoin, true
 					}
+					return nil, finalJoin, true
 				}
+				// Only left side transformed
+				if leftPred != nil {
+					return &BinaryOp{
+						Left:     leftPred,
+						Right:    pred.Right,
+						Operator: OpAnd,
+						Type:     pred.Type,
+					}, leftJoin, true
+				}
+				return pred.Right, leftJoin, true
+			}
+			// Try to transform right side
+			rightPred, rightJoin, rightTransformed := d.transformFilterPredicate(pred.Right, child)
+			if rightTransformed {
+				if rightPred != nil {
+					return &BinaryOp{
+						Left:     pred.Left,
+						Right:    rightPred,
+						Operator: OpAnd,
+						Type:     pred.Type,
+					}, rightJoin, true
+				}
+				return pred.Left, rightJoin, true
 			}
 		}
 		// OR is more complex and not implemented yet

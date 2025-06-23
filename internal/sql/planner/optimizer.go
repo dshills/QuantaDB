@@ -320,11 +320,11 @@ func (p *ProjectionPushdown) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 			rightChild := children[1].(LogicalPlan)
 
 			modified := false
-			if leftSchema != nil && !leftRequired.HasStar() && leftRequired.Size() < len(leftSchema.Columns) {
+			if !leftRequired.HasStar() && leftRequired.Size() < len(leftSchema.Columns) {
 				leftChild = p.createProjection(leftChild, leftRequired)
 				modified = true
 			}
-			if rightSchema != nil && !rightRequired.HasStar() && rightRequired.Size() < len(rightSchema.Columns) {
+			if !rightRequired.HasStar() && rightRequired.Size() < len(rightSchema.Columns) {
 				rightChild = p.createProjection(rightChild, rightRequired)
 				modified = true
 			}

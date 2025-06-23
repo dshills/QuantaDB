@@ -58,12 +58,9 @@ func TestDateIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Parse the expression
-			p := NewParser(tt.expr)
-
 			// We need to parse this as part of a SELECT to get a proper expression
 			selectSQL := "SELECT " + tt.expr
-			p = NewParser(selectSQL)
+			p := NewParser(selectSQL)
 			stmt, err := p.Parse()
 			if err != nil {
 				t.Fatalf("Failed to parse expression: %v", err)

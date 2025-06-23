@@ -124,6 +124,7 @@ func (s *Server) ConfigureSSL(certFile, keyFile string) error {
 	s.config.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ServerName:   s.config.Host,
+		MinVersion:   tls.VersionTLS12,
 	}
 	s.config.EnableSSL = true
 	s.config.CertFile = certFile
@@ -278,7 +279,6 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 	conn.SetWriteTimeout(s.config.WriteTimeout)
 
 	// Handle SSL upgrade if configured
-	actualConn := netConn
 	if s.config.EnableSSL {
 		sslConn, err := s.handleSSLUpgrade(netConn)
 		if err != nil {
@@ -286,8 +286,7 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 			return
 		}
 		if sslConn != nil {
-			actualConn = sslConn
-			conn.conn = actualConn // Update connection with SSL-wrapped connection
+			conn.conn = sslConn // Update connection with SSL-wrapped connection
 			s.logger.Debug("SSL connection established")
 		}
 	}

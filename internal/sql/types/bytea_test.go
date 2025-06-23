@@ -22,13 +22,13 @@ func TestByteaType(t *testing.T) {
 		testCases := [][]byte{
 			[]byte("Hello World"),
 			[]byte{0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD},
-			[]byte{}, // empty
+			[]byte{},           // empty
 			make([]byte, 1000), // large
 		}
 
 		for _, data := range testCases {
 			val := NewByteaValue(data)
-			
+
 			// Serialize
 			serialized, err := Bytea.Serialize(val)
 			if err != nil {
@@ -103,8 +103,8 @@ func TestByteaType(t *testing.T) {
 		}{
 			{"\\x48656c6c6f", []byte("Hello")},
 			{"'\\x48656c6c6f'", []byte("Hello")}, // with quotes
-			{"\\x", []byte{}}, // empty
-			{"\\x00FF", []byte{0x00, 0xFF}}, // binary
+			{"\\x", []byte{}},                    // empty
+			{"\\x00FF", []byte{0x00, 0xFF}},      // binary
 		}
 
 		for _, tc := range testCases {

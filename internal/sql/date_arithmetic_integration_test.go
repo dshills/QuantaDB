@@ -72,10 +72,10 @@ func TestDateArithmeticIntegration(t *testing.T) {
 
 	// Insert test data
 	testData := []struct {
-		id         int
-		event_date time.Time
-		event_time time.Time
-		name       string
+		id        int
+		eventDate time.Time
+		eventTime time.Time
+		name      string
 	}{
 		{1, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 10, 30, 0, 0, time.UTC), "New Year"},
 		{2, time.Date(2024, 2, 15, 0, 0, 0, 0, time.UTC), time.Date(2024, 2, 15, 14, 45, 0, 0, time.UTC), "Valentine"},
@@ -88,8 +88,8 @@ func TestDateArithmeticIntegration(t *testing.T) {
 		row := &executor.Row{
 			Values: []types.Value{
 				types.NewIntegerValue(int32(testRow.id)),
-				types.NewDateValue(testRow.event_date),
-				types.NewTimestampValue(testRow.event_time),
+				types.NewDateValue(testRow.eventDate),
+				types.NewTimestampValue(testRow.eventTime),
 				types.NewTextValue(testRow.name),
 			},
 		}

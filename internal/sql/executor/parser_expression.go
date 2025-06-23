@@ -420,20 +420,16 @@ func evaluateExpression(expr parser.Expression, ctx *evalContext) (types.Value, 
 		if found {
 			if e.Not {
 				return types.NewValue(false), nil // Found but we want NOT IN
-			} else {
-				return types.NewValue(true), nil // Found and we want IN
 			}
-		} else {
-			if hasNull {
-				return types.NewNullValue(), nil // Not found but NULL present
-			} else {
-				if e.Not {
-					return types.NewValue(true), nil // Not found and we want NOT IN
-				} else {
-					return types.NewValue(false), nil // Not found and we want IN
-				}
-			}
+			return types.NewValue(true), nil // Found and we want IN
 		}
+		if hasNull {
+			return types.NewNullValue(), nil // Not found but NULL present
+		}
+		if e.Not {
+			return types.NewValue(true), nil // Not found and we want NOT IN
+		}
+		return types.NewValue(false), nil // Not found and we want IN
 
 	case *parser.ExistsExpr:
 		// Evaluate EXISTS/NOT EXISTS expression

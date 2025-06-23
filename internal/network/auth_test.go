@@ -125,12 +125,10 @@ func TestAuthenticationConfiguration(t *testing.T) {
 
 func TestServerAuthConfiguration(t *testing.T) {
 	config := DefaultConfig()
-	logger := log.Default()
 
 	// Create server (we can't fully test without catalog/engine)
 	server := &Server{
 		config: config,
-		logger: logger,
 	}
 
 	// Test setting authentication method

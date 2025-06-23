@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/dshills/QuantaDB/internal/network/protocol"
@@ -112,10 +113,20 @@ func (qe *BasicQueryExecutor) HandleQuery(ctx context.Context, msg *protocol.Mes
 // GetSnapshotTimestamp returns the snapshot timestamp for MVCC reads.
 func (qe *BasicQueryExecutor) GetSnapshotTimestamp(connCtx *ConnectionContext) int64 {
 	if connCtx.CurrentTxn != nil {
-		return int64(connCtx.CurrentTxn.ReadTimestamp())
+		ts := connCtx.CurrentTxn.ReadTimestamp()
+		if ts > math.MaxInt64 {
+			// This should never happen in practice
+			return math.MaxInt64
+		}
+		return int64(ts) // #nosec G115 - Checked above
 	}
 	// For autocommit queries, get next timestamp
-	return int64(connCtx.TimestampService.GetNextTimestamp())
+	ts := connCtx.TimestampService.GetNextTimestamp()
+	if ts > math.MaxInt64 {
+		// This should never happen in practice
+		return math.MaxInt64
+	}
+	return int64(ts) // #nosec G115 - Checked above
 }
 
 // GetIsolationLevel returns the current isolation level.

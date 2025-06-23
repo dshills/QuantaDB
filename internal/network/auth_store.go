@@ -1,7 +1,7 @@
 package network
 
 import (
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 - Required for PostgreSQL compatibility
 	"fmt"
 	"sync"
 )
@@ -58,10 +58,10 @@ func (store *InMemoryUserStore) GetUserMD5(username, salt string) (string, bool)
 	}
 
 	// PostgreSQL MD5 calculation: md5(md5(password + username) + salt)
-	firstHash := md5.Sum([]byte(password + username))
+	firstHash := md5.Sum([]byte(password + username)) // #nosec G401 - Required for PostgreSQL compatibility
 	firstHashHex := fmt.Sprintf("%x", firstHash)
 
-	secondHash := md5.Sum([]byte(firstHashHex + salt))
+	secondHash := md5.Sum([]byte(firstHashHex + salt)) // #nosec G401 - Required for PostgreSQL compatibility
 	secondHashHex := fmt.Sprintf("md5%x", secondHash)
 
 	return secondHashHex, true

@@ -50,11 +50,10 @@ func (op *SubqueryOperator) Next() (*Row, error) {
 			}
 			op.result = nil // Only return once
 			return row, nil
-		} else {
-			// For non-scalar subqueries, this would be used differently
-			// in the context of EXISTS/IN evaluation
-			return nil, nil // EOF for now
 		}
+		// For non-scalar subqueries, this would be used differently
+		// in the context of EXISTS/IN evaluation
+		return nil, nil // EOF for now
 	}
 
 	// Execute the subquery
@@ -112,21 +111,20 @@ func (op *SubqueryOperator) executeSubquery() error {
 		}
 
 		return nil
-	} else {
-		// For non-scalar subqueries (EXISTS, IN), we collect all rows
-		op.resultSet = make([]*Row, 0)
-		for {
-			row, err := op.subplan.Next()
-			if err != nil {
-				return err
-			}
-			if row == nil {
-				break // EOF
-			}
-			op.resultSet = append(op.resultSet, row)
-		}
-		return nil
 	}
+	// For non-scalar subqueries (EXISTS, IN), we collect all rows
+	op.resultSet = make([]*Row, 0)
+	for {
+		row, err := op.subplan.Next()
+		if err != nil {
+			return err
+		}
+		if row == nil {
+			break // EOF
+		}
+		op.resultSet = append(op.resultSet, row)
+	}
+	return nil
 }
 
 // HasResults returns true if the subquery returned any rows (for EXISTS).

@@ -60,8 +60,7 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 
 				// If multiple matches and no table alias specified, it's ambiguous
 				if matches > 1 && e.TableAlias == "" {
-					// For now, we'll use the first match, but this should ideally return an error
-					// TODO: Return ambiguous column error
+					return nil, fmt.Errorf("ambiguous column reference: %s", e.ColumnName)
 				}
 			}
 		}
@@ -196,23 +195,22 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 				subqueryEval: subqueryEval,
 				not:          e.Not,
 			}, nil
-		} else {
-			// IN with value list
-			var valueEvals []ExprEvaluator
-			for _, value := range e.Values {
-				valueEval, err := buildExprEvaluatorWithSchema(value, schema)
-				if err != nil {
-					return nil, err
-				}
-				valueEvals = append(valueEvals, valueEval)
-			}
-
-			return &inValuesEvaluator{
-				exprEval:   exprEval,
-				valueEvals: valueEvals,
-				not:        e.Not,
-			}, nil
 		}
+		// IN with value list
+		var valueEvals []ExprEvaluator
+		for _, value := range e.Values {
+			valueEval, err := buildExprEvaluatorWithSchema(value, schema)
+			if err != nil {
+				return nil, err
+			}
+			valueEvals = append(valueEvals, valueEval)
+		}
+
+		return &inValuesEvaluator{
+			exprEval:   exprEval,
+			valueEvals: valueEvals,
+			not:        e.Not,
+		}, nil
 
 	case *planner.CaseExpr:
 		// Build evaluator for CASE expression
@@ -584,15 +582,14 @@ func (e *binaryOpEvaluator) evalDateArithmetic(left, right types.Value, isAdd bo
 					return types.NewDateValue(result), true
 				}
 				return types.NewTimestampValue(result), true
-			} else {
-				// Date/Timestamp - Interval
-				result := interval.SubtractFromTime(leftTime)
-				// Preserve the original type (Date vs Timestamp)
-				if left.Type() == types.Date {
-					return types.NewDateValue(result), true
-				}
-				return types.NewTimestampValue(result), true
 			}
+			// Date/Timestamp - Interval
+			result := interval.SubtractFromTime(leftTime)
+			// Preserve the original type (Date vs Timestamp)
+			if left.Type() == types.Date {
+				return types.NewDateValue(result), true
+			}
+			return types.NewTimestampValue(result), true
 		}
 
 		// Date/Timestamp - Date/Timestamp = Interval
@@ -624,9 +621,8 @@ func (e *binaryOpEvaluator) evalDateArithmetic(left, right types.Value, isAdd bo
 		if interval2, ok := right.Data.(types.Interval); ok {
 			if isAdd {
 				return types.NewValue(interval1.Add(interval2)), true
-			} else {
-				return types.NewValue(interval1.Subtract(interval2)), true
 			}
+			return types.NewValue(interval1.Subtract(interval2)), true
 		}
 	}
 
@@ -1047,17 +1043,17 @@ func (e *extractEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error)
 	var result int32
 	switch e.field {
 	case "YEAR":
-		result = int32(timeVal.Year())
+		result = int32(timeVal.Year()) // #nosec G115 - Year() returns int within int32 range
 	case "MONTH":
-		result = int32(timeVal.Month())
+		result = int32(timeVal.Month()) // #nosec G115 - Month() returns 1-12
 	case "DAY":
-		result = int32(timeVal.Day())
+		result = int32(timeVal.Day()) // #nosec G115 - Day() returns 1-31
 	case "HOUR":
-		result = int32(timeVal.Hour())
+		result = int32(timeVal.Hour()) // #nosec G115 - Hour() returns 0-23
 	case "MINUTE":
-		result = int32(timeVal.Minute())
+		result = int32(timeVal.Minute()) // #nosec G115 - Minute() returns 0-59
 	case "SECOND":
-		result = int32(timeVal.Second())
+		result = int32(timeVal.Second()) // #nosec G115 - Second() returns 0-59
 	default:
 		return types.NewNullValue(), fmt.Errorf("unsupported EXTRACT field: %s", e.field)
 	}

@@ -819,23 +819,22 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 				Subquery: subquery,
 				Not:      e.Not,
 			}, nil
-		} else {
-			// IN with value list
-			var values []Expression
-			for _, value := range e.Values {
-				valueExpr, err := p.convertExpression(value)
-				if err != nil {
-					return nil, err
-				}
-				values = append(values, valueExpr)
-			}
-
-			return &InExpr{
-				Expr:   expr,
-				Values: values,
-				Not:    e.Not,
-			}, nil
 		}
+		// IN with value list
+		var values []Expression
+		for _, value := range e.Values {
+			valueExpr, err := p.convertExpression(value)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, valueExpr)
+		}
+
+		return &InExpr{
+			Expr:   expr,
+			Values: values,
+			Not:    e.Not,
+		}, nil
 
 	case *parser.BetweenExpr:
 		// Convert all expressions
