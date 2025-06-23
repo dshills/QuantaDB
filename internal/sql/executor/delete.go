@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/index"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -13,6 +14,7 @@ type DeleteOperator struct {
 	baseOperator
 	table            *catalog.Table
 	storage          StorageBackend
+	indexMgr         *index.Manager          // Index manager for updating indexes
 	whereClause      parser.Expression
 	rowsDeleted      int64
 	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance
@@ -40,6 +42,11 @@ func NewDeleteOperator(table *catalog.Table, storage StorageBackend, whereClause
 		storage:     storage,
 		whereClause: whereClause,
 	}
+}
+
+// SetIndexManager sets the index manager for the operator
+func (d *DeleteOperator) SetIndexManager(indexMgr *index.Manager) {
+	d.indexMgr = indexMgr
 }
 
 // Open initializes the delete operation
@@ -113,6 +120,20 @@ func (d *DeleteOperator) Open(ctx *ExecContext) error {
 			// Process cascade deletes (this will handle CASCADE, SET NULL, SET DEFAULT)
 			if err := d.cascadeHandler.ProcessDelete(d.table, row, rowID); err != nil {
 				return fmt.Errorf("cascade delete failed: %w", err)
+			}
+		}
+
+		// Delete from indexes if index manager is available
+		if d.indexMgr != nil {
+			// Convert row values to map format expected by index manager
+			rowMap := make(map[string]types.Value, len(d.table.Columns))
+			for colIdx, col := range d.table.Columns {
+				rowMap[col.Name] = row.Values[colIdx]
+			}
+
+			// Delete from all indexes for this table
+			if err := d.indexMgr.DeleteFromIndexes(d.table.SchemaName, d.table.TableName, rowMap); err != nil {
+				return fmt.Errorf("failed to delete from indexes: %w", err)
 			}
 		}
 

@@ -856,7 +856,16 @@ func (e *BasicExecutor) buildInsertOperator(plan *planner.LogicalInsert, ctx *Ex
 		return nil, fmt.Errorf("storage backend not configured")
 	}
 
-	return NewInsertOperator(plan.TableRef, e.storage, plan.Values), nil
+	op := NewInsertOperator(plan.TableRef, e.storage, plan.Values)
+	
+	// Set index manager if available
+	if e.indexMgr != nil {
+		if indexMgr, ok := e.indexMgr.(*index.Manager); ok {
+			op.SetIndexManager(indexMgr)
+		}
+	}
+	
+	return op, nil
 }
 
 // buildUpdateOperator builds an UPDATE operator.
@@ -866,7 +875,16 @@ func (e *BasicExecutor) buildUpdateOperator(plan *planner.LogicalUpdate, ctx *Ex
 		return nil, fmt.Errorf("storage backend not configured")
 	}
 
-	return NewUpdateOperator(plan.TableRef, e.storage, plan.Assignments, plan.Where), nil
+	op := NewUpdateOperator(plan.TableRef, e.storage, plan.Assignments, plan.Where)
+	
+	// Set index manager if available
+	if e.indexMgr != nil {
+		if indexMgr, ok := e.indexMgr.(*index.Manager); ok {
+			op.SetIndexManager(indexMgr)
+		}
+	}
+	
+	return op, nil
 }
 
 // buildDeleteOperator builds a DELETE operator.
@@ -876,7 +894,16 @@ func (e *BasicExecutor) buildDeleteOperator(plan *planner.LogicalDelete, ctx *Ex
 		return nil, fmt.Errorf("storage backend not configured")
 	}
 
-	return NewDeleteOperator(plan.TableRef, e.storage, plan.Where), nil
+	op := NewDeleteOperator(plan.TableRef, e.storage, plan.Where)
+	
+	// Set index manager if available
+	if e.indexMgr != nil {
+		if indexMgr, ok := e.indexMgr.(*index.Manager); ok {
+			op.SetIndexManager(indexMgr)
+		}
+	}
+	
+	return op, nil
 }
 
 // buildCreateIndexOperator builds a CREATE INDEX operator.

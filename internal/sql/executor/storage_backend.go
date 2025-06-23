@@ -43,6 +43,39 @@ type RowID struct {
 	SlotID uint16
 }
 
+// Bytes serializes RowID to a byte slice for index storage
+// Format: 6 bytes for PageID + 2 bytes for SlotID (little-endian)
+func (r RowID) Bytes() []byte {
+	bytes := make([]byte, 8)
+	// Encode PageID (6 bytes, little-endian)
+	for idx := 0; idx < 6; idx++ {
+		bytes[idx] = byte(r.PageID >> (8 * idx))
+	}
+	// Encode SlotID (2 bytes, little-endian)
+	bytes[6] = byte(r.SlotID)
+	bytes[7] = byte(r.SlotID >> 8)
+	return bytes
+}
+
+// RowIDFromBytes deserializes a RowID from a byte slice
+func RowIDFromBytes(bytes []byte) (RowID, error) {
+	if len(bytes) != 8 {
+		return RowID{}, fmt.Errorf("invalid RowID bytes length: expected 8, got %d", len(bytes))
+	}
+	
+	var pageID storage.PageID
+	for idx := 0; idx < 6; idx++ {
+		pageID |= storage.PageID(bytes[idx]) << (8 * idx)
+	}
+	
+	slotID := uint16(bytes[6]) | (uint16(bytes[7]) << 8)
+	
+	return RowID{
+		PageID: pageID,
+		SlotID: slotID,
+	}, nil
+}
+
 // RowIterator iterates over rows in storage
 type RowIterator interface {
 	// Next returns the next row and its ID

@@ -30,13 +30,17 @@
 - LIMIT/OFFSET already implemented ✅
 - Implemented CASCADE DELETE for foreign keys ✅
 - Implemented full CHECK constraint expression parsing ✅
+- **Fixed Index-Query Integration** ✅
+  - INSERT/UPDATE/DELETE now maintain indexes
+  - CREATE INDEX populates existing data
+  - Query planner already uses indexes for optimization
 - All critical blockers resolved - ready for TPC-H!
 
 **Key Achievements:**
 - ✅ PostgreSQL-compatible database from scratch
 - ✅ ACID transactions with MVCC isolation
 - ✅ Write-Ahead Logging with crash recovery
-- ✅ B+Tree indexes (created but not used in queries yet)
+- ✅ B+Tree indexes with full query integration
 - ✅ Cost-based query optimizer framework
 - ✅ Prepared statements and parameterized queries
 - ✅ Full JOIN support (INNER, LEFT, RIGHT, FULL, CROSS)
@@ -65,11 +69,11 @@
    - Support for complex expressions, functions, operators ✅
 
 ### After Critical Fixes (Week 2-3)
-2. **Index-Query Integration**
-   - Indexes are created but not used by query planner
-   - Implement IndexScanOperator and cost estimation
-   - Update optimizer to choose index scans when beneficial
-   - **Prerequisite**: Basic queries must work first
+2. **Index-Query Integration** ✅ COMPLETED
+   - Indexes are now properly maintained during DML operations ✅
+   - CREATE INDEX populates existing data ✅
+   - Query planner already had index scan operators ✅
+   - Cost-based optimization for index selection already exists ✅
 
 ## 📋 Implementation Plans
 

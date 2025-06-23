@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/index"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -14,6 +15,7 @@ type UpdateOperator struct {
 	baseOperator
 	table            *catalog.Table
 	storage          StorageBackend
+	indexMgr         *index.Manager          // Index manager for updating indexes
 	assignments      []parser.Assignment
 	whereClause      parser.Expression
 	rowsUpdated      int64
@@ -42,6 +44,11 @@ func NewUpdateOperator(table *catalog.Table, storage StorageBackend, assignments
 		assignments: assignments,
 		whereClause: whereClause,
 	}
+}
+
+// SetIndexManager sets the index manager for the operator
+func (u *UpdateOperator) SetIndexManager(indexMgr *index.Manager) {
+	u.indexMgr = indexMgr
 }
 
 // Open initializes the update operation
@@ -162,10 +169,42 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 			}
 		}
 
+		// Update indexes if index manager is available
+		if u.indexMgr != nil {
+			// First, delete old index entries
+			oldRowMap := make(map[string]types.Value, len(u.table.Columns))
+			for colIdx, col := range u.table.Columns {
+				oldRowMap[col.Name] = row.Values[colIdx]
+			}
+			
+			if err := u.indexMgr.DeleteFromIndexes(u.table.SchemaName, u.table.TableName, oldRowMap); err != nil {
+				return fmt.Errorf("failed to delete old index entries: %w", err)
+			}
+		}
+
 		// Update the row in storage
 		err = u.storage.UpdateRow(u.table.ID, rowID, updatedRow)
 		if err != nil {
 			return fmt.Errorf("failed to update row: %w", err)
+		}
+
+		// Insert new index entries if index manager is available
+		if u.indexMgr != nil {
+			// Convert updated row values to map format
+			newRowMap := make(map[string]types.Value, len(u.table.Columns))
+			for colIdx, col := range u.table.Columns {
+				newRowMap[col.Name] = updatedRow.Values[colIdx]
+			}
+			
+			if err := u.indexMgr.InsertIntoIndexes(u.table.SchemaName, u.table.TableName, newRowMap, rowID.Bytes()); err != nil {
+				// TODO: Implement proper rollback of the update operation
+				// Current state: old index entries deleted, row updated, new index insert failed
+				// Need to either:
+				// 1. Restore old index entries and revert row update
+				// 2. Use WAL to make index+storage atomic
+				// 3. Implement saga pattern with compensation
+				return fmt.Errorf("failed to insert new index entries: %w", err)
+			}
 		}
 
 		u.rowsUpdated++

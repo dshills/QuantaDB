@@ -140,9 +140,16 @@ func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 		return fmt.Errorf("failed to create index in catalog: %w", err)
 	}
 
-	// TODO: Populate index with existing data
-	// This would involve scanning the table and inserting all rows into the index
-	// For now, the index will only work for new data
+	// Populate index with existing data
+	if err := c.populateIndex(ctx, table); err != nil {
+		// Rollback: drop the index from both catalog and index manager
+		catalogErr := c.catalog.DropIndex(c.schemaName, c.tableName, c.indexName)
+		indexErr := c.indexMgr.DropIndex(c.schemaName, c.tableName, c.indexName)
+		if catalogErr != nil || indexErr != nil {
+			return fmt.Errorf("failed to populate index: %w (rollback errors: catalog=%v, index=%v)", err, catalogErr, indexErr)
+		}
+		return fmt.Errorf("failed to populate index: %w", err)
+	}
 
 	c.executed = true
 
@@ -186,6 +193,49 @@ func (c *CreateIndexOperator) Close() error {
 // Schema returns the operator schema
 func (c *CreateIndexOperator) Schema() *Schema {
 	return c.schema
+}
+
+// populateIndex scans the table and inserts all existing rows into the index
+func (c *CreateIndexOperator) populateIndex(ctx *ExecContext, table *catalog.Table) error {
+	// Use the transaction snapshot timestamp if available
+	var snapshotTS int64
+	if ctx != nil {
+		snapshotTS = ctx.SnapshotTS
+	}
+
+	// Scan the table to get all existing rows
+	iterator, err := c.storage.ScanTable(table.ID, snapshotTS)
+	if err != nil {
+		return fmt.Errorf("failed to scan table for index population: %w", err)
+	}
+	defer iterator.Close()
+
+	// Process each row
+	rowCount := 0
+	for {
+		row, rowID, err := iterator.Next()
+		if err != nil {
+			return fmt.Errorf("failed to read row during index population: %w", err)
+		}
+		if row == nil {
+			break // End of table
+		}
+
+		// Convert row values to map format expected by index manager
+		rowMap := make(map[string]types.Value, len(table.Columns))
+		for colIdx, col := range table.Columns {
+			rowMap[col.Name] = row.Values[colIdx]
+		}
+
+		// Insert into the index
+		if err := c.indexMgr.InsertIntoIndexes(c.schemaName, c.tableName, rowMap, rowID.Bytes()); err != nil {
+			return fmt.Errorf("failed to insert row %d into index: %w", rowCount, err)
+		}
+
+		rowCount++
+	}
+
+	return nil
 }
 
 // DropIndexOperator executes DROP INDEX statements

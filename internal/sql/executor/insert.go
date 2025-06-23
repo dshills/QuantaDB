@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/index"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -14,6 +15,7 @@ type InsertOperator struct {
 	baseOperator
 	table            *catalog.Table
 	storage          StorageBackend
+	indexMgr         *index.Manager          // Index manager for updating indexes
 	values           [][]parser.Expression // List of value tuples to insert
 	rowsInserted     int64
 	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance
@@ -40,6 +42,11 @@ func NewInsertOperator(table *catalog.Table, storage StorageBackend, values [][]
 		storage: storage,
 		values:  values,
 	}
+}
+
+// SetIndexManager sets the index manager for the operator
+func (i *InsertOperator) SetIndexManager(indexMgr *index.Manager) {
+	i.indexMgr = indexMgr
 }
 
 // Open initializes the insert operation
@@ -163,9 +170,28 @@ func (i *InsertOperator) Open(ctx *ExecContext) error {
 		}
 
 		// Insert the row into storage
-		_, err := i.storage.InsertRow(i.table.ID, row)
+		rowID, err := i.storage.InsertRow(i.table.ID, row)
 		if err != nil {
 			return fmt.Errorf("failed to insert row: %w", err)
+		}
+
+		// Update indexes if index manager is available
+		if i.indexMgr != nil {
+			// Convert row values to map format expected by index manager
+			rowMap := make(map[string]types.Value, len(i.table.Columns))
+			for colIdx, col := range i.table.Columns {
+				rowMap[col.Name] = row.Values[colIdx]
+			}
+
+			// Insert into all indexes for this table
+			if err := i.indexMgr.InsertIntoIndexes(i.table.SchemaName, i.table.TableName, rowMap, rowID.Bytes()); err != nil {
+				// TODO: Implement proper rollback of row insertion on index update failure
+				// This requires either:
+				// 1. Two-phase commit with index operations first
+				// 2. Compensating transaction to delete the inserted row
+				// 3. Integration with WAL for atomic storage+index operations
+				return fmt.Errorf("failed to update indexes: %w", err)
+			}
 		}
 
 		i.rowsInserted++
