@@ -550,6 +550,8 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 				dataType = types.Text
 			case time.Time:
 				dataType = types.Timestamp
+			case types.Interval:
+				dataType = types.IntervalType
 			default:
 				dataType = types.Unknown
 			}

@@ -323,12 +323,23 @@ func (rf *RowFormat) deserializeValue(r io.Reader, dataType types.DataType) (typ
 		}
 		return types.NewValue(string(data)), nil
 
-	case typeTIMESTAMP, typeDATE:
+	case typeTIMESTAMP:
 		var v int64
 		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 			return types.Value{}, err
 		}
-		return types.NewValue(v), nil
+		// Convert Unix timestamp back to time.Time
+		t := time.Unix(v, 0).UTC()
+		return types.NewTimestampValue(t), nil
+
+	case typeDATE:
+		var v int64
+		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+			return types.Value{}, err
+		}
+		// Convert Unix timestamp back to time.Time
+		t := time.Unix(v, 0).UTC()
+		return types.NewDateValue(t), nil
 
 	case typeBYTEA:
 		// Read byte array length
