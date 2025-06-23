@@ -1,6 +1,9 @@
 package planner
 
-import "github.com/dshills/QuantaDB/internal/catalog"
+import (
+	"fmt"
+	"github.com/dshills/QuantaDB/internal/catalog"
+)
 
 // OptimizationRule represents a rule that transforms logical plans.
 type OptimizationRule interface {
@@ -55,7 +58,7 @@ func (o *Optimizer) Optimize(plan LogicalPlan) LogicalPlan {
 	var seenPlans = make(map[string]bool) // Track seen plan structures to detect cycles
 
 	for i := 0; i < maxIterations; i++ {
-		currentPlanStr := plan.String()
+		currentPlanStr := o.planFingerprint(plan)
 
 		// Check if we've seen this exact plan structure before (cycle detection)
 		if seenPlans[currentPlanStr] {
@@ -68,15 +71,15 @@ func (o *Optimizer) Optimize(plan LogicalPlan) LogicalPlan {
 		for _, rule := range o.rules {
 			newPlan, applied := rule.Apply(plan)
 			if applied {
-				// Double-check that the plan actually changed meaningfully
-				if newPlan.String() != plan.String() {
+				// Use fingerprint comparison instead of String()
+				if o.planFingerprint(newPlan) != o.planFingerprint(plan) {
 					plan = newPlan
 					changed = true
 				}
 			}
 		}
 
-		// Additional check: if plan string is the same as previous iteration, stop
+		// Additional check: if plan fingerprint is the same as previous iteration, stop
 		if currentPlanStr == prevPlanStr {
 			break
 		}
@@ -89,6 +92,32 @@ func (o *Optimizer) Optimize(plan LogicalPlan) LogicalPlan {
 	}
 
 	return plan
+}
+
+// planFingerprint generates a unique string representation of the entire plan tree.
+// Unlike String(), this includes all child nodes to properly detect structural changes.
+func (o *Optimizer) planFingerprint(plan Plan) string {
+	if plan == nil {
+		return "nil"
+	}
+	
+	// Start with the node's own string representation
+	result := fmt.Sprintf("%T:%s", plan, plan.String())
+	
+	// Add child fingerprints
+	children := plan.Children()
+	if len(children) > 0 {
+		result += "["
+		for i, child := range children {
+			if i > 0 {
+				result += ","
+			}
+			result += o.planFingerprint(child)
+		}
+		result += "]"
+	}
+	
+	return result
 }
 
 // PredicatePushdown pushes filter predicates closer to table scans.
