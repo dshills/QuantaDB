@@ -43,9 +43,9 @@ func main() {
 		SchemaName: "public",
 		TableName:  "sales",
 		Columns: []catalog.ColumnDef{
-			{Name: "product", DataType: types.Text},
-			{Name: "amount", DataType: types.Integer},
-			{Name: "quantity", DataType: types.Integer},
+			{Name: "product", DataType: types.Text, IsNullable: true},
+			{Name: "amount", DataType: types.Integer, IsNullable: true},
+			{Name: "quantity", DataType: types.Integer, IsNullable: true},
 		},
 	}
 	salesTable, err := cat.CreateTable(salesSchema)
@@ -76,9 +76,9 @@ func main() {
 	for _, row := range testData {
 		r := &executor.Row{
 			Values: []types.Value{
-				types.NewTextValue(row.product),
-				types.NewIntegerValue(row.amount),
-				types.NewIntegerValue(row.quantity),
+				types.NewValue(row.product),
+				types.NewValue(row.amount),
+				types.NewValue(row.quantity),
 			},
 		}
 		_, err := storageBackend.InsertRow(salesTable.ID, r)
