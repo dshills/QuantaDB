@@ -22,6 +22,7 @@
 - Fixed JOIN column resolution for qualified names ✅
 - Fixed aggregate expressions in projections ✅
 - Fixed GROUP BY server crash ✅
+- Implemented DISTINCT support ✅
 - All critical blockers resolved - ready for TPC-H!
 
 **Key Achievements:**
@@ -47,19 +48,15 @@
 **Current Status**: Major crashes fixed! GROUP BY, JOIN resolution, and aggregate expressions now work.
 
 ### Immediate Priorities (Week 1)  
-4. **Add DISTINCT Support**
-   - Required by several TPC-H queries
-   - Currently: "unexpected token in expression: DISTINCT"
-
-5. **Implement LIMIT/OFFSET**
+1. **Implement LIMIT/OFFSET**
    - TPC-H Q18 uses LIMIT 100
    - Basic SQL feature gap
 
-6. **Complete BYTEA Data Type**
+2. **Complete BYTEA Data Type**
    - Only remaining core PostgreSQL data type
 
-### After Critical Fixes (Week 5-7)
-7. **Index-Query Integration**
+### After Critical Fixes (Week 2-3)
+3. **Index-Query Integration**
    - Indexes are created but not used by query planner
    - Implement IndexScanOperator and cost estimation
    - Update optimizer to choose index scans when beneficial

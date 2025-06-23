@@ -272,15 +272,16 @@ func (j *JoinExpr) String() string {
 
 // SelectStmt represents a SELECT statement.
 type SelectStmt struct {
-	With    []CommonTableExpr // CTE definitions
-	Columns []SelectColumn
-	From    TableExpression
-	Where   Expression
-	GroupBy []Expression
-	Having  Expression
-	OrderBy []OrderByClause
-	Limit   *int
-	Offset  *int
+	With     []CommonTableExpr // CTE definitions
+	Distinct bool              // DISTINCT flag
+	Columns  []SelectColumn
+	From     TableExpression
+	Where    Expression
+	GroupBy  []Expression
+	Having   Expression
+	OrderBy  []OrderByClause
+	Limit    *int
+	Offset   *int
 }
 
 // CommonTableExpr represents a Common Table Expression (CTE).
@@ -307,7 +308,11 @@ func (s *SelectStmt) String() string {
 	for _, col := range s.Columns {
 		cols = append(cols, col.String())
 	}
-	parts = append(parts, fmt.Sprintf("SELECT %s", strings.Join(cols, ", ")))
+	selectClause := "SELECT"
+	if s.Distinct {
+		selectClause = "SELECT DISTINCT"
+	}
+	parts = append(parts, fmt.Sprintf("%s %s", selectClause, strings.Join(cols, ", ")))
 
 	// FROM clause (only if present)
 	if s.From != nil {

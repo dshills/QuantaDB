@@ -1,0 +1,244 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/engine"
+	"github.com/dshills/QuantaDB/internal/sql/executor"
+	"github.com/dshills/QuantaDB/internal/sql/parser"
+	"github.com/dshills/QuantaDB/internal/sql/planner"
+	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/txn"
+)
+
+func main() {
+	fmt.Println("=== Testing DISTINCT Queries ===")
+
+	// Create a test catalog
+	cat := catalog.NewMemoryCatalog()
+	eng := engine.NewMemoryEngine()
+	defer eng.Close()
+
+	// Create storage backend
+	diskManager, err := storage.NewDiskManager(":memory:")
+	if err != nil {
+		log.Fatal("Failed to create disk manager:", err)
+	}
+	defer diskManager.Close()
+
+	bufferPool := storage.NewBufferPool(diskManager, 10)
+	txnManager := txn.NewManager(eng, nil)
+	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
+
+	// Create a test table
+	fmt.Println("\n1. Creating test table...")
+
+	salesSchema := &catalog.TableSchema{
+		SchemaName: "public",
+		TableName:  "sales",
+		Columns: []catalog.ColumnDef{
+			{Name: "product", DataType: types.Text, IsNullable: false},
+			{Name: "region", DataType: types.Text, IsNullable: false},
+			{Name: "amount", DataType: types.Integer, IsNullable: false},
+		},
+	}
+	salesTable, err := cat.CreateTable(salesSchema)
+	if err != nil {
+		log.Fatal("Failed to create sales table:", err)
+	}
+	fmt.Println("   ✅ Created sales table")
+
+	// Create table in storage backend
+	err = storageBackend.CreateTable(salesTable)
+	if err != nil {
+		log.Fatal("Failed to create sales table in storage:", err)
+	}
+
+	// Insert test data with duplicates
+	fmt.Println("\n2. Inserting test data with duplicates...")
+	
+	// Start a transaction for inserts
+	insertTxn, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+	if err != nil {
+		log.Fatal("Failed to begin insert transaction:", err)
+	}
+	
+	// Set transaction ID for storage backend
+	storageBackend.SetTransactionID(uint64(insertTxn.ID()))
+	
+	testData := []struct {
+		product string
+		region  string
+		amount  int32
+	}{
+		{"Widget", "North", 100},
+		{"Widget", "North", 100},  // Duplicate of row 1
+		{"Widget", "South", 150},
+		{"Gadget", "North", 200},
+		{"Gadget", "North", 200},  // Duplicate of row 4
+		{"Widget", "North", 100},  // Another duplicate of row 1
+		{"Gizmo", "East", 300},
+		{"Gizmo", "East", 400},   // Same product/region, different amount
+	}
+
+	for _, row := range testData {
+		r := &executor.Row{
+			Values: []types.Value{
+				types.NewValue(row.product),
+				types.NewValue(row.region),
+				types.NewValue(row.amount),
+			},
+		}
+		_, err := storageBackend.InsertRow(salesTable.ID, r)
+		if err != nil {
+			log.Fatal("Failed to insert row:", err)
+		}
+	}
+	
+	// Commit insert transaction
+	txnManager.CommitTransaction(insertTxn)
+	fmt.Printf("   ✅ Inserted %d rows (with duplicates)\n", len(testData))
+
+	// Test DISTINCT queries
+	queries := []struct {
+		name     string
+		query    string
+		expected int // Expected number of distinct rows
+	}{
+		{
+			name:     "DISTINCT single column",
+			query:    "SELECT DISTINCT product FROM sales",
+			expected: 3, // Widget, Gadget, Gizmo
+		},
+		{
+			name:     "DISTINCT multiple columns",
+			query:    "SELECT DISTINCT product, region FROM sales",
+			expected: 4, // (Widget,North), (Widget,South), (Gadget,North), (Gizmo,East)
+		},
+		{
+			name:     "DISTINCT all columns",
+			query:    "SELECT DISTINCT * FROM sales",
+			expected: 5, // 5 unique combinations: (Widget,North,100), (Widget,South,150), (Gadget,North,200), (Gizmo,East,300), (Gizmo,East,400)
+		},
+		{
+			name:     "Regular SELECT for comparison",
+			query:    "SELECT product FROM sales",
+			expected: 8, // All rows including duplicates
+		},
+		{
+			name:     "DISTINCT with ORDER BY",
+			query:    "SELECT DISTINCT product FROM sales ORDER BY product",
+			expected: 3, // Should still be distinct and ordered
+		},
+		{
+			name:     "DISTINCT with WHERE",
+			query:    "SELECT DISTINCT product FROM sales WHERE region = 'North'",
+			expected: 2, // Widget, Gadget
+		},
+	}
+
+	// Create executor
+	exec := executor.NewBasicExecutor(cat, eng)
+	exec.SetStorageBackend(storageBackend)
+
+	for i, test := range queries {
+		fmt.Printf("\n%d. Testing: %s\n", i+3, test.name)
+		fmt.Printf("   Query: %s\n", test.query)
+		fmt.Printf("   Expected rows: %d\n", test.expected)
+
+		// Parse the query
+		p := parser.NewParser(test.query)
+		stmt, err := p.Parse()
+		if err != nil {
+			fmt.Printf("   ❌ Parse error: %v\n", err)
+			continue
+		}
+
+		// Create planner and build plan
+		pl := planner.NewBasicPlannerWithCatalog(cat)
+		plan, err := pl.Plan(stmt)
+		if err != nil {
+			fmt.Printf("   ❌ Planning error: %v\n", err)
+			continue
+		}
+
+		// Print plan for debugging
+		fmt.Printf("   Plan: %s\n", plan.String())
+
+		// Start a transaction
+		txnObj, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		if err != nil {
+			fmt.Printf("   ❌ Failed to begin transaction: %v\n", err)
+			continue
+		}
+
+		// Create execution context
+		ctx := &executor.ExecContext{
+			Catalog:    cat,
+			Engine:     eng,
+			Stats:      &executor.ExecStats{},
+			TxnManager: txnManager,
+			Txn:        txnObj,
+			SnapshotTS: int64(txnObj.ReadTimestamp()),
+		}
+
+		// Execute the plan
+		result, err := exec.Execute(plan, ctx)
+		if err != nil {
+			fmt.Printf("   ❌ Execution error: %v\n", err)
+			txnManager.AbortTransaction(txnObj)
+			continue
+		}
+
+		// Count results
+		rowCount := 0
+		seenValues := make(map[string]bool)
+		for {
+			row, err := result.Next()
+			if err != nil {
+				fmt.Printf("   ❌ Error reading result: %v\n", err)
+				break
+			}
+			if row == nil {
+				break
+			}
+			
+			// Create a string representation of the row for tracking
+			var rowStr string
+			for j, val := range row.Values {
+				if j > 0 {
+					rowStr += ","
+				}
+				rowStr += fmt.Sprintf("%v", val.Data)
+			}
+			
+			// Check for duplicates in DISTINCT queries
+			if test.name != "Regular SELECT for comparison" {
+				if seenValues[rowStr] {
+					fmt.Printf("   ❌ DUPLICATE FOUND: %s\n", rowStr)
+				}
+				seenValues[rowStr] = true
+			}
+			
+			if rowCount < 10 { // Print first few rows
+				fmt.Printf("     Row %d: %s\n", rowCount+1, rowStr)
+			}
+			rowCount++
+		}
+
+		result.Close()
+		txnManager.CommitTransaction(txnObj)
+
+		if rowCount == test.expected {
+			fmt.Printf("   ✅ Got expected %d rows\n", rowCount)
+		} else {
+			fmt.Printf("   ❌ Got %d rows, expected %d\n", rowCount, test.expected)
+		}
+	}
+
+	fmt.Println("\n=== DISTINCT Query Test Complete ===")
+}

@@ -13,6 +13,8 @@ func writeValueToHasher(hasher hash.Hash, val types.Value) {
 		hasher.Write([]byte("NULL"))
 	} else {
 		switch v := val.Data.(type) {
+		case int32:
+			fmt.Fprintf(hasher, "%d", v)
 		case int64:
 			fmt.Fprintf(hasher, "%d", v)
 		case float64:

@@ -228,6 +228,11 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 		plan = NewLogicalProject(plan, projections, aliases, projSchema)
 	}
 
+	// Add DISTINCT if specified
+	if stmt.Distinct {
+		plan = NewLogicalDistinct(plan)
+	}
+
 	// Add ORDER BY if present
 	if len(stmt.OrderBy) > 0 {
 		orderBy, err := p.convertOrderBy(stmt.OrderBy)

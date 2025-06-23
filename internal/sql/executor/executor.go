@@ -179,6 +179,8 @@ func (e *BasicExecutor) buildOperator(plan planner.Plan, ctx *ExecContext) (Oper
 		return e.buildJoinOperator(p, ctx)
 	case *planner.LogicalAggregate:
 		return e.buildAggregateOperator(p, ctx)
+	case *planner.LogicalDistinct:
+		return e.buildDistinctOperator(p, ctx)
 	case *planner.LogicalCreateTable:
 		return e.buildCreateTableOperator(p, ctx)
 	case *planner.LogicalInsert:
@@ -818,6 +820,17 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 	}
 
 	return NewAggregateOperatorWithNames(child, groupBy, aggregates, groupByNames), nil
+}
+
+// buildDistinctOperator builds a DISTINCT operator.
+func (e *BasicExecutor) buildDistinctOperator(plan *planner.LogicalDistinct, ctx *ExecContext) (Operator, error) {
+	// Build child operator
+	child, err := e.buildOperator(plan.Children()[0], ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build child operator: %w", err)
+	}
+
+	return NewDistinctOperator(child), nil
 }
 
 // buildCreateTableOperator builds a CREATE TABLE operator.

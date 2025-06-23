@@ -403,5 +403,13 @@ This document tracks all completed features and improvements in the QuantaDB pro
   - Comprehensive testing confirms all GROUP BY functionality works
   - Impact: GROUP BY queries execute without crashes, unblocking TPC-H benchmarks
 
+- ✅ **DISTINCT Support** (December 23, 2024)
+  - Added DISTINCT flag to SelectStmt in parser
+  - Created LogicalDistinct plan node in planner
+  - Implemented DistinctOperator with hash-based deduplication
+  - Fixed hash function to handle int32 and prevent collisions
+  - Comprehensive testing shows all DISTINCT queries work correctly
+  - Impact: TPC-H queries requiring DISTINCT now supported
+
 ---
 *This document contains all completed features moved from TODO.md for historical reference and tracking.*

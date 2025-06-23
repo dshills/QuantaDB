@@ -690,6 +690,12 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 		return nil, p.lastError()
 	}
 
+	// Check for DISTINCT
+	distinct := false
+	if p.match(TokenDistinct) {
+		distinct = true
+	}
+
 	// Parse select columns
 	var columns []SelectColumn
 	for {
@@ -722,7 +728,8 @@ func (p *Parser) parseSelect() (*SelectStmt, error) {
 	}
 
 	stmt := &SelectStmt{
-		Columns: columns,
+		Distinct: distinct,
+		Columns:  columns,
 	}
 
 	// Check for optional FROM clause
