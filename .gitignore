@@ -78,4 +78,7 @@ test/drivers/*/*.log
 # Temporary files
 *.tmp
 *.temp
-data/wal/
+
+# Database runtime data
+data/
+!test/tpch/data/
