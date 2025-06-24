@@ -814,6 +814,12 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 		}, nil
 
 	case *parser.SubqueryExpr:
+		// Check for correlations
+		correlationFinder := NewCorrelationFinder()
+		// TODO: Add available columns from outer query context
+		// For now, we'll detect but not fully resolve correlations
+		correlationFinder.FindCorrelations(e.Query.Where)
+
 		// Plan the subquery
 		subplan, err := p.planSelect(e.Query)
 		if err != nil {
@@ -828,8 +834,10 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 		}
 
 		return &SubqueryExpr{
-			Subplan: subplan,
-			Type:    resultType,
+			Subplan:      subplan,
+			IsCorrelated: correlationFinder.HasCorrelations(),
+			ExternalRefs: correlationFinder.GetExternalRefs(),
+			Type:         resultType,
 		}, nil
 
 	case *parser.ExistsExpr:

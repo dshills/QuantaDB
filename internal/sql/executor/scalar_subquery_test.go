@@ -253,14 +253,14 @@ func TestScalarSubqueryError(t *testing.T) {
 	if err == nil {
 		// If planning succeeded, the execution should fail when we try to read results
 		defer result.Close()
-		
+
 		// Try to read the first row - this should fail
 		_, err = result.Next()
 		if err == nil {
 			t.Fatal("Expected error for scalar subquery returning multiple columns")
 		}
 	}
-	
+
 	// Either planning or execution should fail - we just verify some error occurred
 	if err == nil {
 		t.Fatal("Expected some error for scalar subquery returning multiple columns")

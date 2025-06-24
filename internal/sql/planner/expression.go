@@ -385,8 +385,10 @@ func (s *Star) Accept(visitor ExpressionVisitor) error {
 
 // SubqueryExpr represents a subquery expression.
 type SubqueryExpr struct {
-	Subplan LogicalPlan
-	Type    types.DataType
+	Subplan      LogicalPlan
+	Type         types.DataType
+	IsCorrelated bool
+	ExternalRefs []string
 }
 
 func (s *SubqueryExpr) String() string {

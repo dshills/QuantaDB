@@ -56,6 +56,10 @@ type ExecContext struct {
 		ValidateUpdate(table *catalog.Table, oldRow, newRow *Row) error
 		ValidateDelete(table *catalog.Table, row *Row) error
 	}
+	// Correlated values for subquery execution
+	CorrelatedValues map[string]types.Value
+	// Schema context for correlation resolution
+	CorrelationSchema *Schema
 }
 
 // Row represents a row of data.

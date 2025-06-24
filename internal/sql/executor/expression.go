@@ -161,9 +161,10 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 	case *planner.SubqueryExpr:
 		// Create a subquery evaluator with the executor reference
 		return &subqueryEvaluator{
-			subplan:  e.Subplan,
-			dataType: e.Type,
-			executor: executor,
+			subplan:      e.Subplan,
+			dataType:     e.Type,
+			executor:     executor,
+			isCorrelated: e.IsCorrelated,
 		}, nil
 
 	case *planner.ExistsExpr:
@@ -285,6 +286,27 @@ type columnRefEvaluator struct {
 }
 
 func (e *columnRefEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
+	// First check if this is a correlated column reference
+	if ctx != nil && ctx.CorrelatedValues != nil {
+		// Try qualified name first
+		var key string
+		if e.tableAlias != "" {
+			key = fmt.Sprintf("%s.%s", e.tableAlias, e.columnName)
+		} else {
+			key = e.columnName
+		}
+
+		if val, ok := ctx.CorrelatedValues[key]; ok {
+			return val, nil
+		}
+
+		// Try unqualified name as fallback
+		if val, ok := ctx.CorrelatedValues[e.columnName]; ok {
+			return val, nil
+		}
+	}
+
+	// Normal column resolution
 	if !e.resolved {
 		return types.NewNullValue(), fmt.Errorf("column %s not resolved", e.columnName)
 	}
@@ -934,32 +956,70 @@ func (e *parameterRefEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, e
 
 // subqueryEvaluator evaluates scalar subqueries.
 type subqueryEvaluator struct {
-	subplan     planner.LogicalPlan
-	subOperator *SubqueryOperator
-	dataType    types.DataType
-	executor    *BasicExecutor
+	subplan      planner.LogicalPlan
+	subOperator  *SubqueryOperator
+	dataType     types.DataType
+	executor     *BasicExecutor
+	isCorrelated bool
+	lastRow      *Row // Track last row to detect when re-execution is needed
 }
 
 func (e *subqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
-	// Build the subquery operator lazily
+	if ctx == nil {
+		return types.NewNullValue(), fmt.Errorf("execution context is nil")
+	}
+
+	// For correlated subqueries, we need to re-execute for each outer row
+	needsReExecution := e.isCorrelated && (e.lastRow == nil || !e.rowsEqual(e.lastRow, row))
+
+	if needsReExecution && e.subOperator != nil {
+		// Close the previous operator
+		e.subOperator.Close()
+		e.subOperator = nil
+	}
+
+	// Create a new context for the subquery with correlated values
+	subCtx := *ctx // Copy context
+	if subCtx.CorrelatedValues == nil {
+		subCtx.CorrelatedValues = make(map[string]types.Value)
+	}
+
+	// If we have a correlation schema and a current row, bind the values
+	if ctx.CorrelationSchema != nil && row != nil {
+		for i, col := range ctx.CorrelationSchema.Columns {
+			if i < len(row.Values) {
+				// Create qualified column names for correlation
+				if col.TableAlias != "" {
+					key := fmt.Sprintf("%s.%s", col.TableAlias, col.Name)
+					subCtx.CorrelatedValues[key] = row.Values[i]
+				}
+				if col.TableName != "" {
+					key := fmt.Sprintf("%s.%s", col.TableName, col.Name)
+					subCtx.CorrelatedValues[key] = row.Values[i]
+				}
+				// Also store unqualified name for simpler references
+				subCtx.CorrelatedValues[col.Name] = row.Values[i]
+			}
+		}
+	}
+
+	// Build the subquery operator lazily or when re-execution is needed
 	if e.subOperator == nil {
 		if e.executor == nil {
 			return types.NewNullValue(), fmt.Errorf("executor not available for subquery evaluation")
 		}
 
-		// Build the physical operator from the logical plan
-		physicalOp, err := e.executor.buildOperator(e.subplan, ctx)
+		// Build the physical operator from the logical plan with the new context
+		physicalOp, err := e.executor.buildOperator(e.subplan, &subCtx)
 		if err != nil {
 			return types.NewNullValue(), fmt.Errorf("failed to build subquery operator: %w", err)
 		}
 
 		// Wrap in a SubqueryOperator (true for scalar subquery)
 		e.subOperator = NewSubqueryOperator(physicalOp, true)
-	}
 
-	// Open the subquery operator if not already open
-	if !e.subOperator.isOpen {
-		err := e.subOperator.Open(ctx)
+		// Open the subquery operator
+		err = e.subOperator.Open(&subCtx)
 		if err != nil {
 			return types.NewNullValue(), err
 		}
@@ -971,11 +1031,33 @@ func (e *subqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		return types.NewNullValue(), err
 	}
 
+	// Update lastRow for correlation tracking
+	if e.isCorrelated && row != nil {
+		e.lastRow = &Row{Values: make([]types.Value, len(row.Values))}
+		copy(e.lastRow.Values, row.Values)
+	}
+
 	if result == nil {
 		return types.NewNullValue(), nil
 	}
 
 	return *result, nil
+}
+
+// rowsEqual checks if two rows have equal values.
+func (e *subqueryEvaluator) rowsEqual(row1, row2 *Row) bool {
+	if row1 == nil || row2 == nil {
+		return row1 == row2
+	}
+	if len(row1.Values) != len(row2.Values) {
+		return false
+	}
+	for i := range row1.Values {
+		if !row1.Values[i].Equal(row2.Values[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // existsEvaluator evaluates EXISTS expressions.
@@ -986,7 +1068,8 @@ type existsEvaluator struct {
 
 func (e *existsEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
 	// For EXISTS, we need to check if the subquery returns any rows
-	// This is a simplified implementation - in practice we'd optimize this
+	// TODO: This is a simplified implementation that doesn't fully support correlation
+	// Correlated EXISTS subqueries need more work to properly evaluate
 
 	// The subqueryEval should be a subqueryEvaluator
 	subEval, ok := e.subqueryEval.(*subqueryEvaluator)
@@ -994,26 +1077,40 @@ func (e *existsEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) 
 		return types.NewNullValue(), fmt.Errorf("expected subqueryEvaluator for EXISTS")
 	}
 
-	// Open the subquery operator if not already open
-	if !subEval.subOperator.isOpen {
-		err := subEval.subOperator.Open(ctx)
+	// For now, handle non-correlated EXISTS
+	if !subEval.isCorrelated {
+		// Open the subquery operator if not already open
+		if subEval.subOperator == nil {
+			// Build the operator
+			_, err := subEval.Eval(row, ctx)
+			if err != nil {
+				return types.NewNullValue(), err
+			}
+		}
+
+		if subEval.subOperator != nil && !subEval.subOperator.isOpen {
+			err := subEval.subOperator.Open(ctx)
+			if err != nil {
+				return types.NewNullValue(), err
+			}
+		}
+
+		// Check if subquery has any results
+		hasResults, err := subEval.subOperator.HasResults()
 		if err != nil {
 			return types.NewNullValue(), err
 		}
+
+		result := hasResults
+		if e.not {
+			result = !result
+		}
+
+		return types.NewValue(result), nil
 	}
 
-	// Check if subquery has any results
-	hasResults, err := subEval.subOperator.HasResults()
-	if err != nil {
-		return types.NewNullValue(), err
-	}
-
-	result := hasResults
-	if e.not {
-		result = !result
-	}
-
-	return types.NewValue(result), nil
+	// Correlated EXISTS - not fully implemented yet
+	return types.NewNullValue(), fmt.Errorf("correlated EXISTS subqueries not yet fully supported")
 }
 
 // inSubqueryEvaluator evaluates IN expressions with subqueries.
