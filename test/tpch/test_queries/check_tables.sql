@@ -1,1 +1,1 @@
-SELECT name FROM tables;
+SELECT 'orders' as table_name, COUNT(*) as row_count FROM orders;
