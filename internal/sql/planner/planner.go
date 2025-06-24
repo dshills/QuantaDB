@@ -999,6 +999,8 @@ func (p *BasicPlanner) convertComparisonOp(op parser.TokenType) (BinaryOperator,
 		return OpGreater, nil
 	case parser.TokenGreaterEqual:
 		return OpGreaterEqual, nil
+	case parser.TokenLike:
+		return OpLike, nil
 	default:
 		return 0, fmt.Errorf("unsupported comparison operator: %v", op)
 	}

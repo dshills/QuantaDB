@@ -3,6 +3,8 @@ package executor
 import (
 	"bytes"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/dshills/QuantaDB/internal/sql/planner"
@@ -413,8 +415,24 @@ func (e *binaryOpEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 		return types.NewValue(leftStr + rightStr), nil
 
 	case planner.OpLike, planner.OpNotLike:
-		// Simple pattern matching - would need full LIKE implementation
-		return types.NewValue(false), nil
+		// LIKE pattern matching
+		text, ok1 := leftVal.Data.(string)
+		pattern, ok2 := rightVal.Data.(string)
+		if !ok1 || !ok2 {
+			return types.NewNullValue(), fmt.Errorf("LIKE requires string operands")
+		}
+		
+		// Convert SQL LIKE pattern to Go regex pattern
+		regexPattern := sqlLikeToRegex(pattern)
+		matched, err := regexp.MatchString(regexPattern, text)
+		if err != nil {
+			return types.NewNullValue(), fmt.Errorf("invalid LIKE pattern: %w", err)
+		}
+		
+		if e.operator == planner.OpNotLike {
+			matched = !matched
+		}
+		return types.NewValue(matched), nil
 
 	case planner.OpIn, planner.OpNotIn:
 		// IN/NOT IN would need list comparison - simplified for now
@@ -1300,4 +1318,25 @@ func (e *caseExprEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error
 	}
 
 	return types.NewNullValue(), nil
+}
+
+// sqlLikeToRegex converts a SQL LIKE pattern to a regular expression pattern.
+// SQL LIKE uses % for any sequence of characters and _ for a single character.
+// Special regex characters are escaped.
+func sqlLikeToRegex(pattern string) string {
+	// First, escape all regex special characters except % and _
+	escaped := regexp.QuoteMeta(pattern)
+	
+	// Replace escaped % and _ with their unescaped versions
+	escaped = strings.ReplaceAll(escaped, `\%`, "%")
+	escaped = strings.ReplaceAll(escaped, `\_`, "_")
+	
+	// Convert SQL wildcards to regex
+	// % matches zero or more characters
+	escaped = strings.ReplaceAll(escaped, "%", ".*")
+	// _ matches exactly one character
+	escaped = strings.ReplaceAll(escaped, "_", ".")
+	
+	// Anchor the pattern to match the entire string
+	return "^" + escaped + "$"
 }
