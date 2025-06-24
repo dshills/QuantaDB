@@ -1068,52 +1068,80 @@ type existsEvaluator struct {
 
 func (e *existsEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) {
 	// For EXISTS, we need to check if the subquery returns any rows
-	// TODO: This is a simplified implementation that doesn't fully support correlation
-	// Correlated EXISTS subqueries need more work to properly evaluate
-
 	// The subqueryEval should be a subqueryEvaluator
 	subEval, ok := e.subqueryEval.(*subqueryEvaluator)
 	if !ok {
-		return types.NewNullValue(), fmt.Errorf("expected subqueryEvaluator for EXISTS")
+		return types.NewNullValue(), fmt.Errorf("expected subqueryEvaluator for EXISTS, got %T", e.subqueryEval)
 	}
 
-	// For now, handle non-correlated EXISTS
-	if !subEval.isCorrelated {
-		// Open the subquery operator if not already open
-		if subEval.subOperator == nil {
-			// Build the operator
-			_, err := subEval.Eval(row, ctx)
-			if err != nil {
-				return types.NewNullValue(), err
+	// Build and execute the subquery to check for existence
+	// For EXISTS, we need to build the operator differently than scalar subqueries
+	if subEval.subOperator == nil {
+		// Create a new context for the subquery with correlated values
+		subCtx := *ctx // Copy context
+		if subCtx.CorrelatedValues == nil {
+			subCtx.CorrelatedValues = make(map[string]types.Value)
+		}
+
+		// If we have a correlation schema and a current row, bind the values
+		// For EXISTS, we should always bind values if available since the subquery 
+		// might reference outer columns even if not marked as correlated
+		if ctx.CorrelationSchema != nil && row != nil {
+			for i, col := range ctx.CorrelationSchema.Columns {
+				if i < len(row.Values) {
+					// Create qualified column names for correlation
+					if col.TableAlias != "" {
+						key := fmt.Sprintf("%s.%s", col.TableAlias, col.Name)
+						subCtx.CorrelatedValues[key] = row.Values[i]
+					}
+					if col.TableName != "" {
+						key := fmt.Sprintf("%s.%s", col.TableName, col.Name)
+						subCtx.CorrelatedValues[key] = row.Values[i]
+					}
+					// Also store unqualified name for simpler references
+					subCtx.CorrelatedValues[col.Name] = row.Values[i]
+				}
 			}
 		}
 
-		if subEval.subOperator != nil && !subEval.subOperator.isOpen {
-			err := subEval.subOperator.Open(ctx)
-			if err != nil {
-				return types.NewNullValue(), err
-			}
+		// Build the physical operator from the logical plan
+		if subEval.executor == nil {
+			return types.NewNullValue(), fmt.Errorf("executor not available for EXISTS evaluation")
 		}
 
-		// Check if subquery has any results
-		if subEval.subOperator == nil {
-			return types.NewNullValue(), fmt.Errorf("subquery operator not initialized")
+		physicalOp, err := subEval.executor.buildOperator(subEval.subplan, &subCtx)
+		if err != nil {
+			return types.NewNullValue(), fmt.Errorf("failed to build EXISTS subquery operator: %w", err)
 		}
-		hasResults, err := subEval.subOperator.HasResults()
+
+		// Wrap in a SubqueryOperator (false for EXISTS - not scalar)
+		subEval.subOperator = NewSubqueryOperator(physicalOp, false)
+
+		// Open the operator
+		err = subEval.subOperator.Open(&subCtx)
 		if err != nil {
 			return types.NewNullValue(), err
 		}
-
-		result := hasResults
-		if e.not {
-			result = !result
-		}
-
-		return types.NewValue(result), nil
 	}
 
-	// Correlated EXISTS - not fully implemented yet
-	return types.NewNullValue(), fmt.Errorf("correlated EXISTS subqueries not yet fully supported")
+	// Check if subquery has any results
+	hasResults, err := subEval.subOperator.HasResults()
+	if err != nil {
+		return types.NewNullValue(), err
+	}
+
+	// We need to close and reset for next evaluation
+	// For EXISTS, we must rebuild the operator for each outer row
+	// to ensure we get fresh results
+	subEval.subOperator.Close()
+	subEval.subOperator = nil
+
+	result := hasResults
+	if e.not {
+		result = !result
+	}
+
+	return types.NewValue(result), nil
 }
 
 // inSubqueryEvaluator evaluates IN expressions with subqueries.

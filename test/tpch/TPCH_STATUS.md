@@ -2,10 +2,10 @@
 
 ## Summary
 - **Total Queries**: 22
-- **Implemented**: 18
-- **Working**: 18
-- **Coverage**: 82%
-- **Latest**: Correlated subqueries (EXISTS/NOT EXISTS) now working!
+- **Implemented**: 21
+- **Working**: 21
+- **Coverage**: 95%
+- **Latest**: Q15, Q18, Q20 now working! Only Q21 remains!
 
 ## Working Queries
 
@@ -29,15 +29,15 @@
 | Q2 | Minimum Cost Supplier | ✅ Working | Correlated subquery in WHERE |
 | Q17 | Small-Quantity-Order Revenue | ✅ Working | Correlated subquery comparing with AVG |
 | Q22 | Global Sales Opportunity | ✅ Working | SUBSTRING, correlated EXISTS |
+| Q15 | Top Supplier | ✅ Working | Subquery in FROM, scalar MAX subquery |
+| Q18 | Large Volume Customer | ✅ Working | IN with GROUP BY/HAVING subquery |
+| Q20 | Potential Part Promotion | ✅ Working | Nested IN + correlated scalar subquery |
 
 ## Not Yet Implemented
 
 | Query | Blocker |
 |-------|---------|
-| Q15 | WITH clause / CTE (can be rewritten as view) |
-| Q18 | IN with subquery + GROUP BY + HAVING |
-| Q20 | Correlated subquery + ALL/ANY operators |
-| Q21 | Multiple correlated subqueries, complex NOT EXISTS patterns |
+| Q21 | Multiple correlated EXISTS/NOT EXISTS with different correlation patterns |
 
 ## SQL Features Status
 

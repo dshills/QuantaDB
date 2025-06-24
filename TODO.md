@@ -14,7 +14,7 @@
 **Current Phase: Feature Completion**
 - All critical crashes have been fixed ✅
 - Correlated subqueries implemented! ✅
-- 82% TPC-H coverage (18/22 queries working) ✅
+- 95% TPC-H coverage (21/22 queries working) ✅
 - See `TODO-DETAILED.md` for comprehensive task list
 
 **Status Update (December 2024)**
@@ -50,9 +50,10 @@
   - Enables Q17 (partially - still needs correlated subqueries)
 - **TPC-H Progress** 🚀
   - Successfully loaded complete TPC-H dataset (scale 0.01)
-  - 18/22 queries working (82% coverage) ✅
+  - 21/22 queries working (95% coverage) ✅
   - Q1, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q16, Q19 all functional
   - Q2, Q17, Q22 now working with correlated subqueries! ✅
+  - Q15, Q18, Q20 also working! ✅
   - Indexes provide significant performance improvements
   - HAVING clauses with aggregate expressions now working ✅
   - Non-correlated scalar subqueries in WHERE working ✅
@@ -81,7 +82,7 @@
 
 ## Next Priority Items
 
-**Current Status**: TPC-H at 82% coverage! 18/22 queries fully working. Key blockers: window functions, CTEs, ALL/ANY operators.
+**Current Status**: TPC-H at 95% coverage! 21/22 queries fully working. Only Q21 remaining.
 
 ### Immediate Priorities - Next TPC-H Queries
 
@@ -155,13 +156,13 @@ See detailed plans in `docs/planning/`:
 | Q12 | Shipping Modes and Order Priority | ✅ Working | IN operator, CASE |
 | Q13 | Customer Distribution | ✅ Working | LEFT OUTER JOIN |
 | Q14 | Promotion Effect | ✅ Working | LIKE operator |
-| Q15 | Top Supplier Query | ❌ Not Started | Subqueries in FROM clause with aliases |
+| Q15 | Top Supplier Query | ✅ Working | Subqueries in FROM clause, scalar MAX |
 | Q16 | Parts/Supplier Relationship | ✅ Working | NOT IN with subquery, COUNT DISTINCT |
 | Q17 | Small-Quantity-Order Revenue | ✅ Working | Correlated subquery implemented |
-| Q18 | Large Volume Customer | ❌ Not Started | IN with subquery, window functions |
+| Q18 | Large Volume Customer | ✅ Working | IN with GROUP BY/HAVING subquery |
 | Q19 | Discounted Revenue | ✅ Working | Complex OR conditions |
-| Q20 | Potential Part Promotion | ❌ Not Started | Correlated subquery, EXISTS |
-| Q21 | Suppliers Who Kept Orders Waiting | ❌ Not Started | Multiple correlated subqueries, table aliases |
+| Q20 | Potential Part Promotion | ✅ Working | Nested IN + correlated scalar subquery |
+| Q21 | Suppliers Who Kept Orders Waiting | ❌ Not Started | Multiple correlated EXISTS/NOT EXISTS |
 | Q22 | Global Sales Opportunity | ✅ Working | Correlated EXISTS, SUBSTRING implemented |
 
 **Legend**: ✅ Working | ⚠️ Partial | 🕰️ Implemented but untested | ❌ Not Started
