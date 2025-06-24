@@ -361,8 +361,8 @@ func (e *BasicExecutor) buildFilterOperator(plan *planner.LogicalFilter, ctx *Ex
 		return nil, err
 	}
 
-	// Build predicate evaluator with child's schema for column resolution
-	predicate, err := buildExprEvaluatorWithSchema(plan.Predicate, child.Schema())
+	// Build predicate evaluator with child's schema for column resolution and executor for subqueries
+	predicate, err := buildExprEvaluatorWithExecutor(plan.Predicate, child.Schema(), e)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build predicate: %w", err)
 	}
