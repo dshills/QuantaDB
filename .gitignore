@@ -82,3 +82,4 @@ test/drivers/*/*.log
 # Database runtime data
 data/
 !test/tpch/data/
+wal/
