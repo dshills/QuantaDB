@@ -67,11 +67,19 @@ func buildExprEvaluatorWithExecutor(expr planner.Expression, schema *Schema, exe
 			}
 		}
 
+		// For correlated subqueries, check if this is a correlation reference
+		isCorrelated := false
+		if columnIdx < 0 && executor != nil {
+			// Check if this could be a correlated column reference
+			// We'll mark it as resolved to be handled at execution time
+			isCorrelated = true
+		}
+
 		return &columnRefEvaluator{
 			columnName: e.ColumnName,
 			tableAlias: e.TableAlias,
 			columnIdx:  columnIdx,
-			resolved:   columnIdx >= 0,
+			resolved:   columnIdx >= 0 || isCorrelated,
 		}, nil
 
 	case *planner.BinaryOp:
@@ -311,7 +319,12 @@ func (e *columnRefEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, erro
 		return types.NewNullValue(), fmt.Errorf("column %s not resolved", e.columnName)
 	}
 
-	if e.columnIdx < 0 || e.columnIdx >= len(row.Values) {
+	// If this is a correlated column (columnIdx = -1) but no correlation was found
+	if e.columnIdx < 0 {
+		return types.NewNullValue(), fmt.Errorf("correlated column %s not found in context", e.columnName)
+	}
+
+	if e.columnIdx >= len(row.Values) {
 		return types.NewNullValue(), fmt.Errorf("column index %d out of range", e.columnIdx)
 	}
 
