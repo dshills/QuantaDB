@@ -41,11 +41,16 @@
   - Added float32 cases to SUM/AVG aggregates
   - Added float32 comparison support in expressions
   - Fixed TPC-H queries with FLOAT columns
+- **Implemented LIKE Operator** ✅
+  - Added SQL LIKE pattern matching with % and _ wildcards
+  - Enables Q14 (Promotion Effect) and other pattern-based queries
 - **TPC-H Progress** 🚀
   - Successfully loaded complete TPC-H dataset (scale 0.01)
   - Q6 (Forecasting Revenue) working ✅
+  - Q14 (Promotion Effect) working ✅
+  - Q12, Q19 ready for testing (IN and OR conditions work)
   - Q1 (Pricing Summary) partially working
-  - 2/22 queries functional
+  - 3/22 queries functional
 
 **Key Achievements:**
 - ✅ PostgreSQL-compatible database from scratch
@@ -69,7 +74,7 @@
 
 ## Next Priority Items
 
-**Current Status**: TPC-H infrastructure ready! Q6 working, Q1 partial, 4 queries implemented but need testing.
+**Current Status**: TPC-H infrastructure ready! Q6 and Q14 working, Q1 partial, 7 queries implemented with 4 needing testing.
 
 ### Immediate Priorities (Week 1) - TPC-H Quick Wins
 1. **Fix Q1 Type Issues** 🔴 HIGH
@@ -84,12 +89,13 @@
 3. **Test Implemented Queries** 🔴 HIGH
    - Test Q5 (Local Supplier Volume)
    - Test Q10 (Returned Item Reporting)
+   - Test Q12 (Shipping Modes) - IN operator works
+   - Test Q19 (Discounted Revenue) - OR conditions work
    - Fix Q8 table alias issue (nation n1, nation n2)
 
-4. **Implement Q14** 🟡 MEDIUM
-   - Promotion Effect query
-   - Uses only features we already have
-   - Should work with current implementation
+4. **Q14 Complete** ✅
+   - Promotion Effect query working
+   - LIKE operator implemented and tested
 
 ### Week 2 - Core SQL Features
 1. **Table Alias Enhancement** 🔴 HIGH
@@ -147,14 +153,14 @@ See detailed plans in `docs/planning/`:
 | Q9 | Product Type Profit Measure | ❌ Not Started | Complex expressions |
 | Q10 | Returned Item Reporting | 🕰️ Implemented | Needs testing |
 | Q11 | Important Stock Identification | ❌ Not Started | Correlated subquery in HAVING |
-| Q12 | Shipping Modes and Order Priority | ❌ Not Started | IN operator |
+| Q12 | Shipping Modes and Order Priority | 🕰️ Implemented | IN operator works, needs testing |
 | Q13 | Customer Distribution | ❌ Not Started | LEFT OUTER JOIN |
-| Q14 | Promotion Effect | ❌ Not Started | None (should work) |
+| Q14 | Promotion Effect | ✅ Working | LIKE operator implemented |
 | Q15 | Top Supplier Query | ❌ Not Started | Views or CTEs |
 | Q16 | Parts/Supplier Relationship | ❌ Not Started | NOT IN with subquery |
 | Q17 | Small-Quantity-Order Revenue | ❌ Not Started | Correlated subquery, STDDEV |
 | Q18 | Large Volume Customer | ❌ Not Started | IN with subquery, window functions |
-| Q19 | Discounted Revenue | ❌ Not Started | Complex OR conditions |
+| Q19 | Discounted Revenue | 🕰️ Implemented | Complex OR conditions work, needs testing |
 | Q20 | Potential Part Promotion | ❌ Not Started | Correlated subquery, EXISTS |
 | Q21 | Suppliers Who Kept Orders Waiting | ❌ Not Started | Multiple correlated subqueries, table aliases |
 | Q22 | Global Sales Opportunity | ❌ Not Started | Correlated subquery, SUBSTRING |
