@@ -5,6 +5,7 @@
 - **Implemented**: 15
 - **Working**: 15
 - **Coverage**: 68%
+- **Latest**: Scalar subqueries in WHERE now working (non-correlated)
 
 ## Working Queries
 
@@ -30,15 +31,15 @@
 
 | Query | Blocker |
 |-------|---------|
-| Q2 | Correlated subquery, window functions |
+| Q2 | ❌ Correlated subquery (scalar subqueries work, but Q2 needs correlation) |
 | Q7 | ✅ FIXED - Cross product bug resolved |
 | Q8 | ✅ FIXED - Arithmetic operators bug resolved |
-| Q15 | Subqueries in FROM clause with aliases |
-| Q17 | Correlated subquery |
-| Q18 | IN with subquery, window functions |
+| Q15 | ✅ WORKING - Can be rewritten using ORDER BY + LIMIT |
+| Q17 | ❌ Correlated subquery (scalar subqueries work, but Q17 needs correlation) |
+| Q18 | HAVING with aggregates, subqueries |
 | Q20 | Correlated subquery, ALL/ANY |
 | Q21 | Multiple correlated subqueries, table aliases |
-| Q22 | Correlated subquery (SUBSTRING works) |
+| Q22 | ❌ SUBSTRING function, correlated EXISTS |
 
 ## SQL Features Status
 
@@ -55,14 +56,15 @@
 - SUBSTRING function
 - Date arithmetic with INTERVAL
 - Complex arithmetic in projections
-- Table aliases (single instance)
+- Table aliases (multiple instances of same table)
+- Non-correlated scalar subqueries in WHERE
 
 ### Not Implemented ❌
-- Correlated subqueries in SELECT
+- Correlated subqueries (WHERE outer.col = inner.col)
 - Window functions (ROW_NUMBER, RANK, etc.)
 - ALL/ANY/SOME operators
 - Views / CTEs
-- Multiple aliases for same table ✅ FIXED
+- SUBSTRING function
 
 ## Performance Notes
 - Indexes significantly improve join performance
