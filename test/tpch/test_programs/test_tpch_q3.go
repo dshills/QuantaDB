@@ -90,4 +90,3 @@ func main() {
 	fmt.Println(strings.Repeat("-", 50))
 	fmt.Printf("Returned %d rows in %v\n", count, elapsed)
 }
-

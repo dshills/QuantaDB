@@ -44,10 +44,13 @@
 - **Implemented LIKE Operator** ✅
   - Added SQL LIKE pattern matching with % and _ wildcards
   - Enables Q14 (Promotion Effect) and other pattern-based queries
+- **Implemented STDDEV Aggregate** ✅
+  - Added population standard deviation aggregate function
+  - Enables Q17 (partially - still needs correlated subqueries)
 - **TPC-H Progress** 🚀
   - Successfully loaded complete TPC-H dataset (scale 0.01)
-  - 10/22 queries working (45% coverage) ✅
-  - Q1, Q3, Q4, Q5, Q6, Q10, Q12, Q13, Q14, Q19 all functional
+  - 13/22 queries working (59% coverage) ✅
+  - Q1, Q3, Q4, Q5, Q6, Q9, Q10, Q11, Q12, Q13, Q14, Q16, Q19 all functional
   - Indexes provide significant performance improvements
   - SUBSTRING function verified working
 
@@ -73,20 +76,18 @@
 
 ## Next Priority Items
 
-**Current Status**: TPC-H at 45% coverage! 10/22 queries fully working. Key blockers: correlated subqueries, window functions.
+**Current Status**: TPC-H at 59% coverage! 13/22 queries fully working. Key blockers: correlated subqueries, window functions, multiple table aliases.
 
 ### Immediate Priorities - Next TPC-H Queries
 
-1. **Quick Wins (Should Work Now)** 🟢
-   - Q7 (Volume Shipping) - Only needs complex joins
-   - Q9 (Product Type Profit) - Complex expressions only
-   - Q16 (Parts/Supplier) - NOT IN with subquery
-
-2. **Completed Tasks** ✅
+1. **Completed Tasks** ✅
    - Q1 type issues fixed
    - Q3 optimized with indexes
    - Q5, Q10, Q12, Q19 tested and working
    - Q14 with LIKE operator complete
+   - Q9, Q16 implemented (complex expressions, NOT IN)
+   - Q11 working (non-correlated subquery in HAVING)
+   - STDDEV aggregate function implemented
 
 ### Week 2 - Core SQL Features
 1. **Table Alias Enhancement** 🔴 HIGH
@@ -97,9 +98,9 @@
    - Implement correlation resolution
    - Blocks Q2, Q17, Q20, Q21, Q22 (5 queries!)
 
-3. **Statistical Functions** 🟡 MEDIUM
-   - Implement STDDEV aggregate
-   - Blocks Q17
+3. **Statistical Functions** ✅ COMPLETED
+   - STDDEV aggregate implemented
+   - Q17 still blocked by correlated subqueries
 
 ### Week 3 - Advanced Features
 1. **Window Functions Framework** 🟡 MEDIUM
@@ -139,17 +140,17 @@ See detailed plans in `docs/planning/`:
 | Q4 | Order Priority Checking | ✅ Working | EXISTS subquery |
 | Q5 | Local Supplier Volume | ✅ Working | 6-way join |
 | Q6 | Forecasting Revenue Change | ✅ Working | None |
-| Q7 | Volume Shipping | ❌ Not Started | Complex joins only |
+| Q7 | Volume Shipping | ❌ Not Started | Multiple table aliases (nation n1, n2) |
 | Q8 | National Market Share | 🕰️ Implemented | Multiple table aliases (nation n1, n2) |
-| Q9 | Product Type Profit Measure | ❌ Not Started | Complex expressions only |
+| Q9 | Product Type Profit Measure | ✅ Working | Complex expressions, 6-way join |
 | Q10 | Returned Item Reporting | ✅ Working | GROUP BY multiple columns |
-| Q11 | Important Stock Identification | ❌ Not Started | Correlated subquery in HAVING |
+| Q11 | Important Stock Identification | ✅ Working | Subquery in HAVING (non-correlated) |
 | Q12 | Shipping Modes and Order Priority | ✅ Working | IN operator, CASE |
 | Q13 | Customer Distribution | ✅ Working | LEFT OUTER JOIN |
 | Q14 | Promotion Effect | ✅ Working | LIKE operator |
-| Q15 | Top Supplier Query | ❌ Not Started | Views or CTEs |
-| Q16 | Parts/Supplier Relationship | ❌ Not Started | NOT IN with subquery |
-| Q17 | Small-Quantity-Order Revenue | ❌ Not Started | Correlated subquery, STDDEV |
+| Q15 | Top Supplier Query | ❌ Not Started | Subqueries in FROM clause with aliases |
+| Q16 | Parts/Supplier Relationship | ✅ Working | NOT IN with subquery, COUNT DISTINCT |
+| Q17 | Small-Quantity-Order Revenue | ❌ Not Started | Correlated subquery |
 | Q18 | Large Volume Customer | ❌ Not Started | IN with subquery, window functions |
 | Q19 | Discounted Revenue | ✅ Working | Complex OR conditions |
 | Q20 | Potential Part Promotion | ❌ Not Started | Correlated subquery, EXISTS |
@@ -173,9 +174,10 @@ See detailed plans in `docs/planning/`:
 - [ ] **Correlated Subqueries in SELECT**: Critical for 5 queries
   - Required for Q2, Q17, Q20, Q21, Q22
   - Example: `SELECT (SELECT AVG(x) FROM t2 WHERE t2.id = t1.id) FROM t1`
-- [ ] **Statistical Aggregate Functions**
-  - STDDEV() / STDDEV_POP() / STDDEV_SAMP() - Required for Q17
-  - VARIANCE() / VAR_POP() / VAR_SAMP()
+- [x] **Statistical Aggregate Functions**
+  - STDDEV() - Implemented (population standard deviation) ✅
+  - [ ] STDDEV_SAMP() - Sample standard deviation
+  - [ ] VARIANCE() / VAR_POP() / VAR_SAMP()
 - [ ] **ALL/ANY/SOME Operators**: For advanced comparisons
   - Required for Q20, Q21
   - Example: `WHERE p_size = ANY (SELECT ...)`
@@ -192,10 +194,10 @@ See detailed plans in `docs/planning/`:
 - [ ] **Views Support**
   - Alternative to CTEs for Q15
   - CREATE VIEW / DROP VIEW
-- [ ] **String Functions**
-  - SUBSTRING() - Required for Q22
-  - String concatenation (||)
-  - Already have: LIKE pattern matching ✅
+- [x] **String Functions**
+  - SUBSTRING() - Implemented ✅ 
+  - String concatenation (||) - Implemented ✅
+  - LIKE pattern matching - Implemented ✅
 
 #### Low Priority (Nice to have)
 - [ ] **Set Operations**
@@ -220,6 +222,7 @@ See detailed plans in `docs/planning/`:
 - [x] Derived tables in FROM clause
 - [x] LIMIT/OFFSET
 - [x] All basic aggregates (SUM, COUNT, AVG, MIN, MAX)
+- [x] STDDEV aggregate function (population standard deviation)
 - [x] Arithmetic in aggregate expressions
 
 ## Technical Debt & Architecture Improvements

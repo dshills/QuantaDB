@@ -31,8 +31,8 @@
 | Q2 | Correlated subquery, window functions |
 | Q7 | Multiple table aliases (nation n1, nation n2) |
 | Q8 | Multiple table aliases (nation n1, nation n2) |
-| Q15 | Views or CTEs |
-| Q17 | Correlated subquery, STDDEV |
+| Q15 | Subqueries in FROM clause with aliases |
+| Q17 | Correlated subquery |
 | Q18 | IN with subquery, window functions |
 | Q20 | Correlated subquery, ALL/ANY |
 | Q21 | Multiple correlated subqueries, table aliases |
@@ -42,6 +42,7 @@
 
 ### Working ✅
 - Basic aggregates (SUM, COUNT, AVG, MIN, MAX)
+- STDDEV aggregate function
 - GROUP BY / HAVING
 - ORDER BY / LIMIT / OFFSET
 - All JOIN types (INNER, LEFT, RIGHT, FULL, CROSS)
@@ -57,7 +58,6 @@
 ### Not Implemented ❌
 - Correlated subqueries in SELECT
 - Window functions (ROW_NUMBER, RANK, etc.)
-- STDDEV aggregate function
 - ALL/ANY/SOME operators
 - Views / CTEs
 - Multiple aliases for same table

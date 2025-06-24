@@ -15,7 +15,7 @@ type InsertOperator struct {
 	baseOperator
 	table            *catalog.Table
 	storage          StorageBackend
-	indexMgr         *index.Manager          // Index manager for updating indexes
+	indexMgr         *index.Manager        // Index manager for updating indexes
 	values           [][]parser.Expression // List of value tuples to insert
 	rowsInserted     int64
 	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance

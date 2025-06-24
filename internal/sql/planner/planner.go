@@ -588,7 +588,7 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			switch e.Name {
 			case "COUNT":
 				resultType = types.BigInt
-			case "SUM", "AVG":
+			case "SUM", "AVG", "STDDEV":
 				resultType = types.Decimal(20, 6)
 			case "MIN", "MAX":
 				// Result type depends on input - use Unknown for now
@@ -610,6 +610,8 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 				function = AggMin
 			case "MAX":
 				function = AggMax
+			case "STDDEV":
+				function = AggStdDev
 			default:
 				return nil, fmt.Errorf("unknown aggregate function: %s", e.Name)
 			}
@@ -1114,7 +1116,7 @@ func (p *BasicPlanner) optimize(plan LogicalPlan) LogicalPlan {
 // isAggregateFunction checks if a function name is an aggregate function.
 func isAggregateFunction(name string) bool {
 	switch name {
-	case "COUNT", "SUM", "AVG", "MIN", "MAX":
+	case "COUNT", "SUM", "AVG", "MIN", "MAX", "STDDEV":
 		return true
 	default:
 		return false

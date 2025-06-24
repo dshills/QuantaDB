@@ -116,7 +116,7 @@ func (g *Generator) GenerateLineitem(orderKey, lineNumber, maxPartKey, maxSuppKe
 func (g *Generator) randomText(minLen, maxLen int) string {
 	length := minLen + g.rng.Intn(maxLen-minLen+1)
 	words := []string{"the", "of", "and", "to", "a", "in", "that", "is", "was", "for", "it", "with", "as", "his", "on", "be", "at", "by", "have", "from"}
-	
+
 	var result []string
 	totalLen := 0
 	for totalLen < length {
@@ -124,7 +124,7 @@ func (g *Generator) randomText(minLen, maxLen int) string {
 		result = append(result, word)
 		totalLen += len(word) + 1
 	}
-	
+
 	text := strings.Join(result, " ")
 	if len(text) > length {
 		text = text[:length]

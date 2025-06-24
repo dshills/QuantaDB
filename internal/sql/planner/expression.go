@@ -318,6 +318,7 @@ const (
 	AggAvg
 	AggMin
 	AggMax
+	AggStdDev
 )
 
 func (f AggregateFunc) String() string {
@@ -332,6 +333,8 @@ func (f AggregateFunc) String() string {
 		return "MIN"
 	case AggMax:
 		return "MAX"
+	case AggStdDev:
+		return "STDDEV"
 	default:
 		return fmt.Sprintf("Unknown(%d)", f)
 	}

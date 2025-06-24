@@ -753,6 +753,8 @@ func (e *BasicExecutor) buildAggregateOperator(plan *planner.LogicalAggregate, c
 			funcName = AggregateMIN
 		case planner.AggMax:
 			funcName = AggregateMAX
+		case planner.AggStdDev:
+			funcName = AggregateSTDDEV
 		default:
 			return nil, fmt.Errorf("unsupported aggregate function: %v", aggExpr.Function)
 		}
@@ -857,14 +859,14 @@ func (e *BasicExecutor) buildInsertOperator(plan *planner.LogicalInsert, ctx *Ex
 	}
 
 	op := NewInsertOperator(plan.TableRef, e.storage, plan.Values)
-	
+
 	// Set index manager if available
 	if e.indexMgr != nil {
 		if indexMgr, ok := e.indexMgr.(*index.Manager); ok {
 			op.SetIndexManager(indexMgr)
 		}
 	}
-	
+
 	return op, nil
 }
 
@@ -876,14 +878,14 @@ func (e *BasicExecutor) buildUpdateOperator(plan *planner.LogicalUpdate, ctx *Ex
 	}
 
 	op := NewUpdateOperator(plan.TableRef, e.storage, plan.Assignments, plan.Where)
-	
+
 	// Set index manager if available
 	if e.indexMgr != nil {
 		if indexMgr, ok := e.indexMgr.(*index.Manager); ok {
 			op.SetIndexManager(indexMgr)
 		}
 	}
-	
+
 	return op, nil
 }
 
@@ -895,14 +897,14 @@ func (e *BasicExecutor) buildDeleteOperator(plan *planner.LogicalDelete, ctx *Ex
 	}
 
 	op := NewDeleteOperator(plan.TableRef, e.storage, plan.Where)
-	
+
 	// Set index manager if available
 	if e.indexMgr != nil {
 		if indexMgr, ok := e.indexMgr.(*index.Manager); ok {
 			op.SetIndexManager(indexMgr)
 		}
 	}
-	
+
 	return op, nil
 }
 

@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"hash/fnv"
+	"math"
 
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
@@ -310,6 +311,8 @@ func getFunctionName(fn AggregateFunction) string {
 		return "min"
 	case *MaxFunction:
 		return "max"
+	case *StdDevFunction:
+		return "stddev"
 	default:
 		return "unknown"
 	}
@@ -508,6 +511,62 @@ func (f *MaxFunction) ResultType() types.DataType {
 	return types.Unknown // Depends on input type
 }
 
+// StdDevFunction implements STDDEV aggregate (population standard deviation).
+type StdDevFunction struct{}
+
+type stdDevState struct {
+	sum   float64
+	sumSq float64 // sum of squares
+	count int64
+}
+
+func (f *StdDevFunction) Initialize() AggregateState {
+	return &stdDevState{sum: 0, sumSq: 0, count: 0}
+}
+
+func (f *StdDevFunction) Accumulate(state AggregateState, value types.Value) error {
+	s := state.(*stdDevState)
+	if !value.IsNull() {
+		var floatVal float64
+		switch v := value.Data.(type) {
+		case int32:
+			floatVal = float64(v)
+		case int64:
+			floatVal = float64(v)
+		case float32:
+			floatVal = float64(v)
+		case float64:
+			floatVal = v
+		default:
+			return fmt.Errorf("STDDEV requires numeric value, got %T", value.Data)
+		}
+		s.sum += floatVal
+		s.sumSq += floatVal * floatVal
+		s.count++
+	}
+	return nil
+}
+
+func (f *StdDevFunction) Finalize(state AggregateState) (types.Value, error) {
+	s := state.(*stdDevState)
+	if s.count == 0 {
+		return types.NewNullValue(), nil
+	}
+	// Population standard deviation formula: sqrt((sumSq/count) - (sum/count)^2)
+	mean := s.sum / float64(s.count)
+	variance := (s.sumSq / float64(s.count)) - (mean * mean)
+	// Handle floating point errors that might make variance slightly negative
+	if variance < 0 {
+		variance = 0
+	}
+	stddev := math.Sqrt(variance)
+	return types.NewValue(stddev), nil
+}
+
+func (f *StdDevFunction) ResultType() types.DataType {
+	return types.Decimal(20, 6)
+}
+
 // CreateAggregateFunction creates an aggregate function by name.
 func CreateAggregateFunction(name string, args []planner.Expression) (AggregateFunction, error) {
 	switch name {
@@ -527,6 +586,8 @@ func CreateAggregateFunction(name string, args []planner.Expression) (AggregateF
 		return &MinFunction{}, nil
 	case "MAX":
 		return &MaxFunction{}, nil
+	case "STDDEV":
+		return &StdDevFunction{}, nil
 	default:
 		return nil, fmt.Errorf("unknown aggregate function: %s", name)
 	}

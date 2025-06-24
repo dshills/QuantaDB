@@ -14,7 +14,7 @@ type DeleteOperator struct {
 	baseOperator
 	table            *catalog.Table
 	storage          StorageBackend
-	indexMgr         *index.Manager          // Index manager for updating indexes
+	indexMgr         *index.Manager // Index manager for updating indexes
 	whereClause      parser.Expression
 	rowsDeleted      int64
 	statsMaintenance catalog.StatsMaintenance // Optional statistics maintenance

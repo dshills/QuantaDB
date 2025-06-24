@@ -15,7 +15,7 @@ type UpdateOperator struct {
 	baseOperator
 	table            *catalog.Table
 	storage          StorageBackend
-	indexMgr         *index.Manager          // Index manager for updating indexes
+	indexMgr         *index.Manager // Index manager for updating indexes
 	assignments      []parser.Assignment
 	whereClause      parser.Expression
 	rowsUpdated      int64
@@ -176,7 +176,7 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 			for colIdx, col := range u.table.Columns {
 				oldRowMap[col.Name] = row.Values[colIdx]
 			}
-			
+
 			if err := u.indexMgr.DeleteFromIndexes(u.table.SchemaName, u.table.TableName, oldRowMap); err != nil {
 				return fmt.Errorf("failed to delete old index entries: %w", err)
 			}
@@ -195,7 +195,7 @@ func (u *UpdateOperator) Open(ctx *ExecContext) error {
 			for colIdx, col := range u.table.Columns {
 				newRowMap[col.Name] = updatedRow.Values[colIdx]
 			}
-			
+
 			if err := u.indexMgr.InsertIntoIndexes(u.table.SchemaName, u.table.TableName, newRowMap, rowID.Bytes()); err != nil {
 				// TODO: Implement proper rollback of the update operation
 				// Current state: old index entries deleted, row updated, new index insert failed

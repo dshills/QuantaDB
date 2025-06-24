@@ -62,14 +62,14 @@ func RowIDFromBytes(bytes []byte) (RowID, error) {
 	if len(bytes) != 8 {
 		return RowID{}, fmt.Errorf("invalid RowID bytes length: expected 8, got %d", len(bytes))
 	}
-	
+
 	var pageID storage.PageID
 	for idx := 0; idx < 6; idx++ {
 		pageID |= storage.PageID(bytes[idx]) << (8 * idx)
 	}
-	
+
 	slotID := uint16(bytes[6]) | (uint16(bytes[7]) << 8)
-	
+
 	return RowID{
 		PageID: pageID,
 		SlotID: slotID,

@@ -2,11 +2,12 @@ package executor
 
 // Aggregate function names
 const (
-	AggregateCOUNT = "COUNT"
-	AggregateSUM   = "SUM"
-	AggregateAVG   = "AVG"
-	AggregateMIN   = "MIN"
-	AggregateMAX   = "MAX"
+	AggregateCOUNT  = "COUNT"
+	AggregateSUM    = "SUM"
+	AggregateAVG    = "AVG"
+	AggregateMIN    = "MIN"
+	AggregateMAX    = "MAX"
+	AggregateSTDDEV = "STDDEV"
 )
 
 // Data type names

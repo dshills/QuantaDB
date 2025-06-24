@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+
 	_ "github.com/lib/pq"
 )
 
@@ -15,7 +16,7 @@ func main() {
 	defer db.Close()
 
 	tables := []string{"region", "nation", "supplier", "customer", "part", "orders", "lineitem", "partsupp"}
-	
+
 	fmt.Println("TPC-H Table Status:")
 	for _, table := range tables {
 		var count int
