@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Queries**: 22
-- **Implemented**: 10
-- **Working**: 10
-- **Coverage**: 45%
+- **Implemented**: 13
+- **Working**: 13
+- **Coverage**: 59%
 
 ## Working Queries
 
@@ -15,10 +15,13 @@
 | Q4 | Order Priority Checking | ✅ Working | EXISTS subquery |
 | Q5 | Local Supplier Volume | ✅ Working | 6-way join |
 | Q6 | Forecasting Revenue Change | ✅ Working | Simple aggregation |
+| Q9 | Product Type Profit Measure | ✅ Working | Complex expressions, 6-way join |
 | Q10 | Returned Item Reporting | ✅ Working | GROUP BY multiple columns |
+| Q11 | Important Stock Identification | ✅ Working | Subquery in HAVING (non-correlated) |
 | Q12 | Shipping Modes and Order Priority | ✅ Working | IN operator, CASE |
 | Q13 | Customer Distribution | ✅ Working | LEFT OUTER JOIN |
 | Q14 | Promotion Effect | ✅ Working | LIKE operator |
+| Q16 | Parts/Supplier Relationship | ✅ Working | NOT IN with subquery, COUNT DISTINCT |
 | Q19 | Discounted Revenue | ✅ Working | Complex OR conditions |
 
 ## Not Yet Implemented
@@ -26,12 +29,9 @@
 | Query | Blocker |
 |-------|---------|
 | Q2 | Correlated subquery, window functions |
-| Q7 | Complex joins only (should work) |
+| Q7 | Multiple table aliases (nation n1, nation n2) |
 | Q8 | Multiple table aliases (nation n1, nation n2) |
-| Q9 | Complex expressions (should work) |
-| Q11 | Correlated subquery in HAVING |
 | Q15 | Views or CTEs |
-| Q16 | NOT IN with subquery (should work) |
 | Q17 | Correlated subquery, STDDEV |
 | Q18 | IN with subquery, window functions |
 | Q20 | Correlated subquery, ALL/ANY |
