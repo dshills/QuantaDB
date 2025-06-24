@@ -13,7 +13,8 @@
 
 **Current Phase: Feature Completion**
 - All critical crashes have been fixed ✅
-- Ready for TPC-H benchmarks and feature additions
+- Correlated subqueries implemented! ✅
+- 82% TPC-H coverage (18/22 queries working) ✅
 - See `TODO-DETAILED.md` for comprehensive task list
 
 **Status Update (December 2024)**
@@ -49,11 +50,14 @@
   - Enables Q17 (partially - still needs correlated subqueries)
 - **TPC-H Progress** 🚀
   - Successfully loaded complete TPC-H dataset (scale 0.01)
-  - 15/22 queries working (68% coverage) ✅
+  - 18/22 queries working (82% coverage) ✅
   - Q1, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q16, Q19 all functional
+  - Q2, Q17, Q22 now working with correlated subqueries! ✅
   - Indexes provide significant performance improvements
   - HAVING clauses with aggregate expressions now working ✅
   - Non-correlated scalar subqueries in WHERE working ✅
+  - Correlated subqueries (EXISTS/NOT EXISTS) working ✅
+  - Correlated scalar subqueries in WHERE working ✅
 
 **Key Achievements:**
 - ✅ PostgreSQL-compatible database from scratch
@@ -77,7 +81,7 @@
 
 ## Next Priority Items
 
-**Current Status**: TPC-H at 68% coverage! 15/22 queries fully working. Key blockers: correlated subqueries, window functions, subqueries in FROM clause.
+**Current Status**: TPC-H at 82% coverage! 18/22 queries fully working. Key blockers: window functions, CTEs, ALL/ANY operators.
 
 ### Immediate Priorities - Next TPC-H Queries
 
@@ -95,9 +99,11 @@
    - Fixed cross product bug with multiple aliases
    - Q7 and Q8 now working
 
-2. **Correlated Subqueries in SELECT** 🔴 HIGH
-   - Implement correlation resolution
-   - Blocks Q2, Q17, Q20, Q21, Q22 (5 queries!)
+2. **Correlated Subqueries** ✅ COMPLETED
+   - Implemented correlation resolution
+   - EXISTS/NOT EXISTS with correlation working
+   - Scalar correlated subqueries in WHERE working
+   - Q2, Q17, Q22 now functional!
 
 3. **Statistical Functions** ✅ COMPLETED
    - STDDEV aggregate implemented
@@ -136,7 +142,7 @@ See detailed plans in `docs/planning/`:
 | Query | Name | Status | Blockers |
 |-------|------|--------|----------|
 | Q1 | Pricing Summary Report | ✅ Working | Type issues fixed |
-| Q2 | Minimum Cost Supplier | ❌ Not Started | Correlated subquery, window functions |
+| Q2 | Minimum Cost Supplier | ✅ Working | Correlated subquery implemented |
 | Q3 | Shipping Priority | ✅ Working | Optimized with indexes |
 | Q4 | Order Priority Checking | ✅ Working | EXISTS subquery |
 | Q5 | Local Supplier Volume | ✅ Working | 6-way join |
@@ -151,12 +157,12 @@ See detailed plans in `docs/planning/`:
 | Q14 | Promotion Effect | ✅ Working | LIKE operator |
 | Q15 | Top Supplier Query | ❌ Not Started | Subqueries in FROM clause with aliases |
 | Q16 | Parts/Supplier Relationship | ✅ Working | NOT IN with subquery, COUNT DISTINCT |
-| Q17 | Small-Quantity-Order Revenue | ❌ Not Started | Correlated subquery |
+| Q17 | Small-Quantity-Order Revenue | ✅ Working | Correlated subquery implemented |
 | Q18 | Large Volume Customer | ❌ Not Started | IN with subquery, window functions |
 | Q19 | Discounted Revenue | ✅ Working | Complex OR conditions |
 | Q20 | Potential Part Promotion | ❌ Not Started | Correlated subquery, EXISTS |
 | Q21 | Suppliers Who Kept Orders Waiting | ❌ Not Started | Multiple correlated subqueries, table aliases |
-| Q22 | Global Sales Opportunity | ❌ Not Started | Correlated subquery, SUBSTRING |
+| Q22 | Global Sales Opportunity | ✅ Working | Correlated EXISTS, SUBSTRING implemented |
 
 **Legend**: ✅ Working | ⚠️ Partial | 🕰️ Implemented but untested | ❌ Not Started
 
@@ -172,9 +178,10 @@ See detailed plans in `docs/planning/`:
 - [x] **Table Alias Enhancement**: Support same table multiple times ✅
   - Fixed cross product bug that affected multiple aliases
   - Q7 and Q8 now working correctly
-- [ ] **Correlated Subqueries in SELECT**: Critical for 5 queries
-  - Required for Q2, Q17, Q20, Q21, Q22
-  - Example: `SELECT (SELECT AVG(x) FROM t2 WHERE t2.id = t1.id) FROM t1`
+- [x] **Correlated Subqueries**: Implemented ✅
+  - EXISTS/NOT EXISTS with correlation working
+  - Scalar correlated subqueries in WHERE working
+  - Q2, Q17, Q22 now functional
 - [x] **Statistical Aggregate Functions**
   - STDDEV() - Implemented (population standard deviation) ✅
   - [ ] STDDEV_SAMP() - Sample standard deviation

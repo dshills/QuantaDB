@@ -2,10 +2,10 @@
 
 ## Summary
 - **Total Queries**: 22
-- **Implemented**: 15
-- **Working**: 15
-- **Coverage**: 68%
-- **Latest**: Scalar subqueries in WHERE now working (non-correlated)
+- **Implemented**: 18
+- **Working**: 18
+- **Coverage**: 82%
+- **Latest**: Correlated subqueries (EXISTS/NOT EXISTS) now working!
 
 ## Working Queries
 
@@ -26,20 +26,18 @@
 | Q19 | Discounted Revenue | ✅ Working | Complex OR conditions |
 | Q7 | Volume Shipping | ✅ Working | Multiple table aliases |
 | Q8 | National Market Share | ✅ Working | Multiple table aliases, CASE expressions |
+| Q2 | Minimum Cost Supplier | ✅ Working | Correlated subquery in WHERE |
+| Q17 | Small-Quantity-Order Revenue | ✅ Working | Correlated subquery comparing with AVG |
+| Q22 | Global Sales Opportunity | ✅ Working | SUBSTRING, correlated EXISTS |
 
 ## Not Yet Implemented
 
 | Query | Blocker |
 |-------|---------|
-| Q2 | ❌ Correlated subquery (scalar subqueries work, but Q2 needs correlation) |
-| Q7 | ✅ FIXED - Cross product bug resolved |
-| Q8 | ✅ FIXED - Arithmetic operators bug resolved |
-| Q15 | ✅ WORKING - Can be rewritten using ORDER BY + LIMIT |
-| Q17 | ❌ Correlated subquery (scalar subqueries work, but Q17 needs correlation) |
-| Q18 | IN with subquery in WHERE (works without it) |
-| Q20 | Correlated subquery, ALL/ANY |
-| Q21 | Multiple correlated subqueries, table aliases |
-| Q22 | ❌ SUBSTRING function, correlated EXISTS |
+| Q15 | WITH clause / CTE (can be rewritten as view) |
+| Q18 | IN with subquery + GROUP BY + HAVING |
+| Q20 | Correlated subquery + ALL/ANY operators |
+| Q21 | Multiple correlated subqueries, complex NOT EXISTS patterns |
 
 ## SQL Features Status
 
@@ -59,13 +57,14 @@
 - Table aliases (multiple instances of same table)
 - Non-correlated scalar subqueries in WHERE
 - HAVING clauses with aggregate expressions
+- Correlated subqueries (EXISTS/NOT EXISTS)
+- Correlated scalar subqueries in WHERE
+- SUBSTRING function
 
 ### Not Implemented ❌
-- Correlated subqueries (WHERE outer.col = inner.col)
 - Window functions (ROW_NUMBER, RANK, etc.)
 - ALL/ANY/SOME operators
 - Views / CTEs
-- SUBSTRING function
 
 ## Performance Notes
 - Indexes significantly improve join performance

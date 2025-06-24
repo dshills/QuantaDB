@@ -1096,6 +1096,9 @@ func (e *existsEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) 
 		}
 
 		// Check if subquery has any results
+		if subEval.subOperator == nil {
+			return types.NewNullValue(), fmt.Errorf("subquery operator not initialized")
+		}
 		hasResults, err := subEval.subOperator.HasResults()
 		if err != nil {
 			return types.NewNullValue(), err
@@ -1137,8 +1140,17 @@ func (e *inSubqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, err
 		return types.NewNullValue(), fmt.Errorf("expected subqueryEvaluator for IN")
 	}
 
+	// Build the subquery operator if not already built
+	if subEval.subOperator == nil {
+		// Force evaluation to build the operator
+		_, err := subEval.Eval(row, ctx)
+		if err != nil {
+			return types.NewNullValue(), err
+		}
+	}
+
 	// Open the subquery operator if not already open
-	if !subEval.subOperator.isOpen {
+	if subEval.subOperator != nil && !subEval.subOperator.isOpen {
 		err := subEval.subOperator.Open(ctx)
 		if err != nil {
 			return types.NewNullValue(), err
@@ -1146,6 +1158,9 @@ func (e *inSubqueryEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, err
 	}
 
 	// Check if the subquery contains the value
+	if subEval.subOperator == nil {
+		return types.NewNullValue(), fmt.Errorf("subquery operator not initialized")
+	}
 	contains, err := subEval.subOperator.ContainsValue(leftVal)
 	if err != nil {
 		return types.NewNullValue(), err
