@@ -158,15 +158,34 @@ func (d *SubqueryDecorrelation) transformExists(exists *ExistsExpr, leftPlan Log
 		joinType = AntiJoin
 	}
 
-	// For now, use a simple join condition (this should be enhanced to extract correlation)
-	// In a real implementation, we'd analyze the subquery to extract correlation predicates
-	joinCondition := &Literal{
-		Value: NewTrueValue(),
-		Type:  types.Boolean,
+	// Extract correlation predicates from the subquery
+	correlationPreds, remainingSubquery := d.extractCorrelationPredicates(subqueryPlan, leftPlan.Schema())
+	
+	// Use correlation predicates as join condition, or TRUE if none found
+	var joinCondition Expression
+	if len(correlationPreds) == 0 {
+		// No correlation found - use TRUE condition
+		joinCondition = &Literal{
+			Value: NewTrueValue(),
+			Type:  types.Boolean,
+		}
+	} else if len(correlationPreds) == 1 {
+		joinCondition = correlationPreds[0]
+	} else {
+		// Combine multiple correlation predicates with AND
+		joinCondition = correlationPreds[0]
+		for i := 1; i < len(correlationPreds); i++ {
+			joinCondition = &BinaryOp{
+				Left:     joinCondition,
+				Right:    correlationPreds[i],
+				Operator: OpAnd,
+				Type:     types.Boolean,
+			}
+		}
 	}
 
 	// Create the semi/anti join
-	join := NewLogicalJoin(leftPlan, subqueryPlan, joinType, joinCondition, leftPlan.Schema())
+	join := NewLogicalJoin(leftPlan, remainingSubquery, joinType, joinCondition, leftPlan.Schema())
 
 	// Return no remaining predicate (the EXISTS is fully absorbed into the join)
 	return nil, join, true
@@ -242,6 +261,160 @@ func (d *SubqueryDecorrelation) rebuildWithChildren(plan LogicalPlan, children [
 
 	// Return original plan if we can't rebuild
 	return plan
+}
+
+// extractCorrelationPredicates analyzes a subquery plan to extract predicates that reference outer columns.
+// Returns the correlation predicates and the subquery plan with those predicates removed.
+func (d *SubqueryDecorrelation) extractCorrelationPredicates(subqueryPlan LogicalPlan, outerSchema *Schema) ([]Expression, LogicalPlan) {
+	// Look for a filter node in the subquery
+	if filter, ok := subqueryPlan.(*LogicalFilter); ok {
+		// Extract correlation predicates from the filter
+		correlationPreds, remainingPred := d.splitCorrelationPredicates(filter.Predicate, outerSchema, filter.Children()[0].(LogicalPlan).Schema())
+		
+		if len(correlationPreds) > 0 {
+			// We found correlation predicates
+			childPlan := filter.Children()[0].(LogicalPlan)
+			
+			if remainingPred != nil {
+				// Create new filter with remaining predicates
+				return correlationPreds, NewLogicalFilter(childPlan, remainingPred)
+			} else {
+				// All predicates were correlation predicates, return child directly
+				return correlationPreds, childPlan
+			}
+		}
+	}
+	
+	// If the plan has children, recursively check them
+	if len(subqueryPlan.Children()) > 0 {
+		// For now, only handle the first child (simple case)
+		if childLogical, ok := subqueryPlan.Children()[0].(LogicalPlan); ok {
+			correlationPreds, newChild := d.extractCorrelationPredicates(childLogical, outerSchema)
+			if len(correlationPreds) > 0 {
+				// Rebuild the current node with the new child
+				newChildren := []Plan{newChild}
+				for i := 1; i < len(subqueryPlan.Children()); i++ {
+					newChildren = append(newChildren, subqueryPlan.Children()[i])
+				}
+				return correlationPreds, d.rebuildWithChildren(subqueryPlan, newChildren)
+			}
+		}
+	}
+	
+	// No correlation predicates found
+	return nil, subqueryPlan
+}
+
+// splitCorrelationPredicates splits a predicate into correlation and non-correlation parts.
+func (d *SubqueryDecorrelation) splitCorrelationPredicates(predicate Expression, outerSchema, innerSchema *Schema) ([]Expression, Expression) {
+	switch pred := predicate.(type) {
+	case *BinaryOp:
+		if pred.Operator == OpAnd {
+			// Split AND predicates
+			leftCorr, leftRemaining := d.splitCorrelationPredicates(pred.Left, outerSchema, innerSchema)
+			rightCorr, rightRemaining := d.splitCorrelationPredicates(pred.Right, outerSchema, innerSchema)
+			
+			// Combine correlation predicates
+			correlationPreds := append(leftCorr, rightCorr...)
+			
+			// Combine remaining predicates
+			var remaining Expression
+			if leftRemaining != nil && rightRemaining != nil {
+				remaining = &BinaryOp{
+					Left:     leftRemaining,
+					Right:    rightRemaining,
+					Operator: OpAnd,
+					Type:     types.Boolean,
+				}
+			} else if leftRemaining != nil {
+				remaining = leftRemaining
+			} else if rightRemaining != nil {
+				remaining = rightRemaining
+			}
+			
+			return correlationPreds, remaining
+		} else if d.isCorrelationPredicate(pred, outerSchema, innerSchema) {
+			// This is a correlation predicate
+			return []Expression{pred}, nil
+		}
+	default:
+		// Check if this expression contains correlation
+		if d.isCorrelationPredicate(predicate, outerSchema, innerSchema) {
+			return []Expression{predicate}, nil
+		}
+	}
+	
+	// Not a correlation predicate
+	return nil, predicate
+}
+
+// isCorrelationPredicate checks if a predicate references both outer and inner columns.
+func (d *SubqueryDecorrelation) isCorrelationPredicate(expr Expression, outerSchema, innerSchema *Schema) bool {
+	hasOuter := false
+	hasInner := false
+	
+	// Check if expression references columns from both schemas
+	d.walkExpression(expr, func(e Expression) {
+		if col, ok := e.(*ColumnRef); ok {
+			if d.columnInSchema(col, outerSchema) {
+				hasOuter = true
+			}
+			if d.columnInSchema(col, innerSchema) {
+				hasInner = true
+			}
+		}
+	})
+	
+	return hasOuter && hasInner
+}
+
+// columnInSchema checks if a column reference belongs to a schema.
+func (d *SubqueryDecorrelation) columnInSchema(col *ColumnRef, schema *Schema) bool {
+	for _, schemaCol := range schema.Columns {
+		// Check by column name and optional table alias
+		if schemaCol.Name == col.ColumnName {
+			if col.TableAlias == "" || col.TableAlias == schemaCol.TableAlias {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// walkExpression recursively visits all expressions in a tree.
+func (d *SubqueryDecorrelation) walkExpression(expr Expression, visitor func(Expression)) {
+	if expr == nil {
+		return
+	}
+	
+	visitor(expr)
+	
+	switch e := expr.(type) {
+	case *BinaryOp:
+		d.walkExpression(e.Left, visitor)
+		d.walkExpression(e.Right, visitor)
+	case *UnaryOp:
+		d.walkExpression(e.Expr, visitor)
+	case *FunctionCall:
+		for _, arg := range e.Args {
+			d.walkExpression(arg, visitor)
+		}
+	case *CaseExpr:
+		for _, when := range e.WhenList {
+			d.walkExpression(when.Condition, visitor)
+			d.walkExpression(when.Result, visitor)
+		}
+		d.walkExpression(e.Else, visitor)
+	case *InExpr:
+		d.walkExpression(e.Expr, visitor)
+		for _, val := range e.Values {
+			d.walkExpression(val, visitor)
+		}
+	case *ExistsExpr:
+		// Don't walk into subqueries
+	case *SubqueryExpr:
+		// Don't walk into subqueries
+	}
 }
 
 // Helper function to create a TRUE literal value

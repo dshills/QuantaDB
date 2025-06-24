@@ -31,6 +31,9 @@
 - LIMIT/OFFSET already implemented ✅
 - Implemented CASCADE DELETE for foreign keys ✅
 - Implemented full CHECK constraint expression parsing ✅
+- **Fixed EXISTS correlation extraction in decorrelation** ✅
+  - Decorrelation now properly extracts correlation predicates from subqueries
+  - EXISTS/NOT EXISTS queries with correlation now return correct results
 - **Fixed Index-Query Integration** ✅
   - INSERT/UPDATE/DELETE now maintain indexes
   - CREATE INDEX populates existing data
