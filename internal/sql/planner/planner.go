@@ -685,12 +685,40 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			return nil, err
 		}
 
-		// TODO: Determine result type based on operands and operator
+		// Determine result type based on operator
+		var resultType types.DataType
+		switch op {
+		case OpAdd, OpSubtract, OpMultiply, OpDivide, OpModulo:
+			// Arithmetic operators return numeric type
+			// For simplicity, use the left operand's type or default to BigInt
+			// In a full implementation, we'd do proper type promotion
+			if left.DataType() != types.Unknown {
+				resultType = left.DataType()
+			} else if right.DataType() != types.Unknown {
+				resultType = right.DataType()
+			} else {
+				resultType = types.BigInt
+			}
+			// Division always returns float/decimal
+			if op == OpDivide {
+				resultType = types.Float
+			}
+		case OpAnd, OpOr:
+			// Logical operators return boolean
+			resultType = types.Boolean
+		case OpConcat:
+			// String concatenation returns text
+			resultType = types.Text
+		default:
+			// Default to boolean for comparison operators
+			resultType = types.Boolean
+		}
+
 		return &BinaryOp{
 			Left:     left,
 			Right:    right,
 			Operator: op,
-			Type:     types.Boolean,
+			Type:     resultType,
 		}, nil
 
 	case *parser.UnaryExpr:
@@ -704,11 +732,27 @@ func (p *BasicPlanner) convertExpression(expr parser.Expression) (Expression, er
 			return nil, err
 		}
 
-		// TODO: Determine result type
+		// Determine result type based on operator
+		var resultType types.DataType
+		switch op {
+		case OpNot:
+			// NOT operator returns boolean
+			resultType = types.Boolean
+		case OpNegate:
+			// Negation returns the same type as the operand
+			resultType = expr.DataType()
+			if resultType == types.Unknown {
+				// Default to BigInt for unknown numeric types
+				resultType = types.BigInt
+			}
+		default:
+			resultType = types.Boolean
+		}
+
 		return &UnaryOp{
 			Expr:     expr,
 			Operator: op,
-			Type:     types.Boolean,
+			Type:     resultType,
 		}, nil
 
 	case *parser.ComparisonExpr:

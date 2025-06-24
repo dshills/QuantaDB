@@ -49,8 +49,8 @@
   - Enables Q17 (partially - still needs correlated subqueries)
 - **TPC-H Progress** 🚀
   - Successfully loaded complete TPC-H dataset (scale 0.01)
-  - 13/22 queries working (59% coverage) ✅
-  - Q1, Q3, Q4, Q5, Q6, Q9, Q10, Q11, Q12, Q13, Q14, Q16, Q19 all functional
+  - 15/22 queries working (68% coverage) ✅
+  - Q1, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q16, Q19 all functional
   - Indexes provide significant performance improvements
   - SUBSTRING function verified working
 
@@ -76,7 +76,7 @@
 
 ## Next Priority Items
 
-**Current Status**: TPC-H at 59% coverage! 13/22 queries fully working. Key blockers: correlated subqueries, window functions, multiple table aliases.
+**Current Status**: TPC-H at 68% coverage! 15/22 queries fully working. Key blockers: correlated subqueries, window functions, subqueries in FROM clause.
 
 ### Immediate Priorities - Next TPC-H Queries
 
@@ -90,9 +90,9 @@
    - STDDEV aggregate function implemented
 
 ### Week 2 - Core SQL Features
-1. **Table Alias Enhancement** 🔴 HIGH
-   - Support multiple aliases for same table
-   - Blocks Q8, Q21
+1. **Table Alias Enhancement** ✅ COMPLETED
+   - Fixed cross product bug with multiple aliases
+   - Q7 and Q8 now working
 
 2. **Correlated Subqueries in SELECT** 🔴 HIGH
    - Implement correlation resolution
@@ -140,8 +140,8 @@ See detailed plans in `docs/planning/`:
 | Q4 | Order Priority Checking | ✅ Working | EXISTS subquery |
 | Q5 | Local Supplier Volume | ✅ Working | 6-way join |
 | Q6 | Forecasting Revenue Change | ✅ Working | None |
-| Q7 | Volume Shipping | ❌ Not Started | Multiple table aliases (nation n1, n2) |
-| Q8 | National Market Share | 🕰️ Implemented | Multiple table aliases (nation n1, n2) |
+| Q7 | Volume Shipping | ✅ Working | Cross product bug fixed |
+| Q8 | National Market Share | ✅ Working | Arithmetic operators fixed |
 | Q9 | Product Type Profit Measure | ✅ Working | Complex expressions, 6-way join |
 | Q10 | Returned Item Reporting | ✅ Working | GROUP BY multiple columns |
 | Q11 | Important Stock Identification | ✅ Working | Subquery in HAVING (non-correlated) |
@@ -168,9 +168,9 @@ See detailed plans in `docs/planning/`:
 ### Advanced SQL Features for TPC-H Completion
 
 #### High Priority (Blocks most queries)
-- [ ] **Table Alias Enhancement**: Support same table multiple times
-  - Required for Q8 (`nation n1, nation n2`), Q21
-  - Basic aliases work ✅, but not multiple aliases for same table
+- [x] **Table Alias Enhancement**: Support same table multiple times ✅
+  - Fixed cross product bug that affected multiple aliases
+  - Q7 and Q8 now working correctly
 - [ ] **Correlated Subqueries in SELECT**: Critical for 5 queries
   - Required for Q2, Q17, Q20, Q21, Q22
   - Example: `SELECT (SELECT AVG(x) FROM t2 WHERE t2.id = t1.id) FROM t1`

@@ -9,23 +9,36 @@ import (
 // StorageScanOperator reads rows from disk-based storage
 type StorageScanOperator struct {
 	baseOperator
-	table    *catalog.Table
-	storage  StorageBackend
-	iterator RowIterator
-	rowCount int64
+	table      *catalog.Table
+	tableAlias string
+	storage    StorageBackend
+	iterator   RowIterator
+	rowCount   int64
 }
 
 // NewStorageScanOperator creates a new storage-based scan operator
 func NewStorageScanOperator(table *catalog.Table, storage StorageBackend) *StorageScanOperator {
+	return NewStorageScanOperatorWithAlias(table, "", storage)
+}
+
+// NewStorageScanOperatorWithAlias creates a new storage-based scan operator with table alias
+func NewStorageScanOperatorWithAlias(table *catalog.Table, alias string, storage StorageBackend) *StorageScanOperator {
 	// Build schema from table columns
 	schema := &Schema{
 		Columns: make([]Column, len(table.Columns)),
 	}
+	// Use alias if provided, otherwise use table name
+	tableAlias := alias
+	if tableAlias == "" {
+		tableAlias = table.TableName
+	}
 	for i, col := range table.Columns {
 		schema.Columns[i] = Column{
-			Name:     col.Name,
-			Type:     col.DataType,
-			Nullable: col.IsNullable,
+			Name:       col.Name,
+			Type:       col.DataType,
+			Nullable:   col.IsNullable,
+			TableName:  table.TableName,
+			TableAlias: tableAlias,
 		}
 	}
 
@@ -33,8 +46,9 @@ func NewStorageScanOperator(table *catalog.Table, storage StorageBackend) *Stora
 		baseOperator: baseOperator{
 			schema: schema,
 		},
-		table:   table,
-		storage: storage,
+		table:      table,
+		tableAlias: tableAlias,
+		storage:    storage,
 	}
 }
 

@@ -2,9 +2,9 @@
 
 ## Summary
 - **Total Queries**: 22
-- **Implemented**: 13
-- **Working**: 13
-- **Coverage**: 59%
+- **Implemented**: 15
+- **Working**: 15
+- **Coverage**: 68%
 
 ## Working Queries
 
@@ -23,14 +23,16 @@
 | Q14 | Promotion Effect | ✅ Working | LIKE operator |
 | Q16 | Parts/Supplier Relationship | ✅ Working | NOT IN with subquery, COUNT DISTINCT |
 | Q19 | Discounted Revenue | ✅ Working | Complex OR conditions |
+| Q7 | Volume Shipping | ✅ Working | Multiple table aliases |
+| Q8 | National Market Share | ✅ Working | Multiple table aliases, CASE expressions |
 
 ## Not Yet Implemented
 
 | Query | Blocker |
 |-------|---------|
 | Q2 | Correlated subquery, window functions |
-| Q7 | Multiple table aliases (nation n1, nation n2) |
-| Q8 | Multiple table aliases (nation n1, nation n2) |
+| Q7 | ✅ FIXED - Cross product bug resolved |
+| Q8 | ✅ FIXED - Arithmetic operators bug resolved |
 | Q15 | Subqueries in FROM clause with aliases |
 | Q17 | Correlated subquery |
 | Q18 | IN with subquery, window functions |
@@ -60,7 +62,7 @@
 - Window functions (ROW_NUMBER, RANK, etc.)
 - ALL/ANY/SOME operators
 - Views / CTEs
-- Multiple aliases for same table
+- Multiple aliases for same table ✅ FIXED
 
 ## Performance Notes
 - Indexes significantly improve join performance

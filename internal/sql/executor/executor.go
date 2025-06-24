@@ -242,7 +242,7 @@ func (e *BasicExecutor) buildScanOperator(plan *planner.LogicalScan, ctx *ExecCo
 
 	// Use storage-backed scan if available
 	if e.storage != nil {
-		return NewStorageScanOperator(table, e.storage), nil
+		return NewStorageScanOperatorWithAlias(table, plan.Alias, e.storage), nil
 	}
 
 	// Storage backend is required for MVCC compliance
