@@ -206,11 +206,19 @@ func (p *BasicPlanner) buildSelectPlan(plan LogicalPlan, stmt *parser.SelectStmt
 
 		// Add HAVING clause if present
 		if stmt.Having != nil {
-			having, err := p.convertExpression(stmt.Having)
+			// First convert the HAVING expression
+			havingExpr, err := p.convertExpression(stmt.Having)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert HAVING clause: %w", err)
 			}
-			plan = NewLogicalFilter(plan, having)
+
+			// Then rewrite any aggregates in the HAVING clause
+			rewrittenHaving, err := rewriter.RewriteExpression(havingExpr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to rewrite HAVING clause: %w", err)
+			}
+
+			plan = NewLogicalFilter(plan, rewrittenHaving)
 		}
 
 		// Now add the final projection with the rewritten expressions

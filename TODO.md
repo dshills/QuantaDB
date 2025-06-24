@@ -52,7 +52,8 @@
   - 15/22 queries working (68% coverage) ✅
   - Q1, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q16, Q19 all functional
   - Indexes provide significant performance improvements
-  - SUBSTRING function verified working
+  - HAVING clauses with aggregate expressions now working ✅
+  - Non-correlated scalar subqueries in WHERE working ✅
 
 **Key Achievements:**
 - ✅ PostgreSQL-compatible database from scratch

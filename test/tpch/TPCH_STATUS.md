@@ -36,7 +36,7 @@
 | Q8 | ✅ FIXED - Arithmetic operators bug resolved |
 | Q15 | ✅ WORKING - Can be rewritten using ORDER BY + LIMIT |
 | Q17 | ❌ Correlated subquery (scalar subqueries work, but Q17 needs correlation) |
-| Q18 | HAVING with aggregates, subqueries |
+| Q18 | IN with subquery in WHERE (works without it) |
 | Q20 | Correlated subquery, ALL/ANY |
 | Q21 | Multiple correlated subqueries, table aliases |
 | Q22 | ❌ SUBSTRING function, correlated EXISTS |
@@ -58,6 +58,7 @@
 - Complex arithmetic in projections
 - Table aliases (multiple instances of same table)
 - Non-correlated scalar subqueries in WHERE
+- HAVING clauses with aggregate expressions
 
 ### Not Implemented ❌
 - Correlated subqueries (WHERE outer.col = inner.col)
