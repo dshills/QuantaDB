@@ -267,7 +267,21 @@ func (p *ProjectOperator) Next() (*Row, error) {
 
 	// Evaluate each projection
 	for i, proj := range p.projections {
-		value, err := proj.Eval(row, p.ctx)
+		// For EXISTS expressions, set up correlation context
+		// Other subqueries should not get correlation context unless they are marked as correlated
+		var evalCtx *ExecContext
+		if _, isExists := proj.(*existsEvaluator); isExists {
+			// Create a new context with correlation schema for EXISTS
+			ctxCopy := *p.ctx
+			if ctxCopy.CorrelationSchema == nil {
+				ctxCopy.CorrelationSchema = p.child.Schema()
+			}
+			evalCtx = &ctxCopy
+		} else {
+			evalCtx = p.ctx
+		}
+		
+		value, err := proj.Eval(row, evalCtx)
 		if err != nil {
 			return nil, fmt.Errorf("projection %d failed: %w", i, err)
 		}

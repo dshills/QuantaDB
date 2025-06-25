@@ -17,11 +17,7 @@ import (
 )
 
 // TestExistsCorrelationExecution tests EXISTS and NOT EXISTS correlated subqueries
-// TODO: EXISTS correlation is not working correctly - all rows return true regardless of correlation
-// This appears to be a bug in the EXISTS operator implementation where the correlation
-// predicate is not being properly applied during execution.
 func TestExistsCorrelationExecution(t *testing.T) {
-	t.Skip("EXISTS correlation not working correctly - bug in correlation predicate evaluation")
 	// Setup test environment
 	cat := catalog.NewMemoryCatalog()
 	eng := engine.NewMemoryEngine()
@@ -106,9 +102,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
-		require.NoError(t, err)
-		
-		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		require.NoError(t, err)transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		require.NoError(t, err)
 		defer transaction.Rollback()
 		
@@ -272,6 +266,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
+		
 
 		// Create transaction for query execution
 		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
@@ -343,6 +338,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
+		
 
 		// Create transaction for query execution
 		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
