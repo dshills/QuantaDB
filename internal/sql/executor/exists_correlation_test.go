@@ -102,7 +102,9 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
-		require.NoError(t, err)transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		require.NoError(t, err)
+		
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		require.NoError(t, err)
 		defer transaction.Rollback()
 		
