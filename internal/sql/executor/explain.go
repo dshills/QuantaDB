@@ -76,6 +76,9 @@ func (e *ExplainOperator) Open(ctx *ExecContext) error {
 			}
 		}
 
+		// Plan cache statistics will be populated by the calling layer
+		// if a caching planner is being used
+
 		// Execute the plan to collect runtime statistics
 		if err := e.plan.Open(ctx); err != nil {
 			return fmt.Errorf("error opening plan for EXPLAIN ANALYZE: %w", err)
@@ -180,6 +183,19 @@ func (e *ExplainOperator) generateTextOutput() string {
 		buf.WriteString(fmt.Sprintf("  Misses: %d\n", e.ctx.BufferStats.Misses))
 		buf.WriteString(fmt.Sprintf("  Pages Read: %d\n", e.ctx.BufferStats.PagesRead))
 		buf.WriteString(fmt.Sprintf("  Pages Written: %d\n", e.ctx.BufferStats.PagesWritten))
+	}
+
+	// Add plan cache statistics if available and verbose
+	if e.verbose && e.ctx.PlanCacheStats != nil {
+		buf.WriteString("\nPlan Cache Statistics:\n")
+		buf.WriteString(fmt.Sprintf("  Cache Hits: %d\n", e.ctx.PlanCacheStats.HitCount))
+		buf.WriteString(fmt.Sprintf("  Cache Misses: %d\n", e.ctx.PlanCacheStats.MissCount))
+		buf.WriteString(fmt.Sprintf("  Cache Size: %d\n", e.ctx.PlanCacheStats.CurrentSize))
+		buf.WriteString(fmt.Sprintf("  Cache Evictions: %d\n", e.ctx.PlanCacheStats.EvictionCount))
+		if e.ctx.PlanCacheStats.HitCount+e.ctx.PlanCacheStats.MissCount > 0 {
+			hitRate := float64(e.ctx.PlanCacheStats.HitCount) / float64(e.ctx.PlanCacheStats.HitCount+e.ctx.PlanCacheStats.MissCount) * 100
+			buf.WriteString(fmt.Sprintf("  Hit Rate: %.1f%%\n", hitRate))
+		}
 	}
 
 	return buf.String()
@@ -343,6 +359,21 @@ func (e *ExplainOperator) generateJSONOutput() string {
 				"Misses":        e.ctx.BufferStats.Misses,
 				"Pages Read":    e.ctx.BufferStats.PagesRead,
 				"Pages Written": e.ctx.BufferStats.PagesWritten,
+			}
+		}
+
+		if e.ctx.PlanCacheStats != nil {
+			hitRate := float64(0)
+			if total := e.ctx.PlanCacheStats.HitCount + e.ctx.PlanCacheStats.MissCount; total > 0 {
+				hitRate = float64(e.ctx.PlanCacheStats.HitCount) / float64(total) * 100
+			}
+			
+			output["plan_cache_statistics"] = map[string]interface{}{
+				"cache_hits":      e.ctx.PlanCacheStats.HitCount,
+				"cache_misses":    e.ctx.PlanCacheStats.MissCount,
+				"cache_size":      e.ctx.PlanCacheStats.CurrentSize,
+				"cache_evictions": e.ctx.PlanCacheStats.EvictionCount,
+				"hit_rate":        hitRate,
 			}
 		}
 	}

@@ -19,6 +19,12 @@ type Planner interface {
 	Plan(stmt parser.Statement) (Plan, error)
 }
 
+// CachingPlannerInterface extends the Planner interface with cache statistics methods.
+type CachingPlannerInterface interface {
+	Planner
+	GetCacheStats() *PlanCacheStats
+}
+
 // BasicPlanner is a simple rule-based query planner.
 type BasicPlanner struct {
 	catalog   catalog.Catalog
