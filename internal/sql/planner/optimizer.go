@@ -34,8 +34,9 @@ func NewOptimizer() *Optimizer {
 // NewOptimizerWithCatalog creates a new optimizer with catalog for index selection.
 func NewOptimizerWithCatalog(cat catalog.Catalog) *Optimizer {
 	indexSelection := &IndexSelection{
-		catalog:       cat,
-		costEstimator: NewCostEstimator(cat),
+		catalog:             cat,
+		costEstimator:       NewCostEstimator(cat),
+		vectorizedBatchSize: 1024, // Default batch size
 	}
 	indexConditionPushdown := NewIndexConditionPushdown(cat)
 	return &Optimizer{
@@ -643,14 +644,28 @@ func ExplainPlan(plan Plan) string {
 
 // IndexSelection selects appropriate indexes for table scans.
 type IndexSelection struct {
-	catalog       catalog.Catalog
-	costEstimator *CostEstimator
+	catalog             catalog.Catalog
+	costEstimator       *CostEstimator
+	vectorizedCostModel *VectorizedCostModel
+	vectorizedBatchSize int
 }
 
 // SetCatalog sets the catalog for index selection.
 func (is *IndexSelection) SetCatalog(cat catalog.Catalog) {
 	is.catalog = cat
 	is.costEstimator = NewCostEstimator(cat)
+	if is.vectorizedBatchSize == 0 {
+		is.vectorizedBatchSize = 1024 // Default batch size
+	}
+}
+
+// SetVectorizedModel sets the vectorized cost model and batch size
+func (is *IndexSelection) SetVectorizedModel(model *VectorizedCostModel, batchSize int) {
+	is.vectorizedCostModel = model
+	is.vectorizedBatchSize = batchSize
+	if is.costEstimator != nil {
+		is.costEstimator.SetVectorizedModel(model)
+	}
 }
 
 // tryIndexIntersection attempts to use multiple indexes with bitmap operations.
@@ -724,6 +739,36 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 		// Check if the child is a table scan
 		if len(p.Children()) > 0 {
 			if scan, ok := p.Children()[0].(*LogicalScan); ok {
+				// Check if vectorized execution should be used
+				if is.vectorizedCostModel != nil && is.vectorizedBatchSize > 0 {
+					// Get table stats for row count estimation
+					table, err := is.catalog.GetTable("public", scan.TableName)
+					if err == nil && table != nil {
+						stats, _ := is.catalog.GetTableStats(table.SchemaName, table.TableName)
+						estimatedRows := int64(1000) // Default estimate
+						if stats != nil {
+							estimatedRows = stats.RowCount
+						}
+						
+						// Check if vectorized filter should be used
+						memoryAvailable := int64(64 * 1024 * 1024) // 64MB default
+						choice := is.costEstimator.GetVectorizedExecutionChoice(
+							"filter",
+							estimatedRows,
+							0.5, // Default selectivity
+							p.Predicate,
+							memoryAvailable,
+						)
+						
+						if choice.UseVectorized {
+							// Create vectorized scan + filter combination
+							vectorizedScan := NewVectorizedLogicalScan(scan.TableName, scan.Alias, scan.Schema(), is.vectorizedBatchSize)
+							vectorizedFilter := NewVectorizedLogicalFilter(vectorizedScan, p.Predicate, is.vectorizedBatchSize)
+							return vectorizedFilter, true
+						}
+					}
+				}
+				
 				// Try composite index scan first (enhanced multi-column index support)
 				if is.costEstimator != nil {
 					if compositeIndexScan := tryCompositeIndexScanWithCost(scan, p, is.catalog, is.costEstimator); compositeIndexScan != nil {
@@ -766,6 +811,35 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 			newChild, changed := is.Apply(p.Children()[0].(LogicalPlan))
 			if changed {
 				return NewLogicalFilter(newChild, p.Predicate), true
+			}
+		}
+
+	case *LogicalScan:
+		// Check if vectorized scan should be used (without filter)
+		if is.vectorizedCostModel != nil && is.vectorizedBatchSize > 0 {
+			// Get table stats for row count estimation
+			table, err := is.catalog.GetTable("public", p.TableName)
+			if err == nil && table != nil {
+				stats, _ := is.catalog.GetTableStats(table.SchemaName, table.TableName)
+				estimatedRows := int64(1000) // Default estimate
+				if stats != nil {
+					estimatedRows = stats.RowCount
+				}
+				
+				// Check if vectorized scan should be used
+				memoryAvailable := int64(64 * 1024 * 1024) // 64MB default
+				choice := is.costEstimator.GetVectorizedExecutionChoice(
+					"scan",
+					estimatedRows,
+					1.0, // No selectivity for pure scan
+					nil, // No predicate
+					memoryAvailable,
+				)
+				
+				if choice.UseVectorized {
+					// Create vectorized scan
+					return NewVectorizedLogicalScan(p.TableName, p.Alias, p.Schema(), is.vectorizedBatchSize), true
+				}
 			}
 		}
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 // ResultCache implements a cache for query results
@@ -31,6 +32,9 @@ type ResultCache struct {
 
 	// Thread safety
 	mu sync.RWMutex
+	
+	// Memory management integration
+	memoryManager *storage.MemoryManager
 }
 
 // CachedResult represents a cached query result
@@ -119,6 +123,13 @@ func NewResultCache(config *ResultCacheConfig) *ResultCache {
 		maxMemory: config.MaxMemory,
 		ttl:       config.TTL,
 	}
+}
+
+// NewResultCacheWithMemoryManager creates a result cache with memory manager integration
+func NewResultCacheWithMemoryManager(config *ResultCacheConfig, memoryManager *storage.MemoryManager) *ResultCache {
+	cache := NewResultCache(config)
+	cache.memoryManager = memoryManager
+	return cache
 }
 
 // Get retrieves a cached result if available
@@ -228,6 +239,11 @@ func (rc *ResultCache) Put(queryHash string, rows []*Row, schema *Schema, deps [
 	rc.stats.CurrentMemory = rc.currentMemory
 	rc.stats.mu.Unlock()
 
+	// Update memory manager with result cache usage
+	if rc.memoryManager != nil {
+		rc.memoryManager.UpdateSubsystemUsage(storage.SubsystemResultCache, rc.currentMemory)
+	}
+
 	return nil
 }
 
@@ -288,6 +304,11 @@ func (rc *ResultCache) evictResult(queryHash string) {
 	rc.stats.EvictionCount++
 	rc.stats.CurrentMemory = rc.currentMemory
 	rc.stats.mu.Unlock()
+
+	// Update memory manager with new result cache usage
+	if rc.memoryManager != nil {
+		rc.memoryManager.UpdateSubsystemUsage(storage.SubsystemResultCache, rc.currentMemory)
+	}
 }
 
 // estimateValueSize estimates the memory size of a value

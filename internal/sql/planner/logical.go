@@ -308,3 +308,61 @@ func NewLogicalWithClause(ctes []LogicalCTE, main LogicalPlan, schema *Schema) *
 		Main: main,
 	}
 }
+
+// VectorizedLogicalScan represents a vectorized table scan operation
+type VectorizedLogicalScan struct {
+	basePlan
+	TableName   string
+	Alias       string
+	BatchSize   int
+	Vectorized  bool
+}
+
+func (vs *VectorizedLogicalScan) logicalNode() {}
+
+func (vs *VectorizedLogicalScan) String() string {
+	if vs.Alias != "" && vs.Alias != vs.TableName {
+		return fmt.Sprintf("VectorizedScan(%s AS %s)", vs.TableName, vs.Alias)
+	}
+	return fmt.Sprintf("VectorizedScan(%s)", vs.TableName)
+}
+
+// NewVectorizedLogicalScan creates a new vectorized logical scan node
+func NewVectorizedLogicalScan(tableName, alias string, schema *Schema, batchSize int) *VectorizedLogicalScan {
+	return &VectorizedLogicalScan{
+		basePlan: basePlan{
+			schema: schema,
+		},
+		TableName:  tableName,
+		Alias:      alias,
+		BatchSize:  batchSize,
+		Vectorized: true,
+	}
+}
+
+// VectorizedLogicalFilter represents a vectorized filter operation
+type VectorizedLogicalFilter struct {
+	basePlan
+	Predicate  Expression
+	BatchSize  int
+	Vectorized bool
+}
+
+func (vf *VectorizedLogicalFilter) logicalNode() {}
+
+func (vf *VectorizedLogicalFilter) String() string {
+	return fmt.Sprintf("VectorizedFilter(%s)", vf.Predicate.String())
+}
+
+// NewVectorizedLogicalFilter creates a new vectorized logical filter node
+func NewVectorizedLogicalFilter(child LogicalPlan, predicate Expression, batchSize int) *VectorizedLogicalFilter {
+	return &VectorizedLogicalFilter{
+		basePlan: basePlan{
+			children: []Plan{child},
+			schema:   child.Schema(),
+		},
+		Predicate:  predicate,
+		BatchSize:  batchSize,
+		Vectorized: true,
+	}
+}

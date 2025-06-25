@@ -96,6 +96,9 @@ func (c *CreateTableOperator) Open(ctx *ExecContext) error {
 
 	c.executed = true
 
+	// Invalidate result cache for this table (though new table shouldn't have cached results)
+	c.ctx.InvalidateResultCacheForTable(c.schemaName, c.tableName)
+
 	// Update statistics
 	if c.ctx.Stats != nil {
 		c.ctx.Stats.RowsReturned = 1

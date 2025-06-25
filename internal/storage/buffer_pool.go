@@ -275,6 +275,45 @@ func (bp *BufferPool) GetPinnedCount() int {
 	return count
 }
 
+// GetMaxPages returns the maximum number of pages the buffer pool can hold
+func (bp *BufferPool) GetMaxPages() int {
+	return bp.maxPages
+}
+
+// GetMemoryUsageBytes estimates current memory usage in bytes
+func (bp *BufferPool) GetMemoryUsageBytes() int64 {
+	bp.mu.RLock()
+	defer bp.mu.RUnlock()
+	
+	pageSize := int64(4096) // Assuming 4KB pages
+	return int64(len(bp.pages)) * pageSize
+}
+
+// GetMaxMemoryBytes returns the maximum memory the buffer pool can use
+func (bp *BufferPool) GetMaxMemoryBytes() int64 {
+	pageSize := int64(4096) // Assuming 4KB pages
+	return int64(bp.maxPages) * pageSize
+}
+
+// IsMemoryPressure checks if buffer pool is under memory pressure
+func (bp *BufferPool) IsMemoryPressure(threshold float64) bool {
+	bp.mu.RLock()
+	defer bp.mu.RUnlock()
+	
+	usage := float64(len(bp.pages)) / float64(bp.maxPages)
+	return usage >= threshold
+}
+
+// GetAvailableMemoryBytes returns available memory in bytes
+func (bp *BufferPool) GetAvailableMemoryBytes() int64 {
+	bp.mu.RLock()
+	defer bp.mu.RUnlock()
+	
+	pageSize := int64(4096) // Assuming 4KB pages
+	availablePages := bp.maxPages - len(bp.pages)
+	return int64(availablePages) * pageSize
+}
+
 // AcquirePageLock acquires an exclusive lock on a page for modifications
 func (bp *BufferPool) AcquirePageLock(pageID PageID) {
 	bp.pageLockMgr.AcquirePageLock(pageID)

@@ -29,8 +29,9 @@ func DefaultCostParams() *CostParams {
 
 // CostEstimator provides cost estimation for different access methods.
 type CostEstimator struct {
-	params  *CostParams
-	catalog catalog.Catalog
+	params          *CostParams
+	catalog         catalog.Catalog
+	vectorizedModel *VectorizedCostModel
 }
 
 // NewCostEstimator creates a new cost estimator.
@@ -38,7 +39,22 @@ func NewCostEstimator(catalog catalog.Catalog) *CostEstimator {
 	return &CostEstimator{
 		params:  DefaultCostParams(),
 		catalog: catalog,
+		// vectorizedModel: nil - will be set separately to avoid import cycles
 	}
+}
+
+// NewCostEstimatorWithVectorizedModel creates a new cost estimator with vectorized model.
+func NewCostEstimatorWithVectorizedModel(catalog catalog.Catalog, vectorizedModel *VectorizedCostModel) *CostEstimator {
+	return &CostEstimator{
+		params:          DefaultCostParams(),
+		catalog:         catalog,
+		vectorizedModel: vectorizedModel,
+	}
+}
+
+// SetVectorizedModel sets the vectorized cost model (used to avoid import cycles)
+func (ce *CostEstimator) SetVectorizedModel(model *VectorizedCostModel) {
+	ce.vectorizedModel = model
 }
 
 // EstimateTableScanCost calculates the cost of a sequential table scan.
@@ -321,4 +337,52 @@ func (ce *CostEstimator) ShouldUseIndex(table *catalog.Table, index *catalog.Ind
 
 	// Compare total costs
 	return indexScanCost.TotalCost < tableScanCost.TotalCost
+}
+
+// ShouldUseVectorizedScan determines if vectorized scan is more cost-effective
+func (ce *CostEstimator) ShouldUseVectorizedScan(table *catalog.Table, rowCount int64, memoryAvailable int64) bool {
+	if ce.vectorizedModel == nil {
+		return false
+	}
+	
+	return ce.vectorizedModel.ShouldUseVectorizedScan(rowCount, memoryAvailable)
+}
+
+// ShouldUseVectorizedFilter determines if vectorized filter is more cost-effective
+func (ce *CostEstimator) ShouldUseVectorizedFilter(inputRows int64, selectivity float64, predicate Expression, memoryAvailable int64) bool {
+	if ce.vectorizedModel == nil {
+		return false
+	}
+	
+	expressionComplexity := ce.vectorizedModel.GetExpressionComplexity(predicate)
+	return ce.vectorizedModel.ShouldUseVectorizedFilter(inputRows, selectivity, expressionComplexity, memoryAvailable)
+}
+
+// GetVectorizedExecutionChoice returns detailed execution choice for an operation
+func (ce *CostEstimator) GetVectorizedExecutionChoice(
+	operationType string,
+	rowCount int64,
+	selectivity float64,
+	predicate Expression,
+	memoryAvailable int64,
+) *VectorizedPlanChoice {
+	if ce.vectorizedModel == nil {
+		return &VectorizedPlanChoice{
+			UseVectorized: false,
+			Reason:        "Vectorized cost model not available",
+		}
+	}
+	
+	expressionComplexity := 1
+	if predicate != nil {
+		expressionComplexity = ce.vectorizedModel.GetExpressionComplexity(predicate)
+	}
+	
+	return ce.vectorizedModel.ChooseExecutionMode(
+		operationType,
+		rowCount,
+		selectivity,
+		expressionComplexity,
+		memoryAvailable,
+	)
 }

@@ -22,6 +22,7 @@ type CreateIndexOperator struct {
 	executed       bool
 	resultReturned bool
 	schema         *Schema
+	ctx            *ExecContext
 }
 
 // NewCreateIndexOperator creates a new CREATE INDEX operator.
@@ -62,6 +63,8 @@ func NewCreateIndexOperator(
 
 // Open initializes the CREATE INDEX operation.
 func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
+	c.ctx = ctx
+	
 	// Check if table exists
 	table, err := c.catalog.GetTable(c.schemaName, c.tableName)
 	if err != nil {
@@ -152,6 +155,9 @@ func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 	}
 
 	c.executed = true
+
+	// Invalidate result cache for this table since index affects query performance
+	c.ctx.InvalidateResultCacheForTable(c.schemaName, c.tableName)
 
 	// Update statistics
 	// Note: DDL operations don't read rows, so we don't update RowsRead
@@ -247,6 +253,7 @@ type DropIndexOperator struct {
 	indexMgr   *index.Manager
 	executed   bool
 	schema     *Schema
+	ctx        *ExecContext
 }
 
 // NewDropIndexOperator creates a new DROP INDEX operator
@@ -279,6 +286,8 @@ func NewDropIndexOperator(
 
 // Open initializes the DROP INDEX operation
 func (d *DropIndexOperator) Open(ctx *ExecContext) error {
+	d.ctx = ctx
+	
 	// If table name is not specified, search all tables
 	if d.tableName == "" {
 		// Search for index in all tables
@@ -352,6 +361,9 @@ func (d *DropIndexOperator) Open(ctx *ExecContext) error {
 	}
 
 	d.executed = true
+
+	// Invalidate result cache for this table since index affects query performance
+	d.ctx.InvalidateResultCacheForTable(d.schemaName, d.tableName)
 
 	return nil
 }

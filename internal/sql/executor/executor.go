@@ -70,7 +70,22 @@ type ExecContext struct {
 	OperatorStats  map[Operator]*OperatorStats    // Stats by operator
 	BufferStats    *BufferPoolStats               // Buffer pool statistics
 	PlanCacheStats *planner.PlanCacheStats        // Plan cache statistics
+	ResultCache    *ResultCache                   // Result cache for query results
 	StatsCollector func(Operator, *OperatorStats) // Callback for stats collection
+}
+
+// InvalidateResultCacheForTable invalidates result cache entries for a specific table
+func (ctx *ExecContext) InvalidateResultCacheForTable(schemaName, tableName string) {
+	if ctx.ResultCache != nil {
+		ctx.ResultCache.InvalidateTable(schemaName, tableName)
+	}
+}
+
+// InvalidateAllResultCacheEntries invalidates all result cache entries
+func (ctx *ExecContext) InvalidateAllResultCacheEntries() {
+	if ctx.ResultCache != nil {
+		ctx.ResultCache.InvalidateAll()
+	}
 }
 
 // Row represents a row of data.

@@ -72,6 +72,9 @@ func (d *DropTableOperator) Open(ctx *ExecContext) error {
 
 	d.executed = true
 
+	// Invalidate result cache for this table
+	d.ctx.InvalidateResultCacheForTable(d.schemaName, d.tableName)
+
 	// Update statistics
 	if d.ctx.Stats != nil {
 		d.ctx.Stats.RowsReturned = 1

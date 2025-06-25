@@ -98,6 +98,9 @@ func (a *AlterTableAddColumnOperator) Open(ctx *ExecContext) error {
 
 	a.executed = true
 
+	// Invalidate result cache for this table since schema changed
+	a.ctx.InvalidateResultCacheForTable(a.schemaName, a.tableName)
+
 	// Update statistics
 	if a.ctx.Stats != nil {
 		a.ctx.Stats.RowsReturned = 1
@@ -206,6 +209,9 @@ func (d *AlterTableDropColumnOperator) Open(ctx *ExecContext) error {
 	// For now, we only update the catalog
 
 	d.executed = true
+
+	// Invalidate result cache for this table since schema changed
+	d.ctx.InvalidateResultCacheForTable(d.schemaName, d.tableName)
 
 	// Update statistics
 	if d.ctx.Stats != nil {
