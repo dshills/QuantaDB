@@ -96,11 +96,12 @@
 
 **Phase 7: Performance Optimization** 🔥
 
-1. **Query Performance Optimization** [HIGH PRIORITY]
-   - Parallel query execution for complex TPC-H queries
-   - Hash join and sort-merge join improvements
-   - Query plan caching and adaptive execution
-   - Runtime statistics and cost model calibration
+1. **Query Performance Optimization** [HIGH PRIORITY] 📋 **[Detailed Plan Available](docs/planning/query-performance-optimization-plan.md)**
+   - Phase 1: Performance Monitoring & EXPLAIN ANALYZE 📋 **[Implementation Guide](docs/planning/phase1-explain-analyze-implementation.md)**
+   - Phase 2: Query Plan Caching
+   - Phase 3: Parallel Query Execution
+   - Phase 4: Adaptive Query Execution
+   - Phase 5: Advanced Optimizations (Vectorization, Result Caching)
 
 2. **Advanced Index Features**
    - Composite indexes and covering indexes
