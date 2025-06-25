@@ -235,7 +235,7 @@ This project was inspired by:
 
 - GitHub Issues: Bug reports and feature requests
 - Discussions: Design discussions and questions
-- Email: [your-email@example.com]
+- Email: [davin.hills@hillsconult.com]
 
 ---
 
