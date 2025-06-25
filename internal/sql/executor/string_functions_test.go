@@ -181,6 +181,7 @@ func TestStringFunctionEdgeCases(t *testing.T) {
 		expr     string
 		expected interface{}
 		isNull   bool
+		wantErr  bool
 	}{
 		// NULL handling in concatenation
 		{
@@ -206,9 +207,9 @@ func TestStringFunctionEdgeCases(t *testing.T) {
 			expected: "Test", // 0 treated as 1
 		},
 		{
-			name:     "substring with negative length should error",
-			expr:     "SUBSTRING(str FROM 1 FOR -5)",
-			expected: "", // This should actually error, but we'll handle it in the evaluator
+			name:    "substring with negative length should error",
+			expr:    "SUBSTRING(str FROM 1 FOR -5)",
+			wantErr: true,
 		},
 		{
 			name:     "substring with excessive length",
@@ -247,8 +248,8 @@ func TestStringFunctionEdgeCases(t *testing.T) {
 			// Evaluate
 			result, err := evaluateExpression(expr, ctx)
 
-			if tt.name == "substring with negative length should error" {
-				// For now, we'll skip this as the evaluator doesn't error on negative length
+			if tt.wantErr {
+				require.Error(t, err, "Expected error but got none")
 				return
 			}
 
