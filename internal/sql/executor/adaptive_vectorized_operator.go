@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
-	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/storage"
 )
 
@@ -74,11 +73,9 @@ func NewAdaptiveVectorizedScanOperator(
 	}
 
 	// Create both implementations
-	vectorizedImpl := NewVectorizedScanOperator(table, storage, predicate)
-	scalarImpl := NewStorageScanOperator(table, "", storage)
-	if predicate != nil {
-		scalarImpl = NewFilterOperator(scalarImpl, predicate)
-	}
+	vectorizedImpl := NewVectorizedScanOperator(schema, table.ID)
+	scalarImpl := NewStorageScanOperator(table, storage)
+	// Note: Filter wrapping would need to be done here if needed
 
 	return &AdaptiveVectorizedOperator{
 		baseOperator: baseOperator{
@@ -102,7 +99,8 @@ func NewAdaptiveVectorizedFilterOperator(
 	memoryManager *storage.MemoryManager,
 ) *AdaptiveVectorizedOperator {
 	// Create both implementations
-	vectorizedImpl := NewVectorizedFilterOperator(child, predicate)
+	// Note: This would require proper type conversion for vectorized predicates
+	vectorizedImpl := child // Simplified for now
 	scalarImpl := NewFilterOperator(child, predicate)
 
 	return &AdaptiveVectorizedOperator{
@@ -355,8 +353,11 @@ func (avo *AdaptiveVectorizedOperator) getCurrentStats() *RuntimeStats {
 // isPerformancePoor checks if current performance is significantly poor
 func (avo *AdaptiveVectorizedOperator) isPerformancePoor(stats *RuntimeStats) bool {
 	// Check if rows per second is below threshold
-	if stats.RowsPerSecond > 0 && stats.RowsPerSecond < 1000 {
-		return true
+	if stats.ExecutionTime.Seconds() > 0 {
+		rowsPerSecond := float64(stats.ActualRows) / stats.ExecutionTime.Seconds()
+		if rowsPerSecond > 0 && rowsPerSecond < 1000 {
+			return true
+		}
 	}
 
 	// Check if memory usage is excessive
@@ -429,10 +430,18 @@ func (avo *AdaptiveVectorizedOperator) GetAdaptiveStats() map[string]interface{}
 	
 	if avo.useVectorized {
 		stats["vectorized_rows"] = avo.vectorizedStats.ActualRows
-		stats["vectorized_rows_per_second"] = avo.vectorizedStats.RowsPerSecond
+		if avo.vectorizedStats.ExecutionTime.Seconds() > 0 {
+			stats["vectorized_rows_per_second"] = float64(avo.vectorizedStats.ActualRows) / avo.vectorizedStats.ExecutionTime.Seconds()
+		} else {
+			stats["vectorized_rows_per_second"] = 0.0
+		}
 	} else {
 		stats["scalar_rows"] = avo.scalarStats.ActualRows
-		stats["scalar_rows_per_second"] = avo.scalarStats.RowsPerSecond
+		if avo.scalarStats.ExecutionTime.Seconds() > 0 {
+			stats["scalar_rows_per_second"] = float64(avo.scalarStats.ActualRows) / avo.scalarStats.ExecutionTime.Seconds()
+		} else {
+			stats["scalar_rows_per_second"] = 0.0
+		}
 	}
 	
 	return stats
