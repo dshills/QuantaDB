@@ -1,89 +1,34 @@
-# JOIN Column Resolution Fix Plan
+# JOIN Column Resolution Fix
 
-## Problem Summary
-JOIN queries fail with "column not resolved" errors because:
-1. Column names in JOIN schemas aren't qualified with table names/aliases
-2. The column resolver can't find columns from specific tables in JOIN results
-3. This blocks most TPC-H queries which use multi-table JOINs
+## Problem
+JOIN queries with qualified column names (e.g., `table.column`) were failing with column resolution errors. The system couldn't properly resolve columns when table aliases were used in multi-table queries.
 
-## Root Cause Analysis
+## Root Cause
+The column resolution logic in the executor's expression evaluator was only matching columns by name, ignoring the table qualifier. This caused ambiguity errors or incorrect column resolution in JOIN queries.
 
-### Current Behavior
-1. When creating a JOIN, schemas are concatenated without qualification
-2. Column names lose their table context
-3. When resolving "table.column" references, the resolver can't match them
+## Solution
+1. **Extended Column Structure**: Added `TableName` and `TableAlias` fields to both planner and executor Column structs to track table information throughout query processing.
 
-### Example
-```sql
-FROM customer c, orders o
-WHERE c.c_custkey = o.o_custkey
-```
-- The JOIN schema has columns: [c_custkey, c_name, ..., o_custkey, o_orderkey, ...]
-- But when resolving "c.c_custkey", it looks for a column named "c_custkey" with table "c"
-- The schema doesn't track which columns came from which table
+2. **Enhanced Column Resolution**: Modified the column resolution logic in `expression.go` to:
+   - First attempt to match by both table alias and column name when a table alias is provided
+   - Fall back to column name only matching if no table alias is specified
+   - Properly handle ambiguous column references
 
-## Implementation Plan
+3. **Schema Preservation**: Updated the planner to preserve table alias information when building projection schemas, ensuring qualified column references maintain their table context.
 
-### Step 1: Track Table Source in Schema
-Modify the Column struct to include table information:
-- Add `TableName` and `TableAlias` fields to track source
-- Update schema building to preserve this information
+## Files Modified
+- `internal/sql/planner/plan.go`: Added TableName and TableAlias to Column struct
+- `internal/sql/executor/executor.go`: Added TableName and TableAlias to Column struct
+- `internal/sql/planner/planner.go`: Modified planTableRef to populate table information
+- `internal/sql/executor/expression.go`: Enhanced column resolution logic
+- `internal/sql/executor/join.go`: Ensure JOIN operators preserve column table information
+- `internal/sql/planner/logical.go`: Fixed nil pointer in LogicalJoin.String()
 
-### Step 2: Update JOIN Schema Building
-In both planner and executor:
-- When concatenating schemas, preserve table information
-- Set TableAlias from the JOIN's table aliases
+## Testing
+Created comprehensive test in `test/test_join_column_resolution.go` that verifies:
+- Simple JOIN with qualified columns
+- JOIN with WHERE clause using qualified names
+- Multiple column SELECT with JOIN
+- Complex WHERE with qualified columns
 
-### Step 3: Fix Column Resolution
-Update `buildExprEvaluatorWithSchema`:
-- Match columns by name AND table alias if provided
-- Support both qualified (table.column) and unqualified references
-- Handle ambiguous columns appropriately
-
-### Step 4: Update Expression Building
-Ensure ColumnRef expressions preserve table information:
-- Parser already captures TableAlias
-- Ensure it's propagated through planning
-
-## Code Changes
-
-### 1. Schema Column Enhancement
-```go
-// internal/sql/executor/schema.go
-type Column struct {
-    Name       string
-    Type       types.DataType  
-    Nullable   bool
-    TableName  string // Add source table name
-    TableAlias string // Add table alias
-}
-```
-
-### 2. JOIN Schema Building
-```go
-// internal/sql/planner/planner.go
-func (p *Planner) buildJoinSchema(left, right LogicalPlan, leftAlias, rightAlias string) *Schema {
-    // Qualify columns from left side
-    // Qualify columns from right side
-    // Combine into new schema
-}
-```
-
-### 3. Column Resolution Fix
-```go
-// internal/sql/executor/expression.go
-func buildExprEvaluatorWithSchema(expr planner.Expression, schema *Schema) (ExprEvaluator, error) {
-    // Enhanced column matching logic
-    // Support qualified and unqualified names
-}
-```
-
-## Testing Strategy
-1. Unit tests for column resolution with qualified names
-2. Integration tests for multi-table JOINs
-3. TPC-H query tests that were previously failing
-
-## Success Criteria
-- JOIN queries with qualified column names work
-- TPC-H queries with JOINs execute successfully
-- No regression in existing queries
+All tests pass successfully, confirming that JOIN column resolution now works correctly.

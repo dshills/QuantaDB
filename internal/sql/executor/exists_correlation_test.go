@@ -4,15 +4,34 @@ import (
 	"testing"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/testutil"
+	"github.com/dshills/QuantaDB/internal/txn"
 	"github.com/stretchr/testify/require"
 )
 
 func TestExistsCorrelationExecution(t *testing.T) {
 	// Setup test environment
 	cat := catalog.NewMemoryCatalog()
+	eng := engine.NewMemoryEngine()
+	defer eng.Close()
+
+	// Create transaction manager and storage backend
+	txnManager := txn.NewManager(eng, nil)
+	diskManager, err := storage.NewDiskManager(":memory:")
+	testutil.AssertNoError(t, err)
+	defer diskManager.Close()
+
+	bufferPool := storage.NewBufferPool(diskManager, 10)
+	storageBackend := NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
+
+	// Create executor
+	exec := NewBasicExecutor(cat, eng)
+	exec.SetStorageBackend(storageBackend)
 
 	// Create test tables
 	usersSchema := &catalog.TableSchema{
@@ -34,45 +53,41 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		},
 	}
 
-	usersID, err := cat.CreateTable(usersSchema)
-	require.NoError(t, err)
+	usersTable, err := cat.CreateTable(usersSchema)
+	testutil.AssertNoError(t, err)
+	err = storageBackend.CreateTable(usersTable)
+	testutil.AssertNoError(t, err)
 
-	ordersID, err := cat.CreateTable(ordersSchema)
-	require.NoError(t, err)
+	ordersTable, err := cat.CreateTable(ordersSchema)
+	testutil.AssertNoError(t, err)
+	err = storageBackend.CreateTable(ordersTable)
+	testutil.AssertNoError(t, err)
 
-	// Create mock storage with test data
-	storage := NewMockStorage()
+	// Insert test data - users: 1 and 2 have orders, 3 has no orders
+	usersData := [][]types.Value{
+		{types.NewIntegerValue(1), types.NewTextValue("Alice")},
+		{types.NewIntegerValue(2), types.NewTextValue("Bob")},
+		{types.NewIntegerValue(3), types.NewTextValue("Charlie")},
+	}
 	
-	// Add users: 1 and 2 have orders, 3 has no orders
-	storage.AddRow(usersID, NewRow([]types.Value{
-		types.NewIntegerValue(1),
-		types.NewTextValue("Alice"),
-	}))
-	storage.AddRow(usersID, NewRow([]types.Value{
-		types.NewIntegerValue(2),
-		types.NewTextValue("Bob"),
-	}))
-	storage.AddRow(usersID, NewRow([]types.Value{
-		types.NewIntegerValue(3),
-		types.NewTextValue("Charlie"),
-	}))
+	for _, values := range usersData {
+		row := &Row{Values: values}
+		_, err := storageBackend.InsertRow(usersTable.ID, row)
+		testutil.AssertNoError(t, err)
+	}
 
-	// Add orders for users 1 and 2
-	storage.AddRow(ordersID, NewRow([]types.Value{
-		types.NewIntegerValue(1),
-		types.NewIntegerValue(1), // user_id = 1
-		types.NewIntegerValue(100),
-	}))
-	storage.AddRow(ordersID, NewRow([]types.Value{
-		types.NewIntegerValue(2),
-		types.NewIntegerValue(1), // user_id = 1
-		types.NewIntegerValue(200),
-	}))
-	storage.AddRow(ordersID, NewRow([]types.Value{
-		types.NewIntegerValue(3),
-		types.NewIntegerValue(2), // user_id = 2
-		types.NewIntegerValue(300),
-	}))
+	// Insert orders for users 1 and 2  
+	ordersData := [][]types.Value{
+		{types.NewIntegerValue(1), types.NewIntegerValue(1), types.NewIntegerValue(100)},
+		{types.NewIntegerValue(2), types.NewIntegerValue(1), types.NewIntegerValue(200)},
+		{types.NewIntegerValue(3), types.NewIntegerValue(2), types.NewIntegerValue(300)},
+	}
+	
+	for _, values := range ordersData {
+		row := &Row{Values: values}
+		_, err := storageBackend.InsertRow(ordersTable.ID, row)
+		testutil.AssertNoError(t, err)
+	}
 
 	// Test EXISTS with correlation
 	t.Run("EXISTS with correlation", func(t *testing.T) {
@@ -92,12 +107,27 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		require.NoError(t, err)
 
 		// Execute the query
-		exec := NewBasicExecutor(storage, nil, cat)
-		results, err := exec.Execute(plan, nil, nil)
+		ctx := &ExecContext{
+			Catalog: cat,
+			Engine:  eng,
+			Stats:   &ExecStats{},
+		}
+		results, err := exec.Execute(plan, ctx)
 		require.NoError(t, err)
 		require.NotNil(t, results)
 
-		rows := results.Rows
+		// Collect all rows
+		var rows []*Row
+		for {
+			row, err := results.Next()
+			require.NoError(t, err)
+			if row == nil {
+				break
+			}
+			rows = append(rows, row)
+		}
+		results.Close()
+		
 		require.Len(t, rows, 3, "Should return 3 users")
 
 		// Check results
@@ -135,12 +165,27 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		require.NoError(t, err)
 
 		// Execute the query
-		exec := NewBasicExecutor(storage, nil, cat)
-		results, err := exec.Execute(plan, nil, nil)
+		ctx := &ExecContext{
+			Catalog: cat,
+			Engine:  eng,
+			Stats:   &ExecStats{},
+		}
+		results, err := exec.Execute(plan, ctx)
 		require.NoError(t, err)
 		require.NotNil(t, results)
 
-		rows := results.Rows
+		// Collect all rows
+		var rows []*Row
+		for {
+			row, err := results.Next()
+			require.NoError(t, err)
+			if row == nil {
+				break
+			}
+			rows = append(rows, row)
+		}
+		results.Close()
+		
 		require.Len(t, rows, 3, "Should return 3 users")
 
 		// Check results
@@ -170,12 +215,27 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		require.NoError(t, err)
 
 		// Execute the query
-		exec := NewBasicExecutor(storage, nil, cat)
-		results, err := exec.Execute(plan, nil, nil)
+		ctx := &ExecContext{
+			Catalog: cat,
+			Engine:  eng,
+			Stats:   &ExecStats{},
+		}
+		results, err := exec.Execute(plan, ctx)
 		require.NoError(t, err)
 		require.NotNil(t, results)
 
-		rows := results.Rows
+		// Collect all rows
+		var rows []*Row
+		for {
+			row, err := results.Next()
+			require.NoError(t, err)
+			if row == nil {
+				break
+			}
+			rows = append(rows, row)
+		}
+		results.Close()
+		
 		require.Len(t, rows, 3, "Should return 3 users")
 
 		// User 1 has order with amount=200 > 150
