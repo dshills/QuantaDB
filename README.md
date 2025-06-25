@@ -33,6 +33,47 @@ QuantaDB is a complete SQL database featuring persistent storage, MVCC transacti
 - Authentication, RBAC, and enterprise security
 - Backup/recovery tools and monitoring
 
+## SQL Version Compliance
+
+| SQL Standard | Feature | Status | Notes |
+|--------------|---------|--------|-------|
+| **SQL-92** | Basic SELECT/INSERT/UPDATE/DELETE | ✅ | Full support |
+| | CREATE/DROP TABLE | ✅ | All data types supported |
+| | PRIMARY KEY, FOREIGN KEY | ✅ | CASCADE actions included |
+| | UNIQUE, NOT NULL constraints | ✅ | Full validation |
+| | CHECK constraints | ✅ | Complex expressions supported |
+| | Basic JOINs (INNER, LEFT, RIGHT) | ✅ | Optimized execution |
+| | GROUP BY, HAVING | ✅ | With aggregate functions |
+| | Subqueries | ✅ | Correlated and uncorrelated |
+| | UNION, INTERSECT, EXCEPT | ✅ | Set operations |
+| **SQL-99** | FULL OUTER JOIN | ✅ | Complete implementation |
+| | Common Table Expressions (CTEs) | ✅ | Recursive CTEs supported |
+| | Window Functions | ✅ | ROW_NUMBER, RANK, etc. |
+| | CASE expressions | ✅ | Simple and searched |
+| | Boolean data type | ✅ | TRUE/FALSE/NULL |
+| **SQL:2003** | XML data type | ❌ | Not implemented |
+| | MERGE statement | ❌ | Planned for future |
+| | Sequence generators | ❌ | Use SERIAL columns |
+| | Identity columns | ✅ | Via SERIAL types |
+| **SQL:2006** | XML query support | ❌ | Not planned |
+| **SQL:2008** | TRUNCATE statement | ✅ | Fast table clearing |
+| | INSTEAD OF triggers | ❌ | Triggers not implemented |
+| **SQL:2011** | Temporal data | ⚠️ | DATE/TIMESTAMP only |
+| | Enhanced window functions | ✅ | ROWS/RANGE clauses |
+| **SQL:2016** | JSON data type | ❌ | Planned for future |
+| | Row pattern recognition | ❌ | Not implemented |
+| **SQL:2023** | SQL/PGQ (Property Graph Queries) | ❌ | Graph database features |
+| | Multi-dimensional arrays | ❌ | Not implemented |
+| | SQL/JSON enhancements | ❌ | Awaiting JSON base support |
+| | DML RETURNING enhancements | ⚠️ | Basic RETURNING supported |
+| **PostgreSQL Extensions** | SERIAL/BIGSERIAL | ✅ | Auto-incrementing columns |
+| | BYTEA data type | ✅ | Binary data support |
+| | INTERVAL arithmetic | ✅ | Date/time calculations |
+| | Dollar-quoted strings | ✅ | $$string$$ syntax |
+| | RETURNING clause | ✅ | For INSERT/UPDATE/DELETE |
+
+**Legend**: ✅ Fully Implemented | ⚠️ Partial Support | ❌ Not Implemented
+
 ## Quick Start
 
 ### Prerequisites
