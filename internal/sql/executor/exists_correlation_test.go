@@ -1,22 +1,44 @@
 package executor
 
 import (
+	"context"
 	"sort"
 	"testing"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
+	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
+	"github.com/dshills/QuantaDB/internal/testutil"
+	"github.com/dshills/QuantaDB/internal/txn"
 	"github.com/stretchr/testify/require"
 )
 
 // TestExistsCorrelationExecution tests EXISTS and NOT EXISTS correlated subqueries
-// TODO: Fix this test to work with the current storage backend implementation
+// TODO: EXISTS correlation is not working correctly - all rows return true regardless of correlation
+// This appears to be a bug in the EXISTS operator implementation where the correlation
+// predicate is not being properly applied during execution.
 func TestExistsCorrelationExecution(t *testing.T) {
-	t.Skip("Skipping EXISTS correlation test - needs to be updated for current storage backend")
+	t.Skip("EXISTS correlation not working correctly - bug in correlation predicate evaluation")
 	// Setup test environment
 	cat := catalog.NewMemoryCatalog()
+	eng := engine.NewMemoryEngine()
+	defer eng.Close()
+
+	// Create transaction manager and storage backend
+	txnManager := txn.NewManager(eng, nil)
+	diskManager, err := storage.NewDiskManager(":memory:")
+	testutil.AssertNoError(t, err)
+	defer diskManager.Close()
+
+	bufferPool := storage.NewBufferPool(diskManager, 10)
+	storageBackend := NewMVCCStorageBackend(bufferPool, cat, nil, txnManager)
+
+	// Create executor
+	exec := NewBasicExecutor(cat, eng)
+	exec.SetStorageBackend(storageBackend)
 
 	// Create test tables
 	usersSchema := &catalog.TableSchema{
@@ -39,46 +61,120 @@ func TestExistsCorrelationExecution(t *testing.T) {
 	}
 
 	usersTable, err := cat.CreateTable(usersSchema)
-	require.NoError(t, err)
+	testutil.AssertNoError(t, err)
+	err = storageBackend.CreateTable(usersTable)
+	testutil.AssertNoError(t, err)
 
 	ordersTable, err := cat.CreateTable(ordersSchema)
-	require.NoError(t, err)
+	testutil.AssertNoError(t, err)
+	err = storageBackend.CreateTable(ordersTable)
+	testutil.AssertNoError(t, err)
 
-	// Create mock storage with test data
-	storage := newMockStorageBackend()
-	storage.CreateTable(usersTable)
-	storage.CreateTable(ordersTable)
-	
-	// Add users: 1 and 2 have orders, 3 has no orders
-	storage.InsertRow(usersTable.ID, &Row{Values: []types.Value{
-		types.NewIntegerValue(1),
-		types.NewTextValue("Alice"),
-	}})
-	storage.InsertRow(usersTable.ID, &Row{Values: []types.Value{
-		types.NewIntegerValue(2),
-		types.NewTextValue("Bob"),
-	}})
-	storage.InsertRow(usersTable.ID, &Row{Values: []types.Value{
-		types.NewIntegerValue(3),
-		types.NewTextValue("Charlie"),
-	}})
+	// Insert test data - users: 1 and 2 have orders, 3 has no orders
+	usersData := [][]types.Value{
+		{types.NewIntegerValue(int32(1)), types.NewTextValue("Alice")},
+		{types.NewIntegerValue(int32(2)), types.NewTextValue("Bob")},
+		{types.NewIntegerValue(int32(3)), types.NewTextValue("Charlie")},
+	}
 
-	// Add orders for users 1 and 2
-	storage.InsertRow(ordersTable.ID, &Row{Values: []types.Value{
-		types.NewIntegerValue(1),
-		types.NewIntegerValue(1), // user_id = 1
-		types.NewIntegerValue(100),
-	}})
-	storage.InsertRow(ordersTable.ID, &Row{Values: []types.Value{
-		types.NewIntegerValue(2),
-		types.NewIntegerValue(1), // user_id = 1
-		types.NewIntegerValue(200),
-	}})
-	storage.InsertRow(ordersTable.ID, &Row{Values: []types.Value{
-		types.NewIntegerValue(3),
-		types.NewIntegerValue(2), // user_id = 2
-		types.NewIntegerValue(300),
-	}})
+	for _, values := range usersData {
+		row := &Row{Values: values}
+		_, err := storageBackend.InsertRow(usersTable.ID, row)
+		testutil.AssertNoError(t, err)
+	}
+
+	// Insert orders for users 1 and 2
+	ordersData := [][]types.Value{
+		{types.NewIntegerValue(int32(1)), types.NewIntegerValue(int32(1)), types.NewIntegerValue(int32(100))},
+		{types.NewIntegerValue(int32(2)), types.NewIntegerValue(int32(1)), types.NewIntegerValue(int32(200))},
+		{types.NewIntegerValue(int32(3)), types.NewIntegerValue(int32(2)), types.NewIntegerValue(int32(300))},
+	}
+
+	for _, values := range ordersData {
+		row := &Row{Values: values}
+		_, err := storageBackend.InsertRow(ordersTable.ID, row)
+		testutil.AssertNoError(t, err)
+	}
+
+	// First test a simple query to verify data is correct
+	t.Run("Verify test data", func(t *testing.T) {
+		// Check users table
+		usersQuery := `SELECT id, name FROM users ORDER BY id`
+		p := parser.NewParser(usersQuery)
+		stmt, err := p.Parse()
+		require.NoError(t, err)
+		
+		plnr := planner.NewBasicPlannerWithCatalog(cat)
+		plan, err := plnr.Plan(stmt)
+		require.NoError(t, err)
+		
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		require.NoError(t, err)
+		defer transaction.Rollback()
+		
+		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
+		
+		ctx := &ExecContext{
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
+		}
+		
+		results, err := exec.Execute(plan, ctx)
+		require.NoError(t, err)
+		require.NotNil(t, results)
+		
+		var rows []*Row
+		for {
+			row, err := results.Next()
+			require.NoError(t, err)
+			if row == nil {
+				break
+			}
+			rows = append(rows, row)
+		}
+		results.Close()
+		
+		require.Len(t, rows, 3, "Should have 3 users")
+		t.Logf("Users: %d rows", len(rows))
+		for _, row := range rows {
+			t.Logf("  User: id=%v, name=%v", row.Values[0].Data, row.Values[1].Data)
+		}
+		
+		// Check orders table
+		ordersQuery := `SELECT id, user_id, amount FROM orders ORDER BY id`
+		p2 := parser.NewParser(ordersQuery)
+		stmt2, err := p2.Parse()
+		require.NoError(t, err)
+		
+		plan2, err := plnr.Plan(stmt2)
+		require.NoError(t, err)
+		
+		results2, err := exec.Execute(plan2, ctx)
+		require.NoError(t, err)
+		require.NotNil(t, results2)
+		
+		rows = nil
+		for {
+			row, err := results2.Next()
+			require.NoError(t, err)
+			if row == nil {
+				break
+			}
+			rows = append(rows, row)
+		}
+		results2.Close()
+		
+		require.Len(t, rows, 3, "Should have 3 orders")
+		t.Logf("Orders: %d rows", len(rows))
+		for _, row := range rows {
+			t.Logf("  Order: id=%v, user_id=%v, amount=%v", row.Values[0].Data, row.Values[1].Data, row.Values[2].Data)
+		}
+	})
 
 	// Test EXISTS with correlation
 	t.Run("EXISTS with correlation", func(t *testing.T) {
@@ -97,14 +193,23 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
 
-		// Create executor
-		exec := NewBasicExecutor(cat, nil)
-		exec.SetStorageBackend(storage)
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		require.NoError(t, err)
+		defer transaction.Rollback()
+		
+		// Set the transaction context on the storage backend
+		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
 
 		// Execute the query
 		ctx := &ExecContext{
-			Catalog: cat,
-			Stats:   &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 		results, err := exec.Execute(plan, ctx)
 		require.NoError(t, err)
@@ -128,6 +233,11 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		sort.Slice(rows, func(i, j int) bool {
 			return rows[i].Values[0].Data.(int32) < rows[j].Values[0].Data.(int32)
 		})
+
+		// Debug: Print all rows to see what we're getting
+		for i, row := range rows {
+			t.Logf("Row %d: id=%v, name=%v, has_orders=%v", i, row.Values[0].Data, row.Values[1].Data, row.Values[2].Data)
+		}
 
 		// Check results
 		// User 1 (Alice) has orders
@@ -163,14 +273,23 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
 
-		// Create executor
-		exec := NewBasicExecutor(cat, nil)
-		exec.SetStorageBackend(storage)
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		require.NoError(t, err)
+		defer transaction.Rollback()
+		
+		// Set the transaction context on the storage backend
+		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
 
 		// Execute the query
 		ctx := &ExecContext{
-			Catalog: cat,
-			Stats:   &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 		results, err := exec.Execute(plan, ctx)
 		require.NoError(t, err)
@@ -225,14 +344,23 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
 
-		// Create executor
-		exec := NewBasicExecutor(cat, nil)
-		exec.SetStorageBackend(storage)
+		// Create transaction for query execution
+		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
+		require.NoError(t, err)
+		defer transaction.Rollback()
+		
+		// Set the transaction context on the storage backend
+		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
 
 		// Execute the query
 		ctx := &ExecContext{
-			Catalog: cat,
-			Stats:   &ExecStats{},
+			Catalog:        cat,
+			Engine:         eng,
+			TxnManager:     txnManager,
+			Txn:            transaction,
+			SnapshotTS:     int64(transaction.ReadTimestamp()),
+			IsolationLevel: txn.ReadCommitted,
+			Stats:          &ExecStats{},
 		}
 		results, err := exec.Execute(plan, ctx)
 		require.NoError(t, err)
