@@ -101,6 +101,7 @@ QuantaDB/
 - Update TODO.md before committing work to git
 - Use second-opinion to review commits
 - Use second-opinion to analyze uncomitted work before commit
+- Use tool second-opinion:analyze_uncommitted_work often to review uncomitted work
 
 ## Memory Management
 

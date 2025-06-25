@@ -800,3 +800,40 @@ func (s *DeallocateStmt) statementNode() {}
 func (s *DeallocateStmt) String() string {
 	return fmt.Sprintf("DEALLOCATE %s", s.Name)
 }
+
+// ExplainStmt represents an EXPLAIN statement.
+// Examples:
+// - EXPLAIN SELECT * FROM users
+// - EXPLAIN ANALYZE SELECT * FROM users
+// - EXPLAIN (ANALYZE, VERBOSE) SELECT * FROM users
+type ExplainStmt struct {
+	Statement Statement // The statement to explain
+	Analyze   bool      // true for EXPLAIN ANALYZE
+	Verbose   bool      // Include additional details
+	Format    string    // Output format: 'text' (default) or 'json'
+}
+
+func (s *ExplainStmt) statementNode() {}
+func (s *ExplainStmt) String() string {
+	var parts []string
+	parts = append(parts, "EXPLAIN")
+
+	if s.Analyze || s.Verbose || s.Format != "" {
+		var opts []string
+		if s.Analyze {
+			opts = append(opts, "ANALYZE")
+		}
+		if s.Verbose {
+			opts = append(opts, "VERBOSE")
+		}
+		if s.Format != "" && s.Format != "text" {
+			opts = append(opts, fmt.Sprintf("FORMAT %s", s.Format))
+		}
+		if len(opts) > 0 {
+			parts = append(parts, "("+strings.Join(opts, ", ")+")")
+		}
+	}
+
+	parts = append(parts, s.Statement.String())
+	return strings.Join(parts, " ")
+}

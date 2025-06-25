@@ -114,7 +114,16 @@ QuantaDB has evolved from an experimental project to a **production-ready Postgr
 
 ### 🔄 In Progress
 
-1. **Storage Integration**
+1. **Performance Optimization**
+   - ✅ EXPLAIN and EXPLAIN ANALYZE support (Phase 1 complete)
+   - ✅ Operator runtime statistics collection framework
+   - ✅ Query execution time tracking
+   - ✅ Initial instrumentation (StorageScan, HashJoin operators)
+   - ⏳ Complete instrumentation of all operators
+   - ⏳ Query plan caching (Phase 2)
+   - ⏳ Parallel query execution (Phase 3)
+
+2. **Storage Integration**
    - ✅ Storage backend interface
    - ✅ CREATE TABLE persistence
    - ✅ Basic INSERT operations
@@ -122,7 +131,7 @@ QuantaDB has evolved from an experimental project to a **production-ready Postgr
    - ✅ DELETE operations (tombstone marking)
    - ❌ Transaction-storage integration
 
-2. **PostgreSQL Client Compatibility**
+3. **PostgreSQL Client Compatibility**
    - Connection stability issues
    - Extended query protocol partially implemented
 

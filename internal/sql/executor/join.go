@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
@@ -215,6 +216,10 @@ func (h *HashJoinOperator) Open(ctx *ExecContext) error {
 	h.leftRow = nil
 	h.matchIdx = 0
 
+	// Initialize statistics collection
+	// TODO: Get estimated rows from planner
+	h.initStats(1000) // Default estimate
+
 	// Open children
 	if err := h.left.Open(ctx); err != nil {
 		return fmt.Errorf("failed to open left child: %w", err)
@@ -309,12 +314,18 @@ func (h *HashJoinOperator) Next() (*Row, error) {
 			h.ctx.Stats.RowsReturned++
 		}
 
+		// Record row produced
+		h.recordRow()
+
 		return joinedRow, nil
 	}
 }
 
 // buildHashTable builds the hash table from the right child.
 func (h *HashJoinOperator) buildHashTable() error {
+	buildStart := time.Now()
+	rowCount := 0
+
 	for {
 		row, err := h.right.Next()
 		if err != nil {
@@ -332,6 +343,20 @@ func (h *HashJoinOperator) buildHashTable() error {
 
 		// Add to hash table
 		h.hashTable[hash] = append(h.hashTable[hash], row)
+		rowCount++
+	}
+
+	// Record hash table statistics
+	if h.stats != nil {
+		buildTimeMs := time.Since(buildStart).Seconds() * 1000
+		h.stats.ExtraInfo["Hash Build Time"] = fmt.Sprintf("%.2f ms", buildTimeMs)
+		h.stats.ExtraInfo["Hash Buckets"] = fmt.Sprintf("%d", len(h.hashTable))
+		h.stats.ExtraInfo["Hash Rows"] = fmt.Sprintf("%d", rowCount)
+
+		// Estimate memory usage (rough approximation)
+		// Each row pointer is 8 bytes, plus map overhead
+		memoryKB := int64((rowCount*8 + len(h.hashTable)*32) / 1024)
+		h.stats.MemoryUsedKB = memoryKB
 	}
 
 	return nil
@@ -365,6 +390,12 @@ func (h *HashJoinOperator) joinRows(left, right *Row) *Row {
 
 // Close cleans up the hash join operator.
 func (h *HashJoinOperator) Close() error {
+	// Finalize and report statistics
+	h.finishStats()
+	if h.ctx != nil && h.ctx.StatsCollector != nil && h.stats != nil {
+		h.ctx.StatsCollector(h, h.stats)
+	}
+
 	h.hashTable = nil
 	h.rightRows = nil
 

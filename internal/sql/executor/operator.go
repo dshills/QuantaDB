@@ -25,10 +25,46 @@ type Operator interface {
 type baseOperator struct {
 	schema *Schema
 	ctx    *ExecContext
+	stats  *OperatorStats
+	timer  *StatsTimer
 }
 
 func (o *baseOperator) Schema() *Schema {
 	return o.schema
+}
+
+// initStats initializes statistics collection for this operator
+func (o *baseOperator) initStats(estimatedRows int64) {
+	if o.ctx != nil && o.ctx.CollectStats {
+		o.stats = &OperatorStats{
+			EstimatedRows: estimatedRows,
+			ExtraInfo:     make(map[string]string),
+		}
+		o.timer = NewStatsTimer(o.stats)
+	}
+}
+
+// recordRow records that a row was produced
+func (o *baseOperator) recordRow() {
+	if o.timer != nil {
+		o.timer.RecordRow()
+	}
+}
+
+// finishStats finalizes statistics collection
+func (o *baseOperator) finishStats() {
+	if o.timer != nil {
+		o.timer.Stop()
+
+		// Record buffer statistics if available
+		if o.ctx.BufferStats != nil && o.stats != nil {
+			o.stats.PagesHit = o.ctx.BufferStats.GetHits()
+			o.stats.PagesRead = o.ctx.BufferStats.GetMisses()
+		}
+
+		// Note: The actual operator implementation should call StatsCollector
+		// when appropriate (usually in Close() or when returning EOF)
+	}
 }
 
 // ScanOperator reads rows from a table.
@@ -280,7 +316,7 @@ func (p *ProjectOperator) Next() (*Row, error) {
 		} else {
 			evalCtx = p.ctx
 		}
-		
+
 		value, err := proj.Eval(row, evalCtx)
 		if err != nil {
 			return nil, fmt.Errorf("projection %d failed: %w", i, err)

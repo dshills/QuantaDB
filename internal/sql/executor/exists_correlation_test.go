@@ -99,17 +99,17 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		p := parser.NewParser(usersQuery)
 		stmt, err := p.Parse()
 		require.NoError(t, err)
-		
+
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
-		
+
 		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		require.NoError(t, err)
 		defer transaction.Rollback()
-		
+
 		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
-		
+
 		ctx := &ExecContext{
 			Catalog:        cat,
 			Engine:         eng,
@@ -119,11 +119,11 @@ func TestExistsCorrelationExecution(t *testing.T) {
 			IsolationLevel: txn.ReadCommitted,
 			Stats:          &ExecStats{},
 		}
-		
+
 		results, err := exec.Execute(plan, ctx)
 		require.NoError(t, err)
 		require.NotNil(t, results)
-		
+
 		var rows []*Row
 		for {
 			row, err := results.Next()
@@ -134,26 +134,26 @@ func TestExistsCorrelationExecution(t *testing.T) {
 			rows = append(rows, row)
 		}
 		results.Close()
-		
+
 		require.Len(t, rows, 3, "Should have 3 users")
 		t.Logf("Users: %d rows", len(rows))
 		for _, row := range rows {
 			t.Logf("  User: id=%v, name=%v", row.Values[0].Data, row.Values[1].Data)
 		}
-		
+
 		// Check orders table
 		ordersQuery := `SELECT id, user_id, amount FROM orders ORDER BY id`
 		p2 := parser.NewParser(ordersQuery)
 		stmt2, err := p2.Parse()
 		require.NoError(t, err)
-		
+
 		plan2, err := plnr.Plan(stmt2)
 		require.NoError(t, err)
-		
+
 		results2, err := exec.Execute(plan2, ctx)
 		require.NoError(t, err)
 		require.NotNil(t, results2)
-		
+
 		rows = nil
 		for {
 			row, err := results2.Next()
@@ -164,7 +164,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 			rows = append(rows, row)
 		}
 		results2.Close()
-		
+
 		require.Len(t, rows, 3, "Should have 3 orders")
 		t.Logf("Orders: %d rows", len(rows))
 		for _, row := range rows {
@@ -193,7 +193,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		require.NoError(t, err)
 		defer transaction.Rollback()
-		
+
 		// Set the transaction context on the storage backend
 		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
 
@@ -222,7 +222,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 			rows = append(rows, row)
 		}
 		results.Close()
-		
+
 		require.Len(t, rows, 3, "Should return 3 users")
 
 		// Sort rows by ID to ensure consistent ordering
@@ -268,13 +268,12 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
-		
 
 		// Create transaction for query execution
 		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		require.NoError(t, err)
 		defer transaction.Rollback()
-		
+
 		// Set the transaction context on the storage backend
 		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
 
@@ -303,7 +302,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 			rows = append(rows, row)
 		}
 		results.Close()
-		
+
 		require.Len(t, rows, 3, "Should return 3 users")
 
 		// Sort rows by ID to ensure consistent ordering
@@ -315,7 +314,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		// User 1 and 2 have orders, so no_orders should be false
 		require.Equal(t, int32(1), rows[0].Values[0].Data)
 		require.Equal(t, false, rows[0].Values[2].Data, "Alice has orders")
-		
+
 		require.Equal(t, int32(2), rows[1].Values[0].Data)
 		require.Equal(t, false, rows[1].Values[2].Data, "Bob has orders")
 
@@ -340,13 +339,12 @@ func TestExistsCorrelationExecution(t *testing.T) {
 		plnr := planner.NewBasicPlannerWithCatalog(cat)
 		plan, err := plnr.Plan(stmt)
 		require.NoError(t, err)
-		
 
 		// Create transaction for query execution
 		transaction, err := txnManager.BeginTransaction(context.Background(), txn.ReadCommitted)
 		require.NoError(t, err)
 		defer transaction.Rollback()
-		
+
 		// Set the transaction context on the storage backend
 		storageBackend.SetCurrentTransaction(transaction.ID(), int64(transaction.ReadTimestamp()))
 
@@ -375,7 +373,7 @@ func TestExistsCorrelationExecution(t *testing.T) {
 			rows = append(rows, row)
 		}
 		results.Close()
-		
+
 		require.Len(t, rows, 3, "Should return 3 users")
 
 		// Sort rows by ID to ensure consistent ordering

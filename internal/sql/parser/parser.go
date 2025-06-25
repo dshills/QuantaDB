@@ -106,6 +106,8 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseExecute()
 	case TokenDeallocate:
 		return p.parseDeallocate()
+	case TokenExplain:
+		return p.parseExplain()
 	default:
 		return nil, p.error(fmt.Sprintf("unexpected statement start: %s", p.current))
 	}
@@ -1353,6 +1355,83 @@ func (p *Parser) parseDeallocate() (*DeallocateStmt, error) {
 	return &DeallocateStmt{
 		Name: name,
 	}, nil
+}
+
+// parseExplain parses an EXPLAIN statement.
+// Syntax: EXPLAIN [ANALYZE] [VERBOSE] statement
+//
+//	EXPLAIN (option [, ...]) statement
+func (p *Parser) parseExplain() (*ExplainStmt, error) {
+	if !p.consume(TokenExplain, "expected EXPLAIN") {
+		return nil, p.lastError()
+	}
+
+	explain := &ExplainStmt{
+		Format: "text", // default format
+	}
+
+	// Check for options in parentheses
+	if p.match(TokenLeftParen) {
+		for {
+			// Get option name - could be identifier or keyword like FORMAT
+			var option string
+			if p.current.Type == TokenIdentifier {
+				option = strings.ToUpper(p.current.Value)
+			} else if p.current.Type == TokenFormat {
+				option = "FORMAT"
+			} else if p.current.Type == TokenAnalyze {
+				option = "ANALYZE"
+			} else {
+				return nil, p.error("expected option name")
+			}
+			p.advance()
+
+			switch option {
+			case "ANALYZE":
+				explain.Analyze = true
+			case "VERBOSE":
+				explain.Verbose = true
+			case "FORMAT":
+				// FORMAT option requires a value
+				if p.current.Type != TokenIdentifier && p.current.Type != TokenString {
+					return nil, p.error("expected format value")
+				}
+				explain.Format = strings.ToLower(p.current.Value)
+				p.advance()
+			default:
+				return nil, p.error(fmt.Sprintf("unknown EXPLAIN option: %s", option))
+			}
+
+			if !p.match(TokenComma) {
+				break
+			}
+		}
+
+		if !p.consume(TokenRightParen, "expected ')'") {
+			return nil, p.lastError()
+		}
+	} else {
+		// Check for simple ANALYZE keyword
+		if p.current.Type == TokenAnalyze {
+			explain.Analyze = true
+			p.advance()
+		}
+
+		// Check for VERBOSE keyword
+		if p.current.Type == TokenIdentifier && strings.ToUpper(p.current.Value) == "VERBOSE" {
+			explain.Verbose = true
+			p.advance()
+		}
+	}
+
+	// Parse the statement to explain
+	stmt, err := p.parseStatement()
+	if err != nil {
+		return nil, fmt.Errorf("error parsing statement to explain: %w", err)
+	}
+
+	explain.Statement = stmt
+	return explain, nil
 }
 
 // parseCreateIndex parses a CREATE INDEX statement.

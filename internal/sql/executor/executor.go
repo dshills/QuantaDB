@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/engine"
@@ -60,6 +61,15 @@ type ExecContext struct {
 	CorrelatedValues map[string]types.Value
 	// Schema context for correlation resolution
 	CorrelationSchema *Schema
+
+	// Performance monitoring
+	CollectStats   bool                           // Whether to collect runtime stats
+	StartTime      time.Time                      // Query start time
+	PlanningTime   time.Duration                  // Time spent planning
+	ExecutionTime  time.Duration                  // Time spent executing
+	OperatorStats  map[Operator]*OperatorStats    // Stats by operator
+	BufferStats    *BufferPoolStats               // Buffer pool statistics
+	StatsCollector func(Operator, *OperatorStats) // Callback for stats collection
 }
 
 // Row represents a row of data.

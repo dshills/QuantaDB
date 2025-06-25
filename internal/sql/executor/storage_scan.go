@@ -56,6 +56,10 @@ func NewStorageScanOperatorWithAlias(table *catalog.Table, alias string, storage
 func (s *StorageScanOperator) Open(ctx *ExecContext) error {
 	s.ctx = ctx
 
+	// Initialize statistics collection
+	// TODO: Get estimated rows from table statistics
+	s.initStats(1000) // Default estimate
+
 	// Set transaction ID on storage backend if available
 	if ctx.Txn != nil {
 		s.storage.SetTransactionID(uint64(ctx.Txn.ID()))
@@ -85,6 +89,12 @@ func (s *StorageScanOperator) Next() (*Row, error) {
 	}
 
 	if row == nil {
+		// Finalize statistics on EOF
+		s.finishStats()
+		// Report stats to collector
+		if s.ctx != nil && s.ctx.StatsCollector != nil && s.stats != nil {
+			s.ctx.StatsCollector(s, s.stats)
+		}
 		return nil, nil // nolint:nilnil // EOF - standard iterator pattern
 	}
 
@@ -94,11 +104,21 @@ func (s *StorageScanOperator) Next() (*Row, error) {
 		s.ctx.Stats.RowsRead++
 	}
 
+	// Record row for performance stats
+	s.recordRow()
+
 	return row, nil
 }
 
 // Close cleans up the scan
 func (s *StorageScanOperator) Close() error {
+	// Ensure stats are finalized
+	s.finishStats()
+	// Report stats to collector if not already done
+	if s.ctx != nil && s.ctx.StatsCollector != nil && s.stats != nil {
+		s.ctx.StatsCollector(s, s.stats)
+	}
+
 	if s.iterator != nil {
 		if err := s.iterator.Close(); err != nil {
 			return fmt.Errorf("failed to close iterator: %w", err)
