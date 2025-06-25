@@ -1,5 +1,7 @@
 # QuantaDB
 
+This project is currently in pre-alpha and should be treated as such!
+
 🎉 **A production-ready PostgreSQL-compatible database written in Go with 100% TPC-H benchmark coverage!**
 
 QuantaDB is a complete SQL database featuring persistent storage, MVCC transactions, crash recovery, and enterprise-grade query processing capabilities. All 22 TPC-H queries are fully functional, including the most complex analytical workloads with correlated subqueries.
@@ -16,7 +18,7 @@ QuantaDB is a complete SQL database featuring persistent storage, MVCC transacti
 - **Advanced Query Optimizer**: Cost-based planning with index selection and join reordering
 - **B+Tree Indexes**: Full integration with query planner and maintenance operations
 - **Rich Data Types**: All SQL types including DATE, TIMESTAMP, INTERVAL, BYTEA, and numerics
-- **Enterprise SQL Features**: 
+- **Enterprise SQL Features**:
   - Complex subqueries (correlated, EXISTS, IN/NOT IN)
   - All JOIN types (INNER, LEFT, RIGHT, FULL, CROSS)
   - GROUP BY, HAVING, DISTINCT, LIMIT/OFFSET
@@ -25,7 +27,7 @@ QuantaDB is a complete SQL database featuring persistent storage, MVCC transacti
   - CHECK constraints with full expression support
 
 ### 🚀 Next Phase: Performance & Distribution
-- Query performance optimization and parallel execution  
+- Query performance optimization and parallel execution
 - Streaming replication and high availability
 - Horizontal sharding and distributed queries
 - Authentication, RBAC, and enterprise security
@@ -75,7 +77,7 @@ CREATE TABLE users (
     email TEXT UNIQUE
 );
 
-INSERT INTO users (id, name, email) VALUES 
+INSERT INTO users (id, name, email) VALUES
     (1, 'Alice', 'alice@example.com'),
     (2, 'Bob', 'bob@example.com');
 
@@ -189,7 +191,7 @@ QuantaDB/
 - **✅ Data Scale**: Successfully tested with scale factor 0.01 (87K+ rows)
 - **✅ Query Complexity**: Supports most demanding analytical workloads
 
-### Performance Characteristics  
+### Performance Characteristics
 - **Simple Queries**: 880K+ TPS for key-value operations
 - **Storage**: 8KB pages with efficient LRU buffer pool management
 - **WAL**: Batched writes with configurable durability guarantees
@@ -197,7 +199,7 @@ QuantaDB/
 - **Indexes**: B+Tree indexes with cost-based optimization
 
 ### Production Ready Features
-- **Crash Recovery**: WAL-based recovery with checkpoint management  
+- **Crash Recovery**: WAL-based recovery with checkpoint management
 - **Data Integrity**: ACID transactions with multiple isolation levels
 - **Client Compatibility**: Works with all PostgreSQL drivers and tools
 - **Schema Management**: Full DDL support with constraint validation
