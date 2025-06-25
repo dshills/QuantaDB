@@ -115,7 +115,7 @@ func TestParallelHashJoinEndToEnd(t *testing.T) {
 
 	rightTable := &catalog.Table{
 		ID:        2,
-		TableName: "departments", 
+		TableName: "departments",
 		Columns: []*catalog.Column{
 			{Name: "emp_id", DataType: types.Integer},
 			{Name: "dept", DataType: types.Text},

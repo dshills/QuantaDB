@@ -9,23 +9,23 @@ import (
 // AdaptiveExecutionPlan coordinates adaptive behavior across the entire query plan
 type AdaptiveExecutionPlan struct {
 	baseOperator
-	
+
 	// Original and adaptive plan
 	originalPlan Operator
 	adaptivePlan Operator
-	
+
 	// Adaptive coordination
 	adaptiveCtx *AdaptiveContext
 	config      *AdaptiveExecutionConfig
-	
+
 	// Execution monitoring
-	startTime       time.Time
-	executionPhase  ExecutionPhase
-	adaptiveNodes   []*AdaptiveNode
-	
+	startTime      time.Time
+	executionPhase ExecutionPhase
+	adaptiveNodes  []*AdaptiveNode
+
 	// Global statistics
 	globalStats *GlobalExecutionStats
-	
+
 	// Plan modification tracking
 	planModifications []PlanModification
 }
@@ -35,7 +35,7 @@ type ExecutionPhase int
 
 const (
 	InitializationPhase ExecutionPhase = iota
-	ExecutionPhase_Running
+	ExecutionPhaseRunning
 	AdaptationPhase
 	CompletionPhase
 )
@@ -44,7 +44,7 @@ func (ep ExecutionPhase) String() string {
 	switch ep {
 	case InitializationPhase:
 		return "Initialization"
-	case ExecutionPhase_Running:
+	case ExecutionPhaseRunning:
 		return "Running"
 	case AdaptationPhase:
 		return "Adaptation"
@@ -65,26 +65,26 @@ type AdaptiveNode struct {
 
 // GlobalExecutionStats tracks query-wide execution statistics
 type GlobalExecutionStats struct {
-	TotalRows          int64
-	TotalExecutionTime time.Duration
+	TotalRows           int64
+	TotalExecutionTime  time.Duration
 	MemoryHighWaterMark int64
-	AdaptationCount    int64
-	
+	AdaptationCount     int64
+
 	// Performance metrics
 	RowsPerSecond      float64
 	MemoryEfficiency   float64
 	ParallelEfficiency float64
-	
+
 	mu sync.RWMutex
 }
 
 // PlanModification records changes made to the execution plan
 type PlanModification struct {
-	Timestamp   time.Time
-	NodeType    string
+	Timestamp    time.Time
+	NodeType     string
 	Modification string
-	Reason      string
-	Impact      string
+	Reason       string
+	Impact       string
 }
 
 // AdaptiveExecutionConfig configures adaptive execution behavior
@@ -93,21 +93,21 @@ type AdaptiveExecutionConfig struct {
 	EnableGlobalAdaptation bool
 	GlobalCheckInterval    time.Duration
 	MaxAdaptationsPerQuery int
-	
+
 	// Memory management
-	QueryMemoryLimit   int64
+	QueryMemoryLimit    int64
 	MemoryCheckInterval time.Duration
-	
+
 	// Performance thresholds
-	MinRowsPerSecond    float64
-	MaxExecutionTime    time.Duration
-	AdaptationCooldown  time.Duration
-	
+	MinRowsPerSecond   float64
+	MaxExecutionTime   time.Duration
+	AdaptationCooldown time.Duration
+
 	// Parallel execution settings
 	EnableParallelAdaptation bool
 	MinParallelRows          int64
 	MaxParallelWorkers       int
-	
+
 	// Plan modification settings
 	EnablePlanRewriting    bool
 	MaxPlanModifications   int
@@ -117,20 +117,20 @@ type AdaptiveExecutionConfig struct {
 // DefaultAdaptiveExecutionConfig returns reasonable defaults
 func DefaultAdaptiveExecutionConfig() *AdaptiveExecutionConfig {
 	return &AdaptiveExecutionConfig{
-		EnableGlobalAdaptation:     true,
-		GlobalCheckInterval:        200 * time.Millisecond,
-		MaxAdaptationsPerQuery:     5,
-		QueryMemoryLimit:           256 * 1024 * 1024, // 256MB default
-		MemoryCheckInterval:        100 * time.Millisecond,
-		MinRowsPerSecond:           1000,
-		MaxExecutionTime:           30 * time.Second,
-		AdaptationCooldown:         1 * time.Second,
-		EnableParallelAdaptation:   true,
-		MinParallelRows:            10000,
-		MaxParallelWorkers:         8,
-		EnablePlanRewriting:        false, // Conservative default
-		MaxPlanModifications:       3,
-		RewritingCostThreshold:     1000.0,
+		EnableGlobalAdaptation:   true,
+		GlobalCheckInterval:      200 * time.Millisecond,
+		MaxAdaptationsPerQuery:   5,
+		QueryMemoryLimit:         256 * 1024 * 1024, // 256MB default
+		MemoryCheckInterval:      100 * time.Millisecond,
+		MinRowsPerSecond:         1000,
+		MaxExecutionTime:         30 * time.Second,
+		AdaptationCooldown:       1 * time.Second,
+		EnableParallelAdaptation: true,
+		MinParallelRows:          10000,
+		MaxParallelWorkers:       8,
+		EnablePlanRewriting:      false, // Conservative default
+		MaxPlanModifications:     3,
+		RewritingCostThreshold:   1000.0,
 	}
 }
 
@@ -143,7 +143,7 @@ func NewAdaptiveExecutionPlan(
 	if config == nil {
 		config = DefaultAdaptiveExecutionConfig()
 	}
-	
+
 	if adaptiveCtx == nil {
 		// Create default adaptive context
 		adaptiveCtx = &AdaptiveContext{
@@ -153,7 +153,7 @@ func NewAdaptiveExecutionPlan(
 			MaxMemory:   config.QueryMemoryLimit,
 		}
 	}
-	
+
 	return &AdaptiveExecutionPlan{
 		baseOperator: baseOperator{
 			schema: originalPlan.Schema(),
@@ -174,13 +174,13 @@ func (aep *AdaptiveExecutionPlan) Open(ctx *ExecContext) error {
 	aep.ctx = ctx
 	aep.startTime = time.Now()
 	aep.executionPhase = InitializationPhase
-	
+
 	// Initialize statistics
 	aep.initStats(1000)
-	
+
 	// Set up adaptive context
 	aep.adaptiveCtx.ExecCtx = ctx
-	
+
 	// Transform plan to include adaptive operators
 	var err error
 	aep.adaptivePlan, err = aep.transformToAdaptivePlan(aep.originalPlan)
@@ -188,10 +188,10 @@ func (aep *AdaptiveExecutionPlan) Open(ctx *ExecContext) error {
 		// Fall back to original plan
 		aep.adaptivePlan = aep.originalPlan
 	}
-	
+
 	// Discover adaptive nodes in the plan
 	aep.discoverAdaptiveNodes(aep.adaptivePlan)
-	
+
 	// Log plan transformation
 	if aep.adaptiveCtx.DecisionLog != nil {
 		stats := NewRuntimeStats(0)
@@ -202,14 +202,14 @@ func (aep *AdaptiveExecutionPlan) Open(ctx *ExecContext) error {
 			*stats,
 		)
 	}
-	
+
 	// Open the adaptive plan
 	err = aep.adaptivePlan.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to open adaptive plan: %w", err)
 	}
-	
-	aep.executionPhase = ExecutionPhase_Running
+
+	aep.executionPhase = ExecutionPhaseRunning
 	return nil
 }
 
@@ -218,7 +218,7 @@ func (aep *AdaptiveExecutionPlan) transformToAdaptivePlan(plan Operator) (Operat
 	if !aep.config.EnableGlobalAdaptation {
 		return plan, nil
 	}
-	
+
 	// Transform different operator types to adaptive versions
 	switch op := plan.(type) {
 	case *StorageScanOperator:
@@ -231,7 +231,7 @@ func (aep *AdaptiveExecutionPlan) transformToAdaptivePlan(plan Operator) (Operat
 			aep.adaptiveCtx,
 		)
 		return adaptiveScan, nil
-		
+
 	case *HashJoinOperator:
 		// Transform to adaptive join
 		adaptiveJoin := NewAdaptiveJoinOperator(
@@ -241,7 +241,7 @@ func (aep *AdaptiveExecutionPlan) transformToAdaptivePlan(plan Operator) (Operat
 			aep.adaptiveCtx,
 		)
 		return adaptiveJoin, nil
-		
+
 	case *FilterOperator:
 		// Transform child and wrap with filter
 		adaptiveChild, err := aep.transformToAdaptivePlan(op.child)
@@ -249,7 +249,7 @@ func (aep *AdaptiveExecutionPlan) transformToAdaptivePlan(plan Operator) (Operat
 			return plan, err
 		}
 		return NewFilterOperator(adaptiveChild, op.predicate), nil
-		
+
 	case *ProjectOperator:
 		// Transform child and wrap with projection
 		adaptiveChild, err := aep.transformToAdaptivePlan(op.child)
@@ -257,7 +257,7 @@ func (aep *AdaptiveExecutionPlan) transformToAdaptivePlan(plan Operator) (Operat
 			return plan, err
 		}
 		return NewProjectOperator(adaptiveChild, op.projections, op.schema), nil
-		
+
 	case *LimitOperator:
 		// Transform child and wrap with limit
 		adaptiveChild, err := aep.transformToAdaptivePlan(op.child)
@@ -265,7 +265,7 @@ func (aep *AdaptiveExecutionPlan) transformToAdaptivePlan(plan Operator) (Operat
 			return plan, err
 		}
 		return NewLimitOperator(adaptiveChild, op.limit, op.offset), nil
-		
+
 	default:
 		// For other operators, return as-is
 		return plan, nil
@@ -291,7 +291,7 @@ func (aep *AdaptiveExecutionPlan) discoverAdaptiveNodes(plan Operator) {
 			LastChecked:  time.Now(),
 		})
 	}
-	
+
 	// Recursively check children (simplified - real implementation would handle all operator types)
 	switch op := plan.(type) {
 	case *FilterOperator:
@@ -318,13 +318,13 @@ func (aep *AdaptiveExecutionPlan) Next() (*Row, error) {
 			fmt.Printf("Global adaptation error: %v\n", err)
 		}
 	}
-	
+
 	// Get next row from adaptive plan
 	row, err := aep.adaptivePlan.Next()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if row != nil {
 		// Update global statistics
 		aep.updateGlobalStats()
@@ -338,7 +338,7 @@ func (aep *AdaptiveExecutionPlan) Next() (*Row, error) {
 			aep.ctx.StatsCollector(aep, aep.stats)
 		}
 	}
-	
+
 	return row, nil
 }
 
@@ -347,11 +347,11 @@ func (aep *AdaptiveExecutionPlan) shouldPerformGlobalCheck() bool {
 	if !aep.config.EnableGlobalAdaptation {
 		return false
 	}
-	
-	if aep.executionPhase != ExecutionPhase_Running {
+
+	if aep.executionPhase != ExecutionPhaseRunning {
 		return false
 	}
-	
+
 	// Don't check too frequently
 	now := time.Now()
 	for _, node := range aep.adaptiveNodes {
@@ -359,18 +359,18 @@ func (aep *AdaptiveExecutionPlan) shouldPerformGlobalCheck() bool {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
 // performGlobalAdaptation checks all adaptive nodes and coordinates changes
 func (aep *AdaptiveExecutionPlan) performGlobalAdaptation() error {
 	aep.executionPhase = AdaptationPhase
-	defer func() { aep.executionPhase = ExecutionPhase_Running }()
-	
+	defer func() { aep.executionPhase = ExecutionPhaseRunning }()
+
 	now := time.Now()
 	adaptationsMade := 0
-	
+
 	// Check memory pressure globally
 	if aep.isGlobalMemoryPressure() {
 		if err := aep.handleGlobalMemoryPressure(); err != nil {
@@ -378,7 +378,7 @@ func (aep *AdaptiveExecutionPlan) performGlobalAdaptation() error {
 		}
 		adaptationsMade++
 	}
-	
+
 	// Check performance across all nodes
 	if aep.isGlobalPerformancePoor() {
 		if err := aep.handleGlobalPerformanceIssues(); err != nil {
@@ -386,16 +386,16 @@ func (aep *AdaptiveExecutionPlan) performGlobalAdaptation() error {
 		}
 		adaptationsMade++
 	}
-	
+
 	// Update last checked time for all nodes
 	for _, node := range aep.adaptiveNodes {
 		node.LastChecked = now
 	}
-	
+
 	// Log global adaptation if any changes were made
 	if adaptationsMade > 0 {
 		aep.globalStats.AdaptationCount += int64(adaptationsMade)
-		
+
 		if aep.adaptiveCtx.DecisionLog != nil {
 			stats := NewRuntimeStats(aep.globalStats.TotalRows)
 			aep.adaptiveCtx.DecisionLog.LogDecision(
@@ -406,7 +406,7 @@ func (aep *AdaptiveExecutionPlan) performGlobalAdaptation() error {
 			)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -415,11 +415,11 @@ func (aep *AdaptiveExecutionPlan) isGlobalMemoryPressure() bool {
 	if aep.config.QueryMemoryLimit <= 0 {
 		return false
 	}
-	
+
 	// In a real implementation, this would check actual memory usage
 	// For now, we'll use a placeholder based on row count heuristic
 	estimatedMemory := aep.globalStats.TotalRows * 1024 // 1KB per row estimate
-	
+
 	return estimatedMemory > aep.config.QueryMemoryLimit
 }
 
@@ -435,13 +435,13 @@ func (aep *AdaptiveExecutionPlan) handleGlobalMemoryPressure() error {
 			*stats,
 		)
 	}
-	
+
 	// In a real implementation, we would:
 	// 1. Force spilling in hash joins
 	// 2. Switch parallel scans to sequential
 	// 3. Reduce buffer sizes
 	// 4. Enable external sorting
-	
+
 	return nil
 }
 
@@ -451,12 +451,12 @@ func (aep *AdaptiveExecutionPlan) isGlobalPerformancePoor() bool {
 	if time.Since(aep.startTime) > aep.config.MaxExecutionTime {
 		return true
 	}
-	
+
 	// Check if throughput is too low
 	if aep.globalStats.RowsPerSecond > 0 && aep.globalStats.RowsPerSecond < aep.config.MinRowsPerSecond {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -472,13 +472,13 @@ func (aep *AdaptiveExecutionPlan) handleGlobalPerformanceIssues() error {
 			*stats,
 		)
 	}
-	
+
 	// In a real implementation, we would:
 	// 1. Enable parallelism where possible
 	// 2. Switch join algorithms
 	// 3. Push filters down
 	// 4. Consider plan rewriting
-	
+
 	return nil
 }
 
@@ -486,10 +486,10 @@ func (aep *AdaptiveExecutionPlan) handleGlobalPerformanceIssues() error {
 func (aep *AdaptiveExecutionPlan) updateGlobalStats() {
 	aep.globalStats.mu.Lock()
 	defer aep.globalStats.mu.Unlock()
-	
+
 	aep.globalStats.TotalRows++
 	aep.globalStats.TotalExecutionTime = time.Since(aep.startTime)
-	
+
 	// Calculate rows per second
 	if aep.globalStats.TotalExecutionTime > 0 {
 		aep.globalStats.RowsPerSecond = float64(aep.globalStats.TotalRows) / aep.globalStats.TotalExecutionTime.Seconds()
@@ -500,9 +500,9 @@ func (aep *AdaptiveExecutionPlan) updateGlobalStats() {
 func (aep *AdaptiveExecutionPlan) finalizeGlobalStats() {
 	aep.globalStats.mu.Lock()
 	defer aep.globalStats.mu.Unlock()
-	
+
 	aep.globalStats.TotalExecutionTime = time.Since(aep.startTime)
-	
+
 	// Calculate final metrics
 	if aep.globalStats.TotalExecutionTime > 0 {
 		aep.globalStats.RowsPerSecond = float64(aep.globalStats.TotalRows) / aep.globalStats.TotalExecutionTime.Seconds()
@@ -512,18 +512,18 @@ func (aep *AdaptiveExecutionPlan) finalizeGlobalStats() {
 // Close cleans up the adaptive execution plan
 func (aep *AdaptiveExecutionPlan) Close() error {
 	aep.executionPhase = CompletionPhase
-	
+
 	// Ensure stats are finalized
 	aep.finishStats()
 	if aep.ctx != nil && aep.ctx.StatsCollector != nil && aep.stats != nil {
 		aep.ctx.StatsCollector(aep, aep.stats)
 	}
-	
+
 	// Close the adaptive plan
 	if aep.adaptivePlan != nil {
 		return aep.adaptivePlan.Close()
 	}
-	
+
 	return nil
 }
 
@@ -537,18 +537,18 @@ func (aep *AdaptiveExecutionPlan) GetAdaptiveExecutionReport() *AdaptiveExecutio
 		AdaptiveNodes:      len(aep.adaptiveNodes),
 		PlanModifications:  len(aep.planModifications),
 	}
-	
+
 	// Add decisions from log
 	if aep.adaptiveCtx.DecisionLog != nil {
 		report.Decisions = aep.adaptiveCtx.DecisionLog.GetDecisions()
 	}
-	
+
 	// Add node-specific statistics
 	for _, node := range aep.adaptiveNodes {
 		nodeReport := AdaptiveNodeReport{
 			NodeType: node.AdaptiveType,
 		}
-		
+
 		// Add node-specific stats
 		switch adaptiveOp := node.Operator.(type) {
 		case *AdaptiveScanOperator:
@@ -556,10 +556,10 @@ func (aep *AdaptiveExecutionPlan) GetAdaptiveExecutionReport() *AdaptiveExecutio
 		case *AdaptiveJoinOperator:
 			nodeReport.SpecificStats = adaptiveOp.GetAdaptiveStats()
 		}
-		
+
 		report.NodeReports = append(report.NodeReports, nodeReport)
 	}
-	
+
 	return report
 }
 

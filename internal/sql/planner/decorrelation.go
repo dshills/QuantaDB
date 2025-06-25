@@ -278,10 +278,9 @@ func (d *SubqueryDecorrelation) extractCorrelationPredicates(subqueryPlan Logica
 			if remainingPred != nil {
 				// Create new filter with remaining predicates
 				return correlationPreds, NewLogicalFilter(childPlan, remainingPred)
-			} else {
-				// All predicates were correlation predicates, return child directly
-				return correlationPreds, childPlan
 			}
+			// All predicates were correlation predicates, return child directly
+			return correlationPreds, childPlan
 		}
 	}
 

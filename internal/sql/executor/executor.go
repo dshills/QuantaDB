@@ -63,14 +63,14 @@ type ExecContext struct {
 	CorrelationSchema *Schema
 
 	// Performance monitoring
-	CollectStats    bool                           // Whether to collect runtime stats
-	StartTime       time.Time                      // Query start time
-	PlanningTime    time.Duration                  // Time spent planning
-	ExecutionTime   time.Duration                  // Time spent executing
-	OperatorStats   map[Operator]*OperatorStats    // Stats by operator
-	BufferStats     *BufferPoolStats               // Buffer pool statistics
-	PlanCacheStats  *planner.PlanCacheStats        // Plan cache statistics
-	StatsCollector  func(Operator, *OperatorStats) // Callback for stats collection
+	CollectStats   bool                           // Whether to collect runtime stats
+	StartTime      time.Time                      // Query start time
+	PlanningTime   time.Duration                  // Time spent planning
+	ExecutionTime  time.Duration                  // Time spent executing
+	OperatorStats  map[Operator]*OperatorStats    // Stats by operator
+	BufferStats    *BufferPoolStats               // Buffer pool statistics
+	PlanCacheStats *planner.PlanCacheStats        // Plan cache statistics
+	StatsCollector func(Operator, *OperatorStats) // Callback for stats collection
 }
 
 // Row represents a row of data.

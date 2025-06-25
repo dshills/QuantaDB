@@ -367,7 +367,7 @@ func (e *ExplainOperator) generateJSONOutput() string {
 			if total := e.ctx.PlanCacheStats.HitCount + e.ctx.PlanCacheStats.MissCount; total > 0 {
 				hitRate = float64(e.ctx.PlanCacheStats.HitCount) / float64(total) * 100
 			}
-			
+
 			output["plan_cache_statistics"] = map[string]interface{}{
 				"cache_hits":      e.ctx.PlanCacheStats.HitCount,
 				"cache_misses":    e.ctx.PlanCacheStats.MissCount,

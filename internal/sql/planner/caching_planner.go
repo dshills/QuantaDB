@@ -1,7 +1,6 @@
 package planner
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -32,12 +31,12 @@ type CachingPlannerConfig struct {
 // NewCachingPlanner creates a new caching planner with the specified configuration
 func NewCachingPlanner(config CachingPlannerConfig) *CachingPlanner {
 	basePlanner := NewBasicPlanner()
-	
+
 	cacheSize := config.CacheSize
 	if cacheSize <= 0 {
 		cacheSize = 1000 // Default cache size
 	}
-	
+
 	return &CachingPlanner{
 		basePlanner:   basePlanner,
 		cache:         NewPlanCache(cacheSize),
@@ -51,12 +50,12 @@ func NewCachingPlanner(config CachingPlannerConfig) *CachingPlanner {
 // NewCachingPlannerWithCatalog creates a new caching planner with a specific catalog
 func NewCachingPlannerWithCatalog(cat catalog.Catalog, config CachingPlannerConfig) *CachingPlanner {
 	basePlanner := NewBasicPlannerWithCatalog(cat)
-	
+
 	cacheSize := config.CacheSize
 	if cacheSize <= 0 {
 		cacheSize = 1000 // Default cache size
 	}
-	
+
 	return &CachingPlanner{
 		basePlanner:   basePlanner,
 		cache:         NewPlanCache(cacheSize),
@@ -78,10 +77,10 @@ func (cp *CachingPlanner) PlanWithParameters(stmt parser.Statement, paramTypes [
 	if !cp.enabled {
 		return cp.basePlanner.Plan(stmt)
 	}
-	
+
 	// Generate cache key
 	cacheKey := cp.generateCacheKey(stmt, paramTypes)
-	
+
 	// Check cache first
 	startTime := time.Now()
 	cachedPlan := cp.cache.Get(cacheKey)
@@ -90,7 +89,7 @@ func (cp *CachingPlanner) PlanWithParameters(stmt parser.Statement, paramTypes [
 		cp.updateCacheHitStats(time.Since(startTime))
 		return cachedPlan.Plan, nil
 	}
-	
+
 	// Cache miss - plan the query
 	planningStart := time.Now()
 	plan, err := cp.basePlanner.Plan(stmt)
@@ -98,7 +97,7 @@ func (cp *CachingPlanner) PlanWithParameters(stmt parser.Statement, paramTypes [
 		return nil, err
 	}
 	planningTime := time.Since(planningStart)
-	
+
 	// Cache the plan if it's cacheable
 	if cp.isCacheable(stmt) {
 		cachedPlan := &CachedPlan{
@@ -118,10 +117,10 @@ func (cp *CachingPlanner) PlanWithParameters(stmt parser.Statement, paramTypes [
 			SchemaVersion:  cp.schemaVersion,
 			StatsVersion:   cp.statsVersion,
 		}
-		
+
 		cp.cache.Put(cacheKey, cachedPlan)
 	}
-	
+
 	cp.updateCacheMissStats(time.Since(startTime), planningTime)
 	return plan, nil
 }
@@ -141,7 +140,7 @@ func (cp *CachingPlanner) extractSQL(stmt parser.Statement) string {
 	// For now, we'll use a simple string representation
 	// In a full implementation, we'd need to reconstruct normalized SQL
 	// or store the original SQL text during parsing
-	return normalizeSQL(fmt.Sprintf("%s", stmt))
+	return normalizeSQL(stmt.String())
 }
 
 // isCacheable determines if a statement's plan should be cached
@@ -173,15 +172,15 @@ func (cp *CachingPlanner) estimatePlanCost(plan Plan) float64 {
 	// Simple cost estimation based on plan type and depth
 	// In a full implementation, this would use the optimizer's cost model
 	cost := 1.0
-	
+
 	// Add cost based on plan depth
 	depth := cp.calculatePlanDepth(plan)
 	cost += float64(depth) * 10.0
-	
+
 	// Add cost based on number of tables
 	tableCount := cp.countTables(plan)
 	cost += float64(tableCount) * 100.0
-	
+
 	return cost
 }
 
@@ -190,12 +189,12 @@ func (cp *CachingPlanner) calculatePlanDepth(plan Plan) int {
 	if plan == nil {
 		return 0
 	}
-	
+
 	children := plan.Children()
 	if len(children) == 0 {
 		return 1
 	}
-	
+
 	maxChildDepth := 0
 	for _, child := range children {
 		childDepth := cp.calculatePlanDepth(child)
@@ -203,7 +202,7 @@ func (cp *CachingPlanner) calculatePlanDepth(plan Plan) int {
 			maxChildDepth = childDepth
 		}
 	}
-	
+
 	return 1 + maxChildDepth
 }
 
@@ -212,9 +211,9 @@ func (cp *CachingPlanner) countTables(plan Plan) int {
 	if plan == nil {
 		return 0
 	}
-	
+
 	count := 0
-	
+
 	// Check if this is a table scan node
 	switch plan.(type) {
 	case *LogicalScan:
@@ -222,12 +221,12 @@ func (cp *CachingPlanner) countTables(plan Plan) int {
 	case *IndexScan:
 		count = 1
 	}
-	
+
 	// Recursively count children
 	for _, child := range plan.Children() {
 		count += cp.countTables(child)
 	}
-	
+
 	return count
 }
 
@@ -236,9 +235,9 @@ func (cp *CachingPlanner) countIndexes(plan Plan) int {
 	if plan == nil {
 		return 0
 	}
-	
+
 	count := 0
-	
+
 	// Check if this is an index access node
 	switch plan.(type) {
 	case *IndexScan:
@@ -250,12 +249,12 @@ func (cp *CachingPlanner) countIndexes(plan Plan) int {
 	case *BitmapIndexScan:
 		count = 1
 	}
-	
+
 	// Recursively count children
 	for _, child := range plan.Children() {
 		count += cp.countIndexes(child)
 	}
-	
+
 	return count
 }
 
@@ -299,7 +298,7 @@ func (cp *CachingPlanner) UpdatePlanExecutionStats(stmt parser.Statement, paramT
 	if !cp.enabled {
 		return
 	}
-	
+
 	cacheKey := cp.generateCacheKey(stmt, paramTypes)
 	cp.cache.UpdatePlanExecutionStats(cacheKey, execTime)
 }
@@ -309,7 +308,7 @@ func (cp *CachingPlanner) GetCachedPlan(stmt parser.Statement, paramTypes []type
 	if !cp.enabled {
 		return nil
 	}
-	
+
 	cacheKey := cp.generateCacheKey(stmt, paramTypes)
 	return cp.cache.Get(cacheKey)
 }
@@ -345,7 +344,7 @@ func (cp *CachingPlanner) GetCatalog() catalog.Catalog {
 func normalizeStatementSQL(sql string) string {
 	// Convert to lowercase and normalize whitespace
 	normalized := strings.TrimSpace(strings.ToLower(sql))
-	
+
 	// Replace multiple spaces with single space
 	parts := strings.Fields(normalized)
 	return strings.Join(parts, " ")

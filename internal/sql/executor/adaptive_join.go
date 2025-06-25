@@ -33,35 +33,35 @@ func (jm JoinMethod) String() string {
 // AdaptiveJoinOperator dynamically selects and switches join algorithms
 type AdaptiveJoinOperator struct {
 	baseOperator
-	
+
 	// Child operators
 	left  Operator
 	right Operator
-	
+
 	// Join configuration
 	leftKeys  []ExprEvaluator
 	rightKeys []ExprEvaluator
 	predicate ExprEvaluator
 	joinType  JoinType
-	
+
 	// Adaptive components
-	adaptiveCtx    *AdaptiveContext
-	initialMethod  JoinMethod
-	currentMethod  JoinMethod
-	currentImpl    Operator // Current join implementation
-	
+	adaptiveCtx   *AdaptiveContext
+	initialMethod JoinMethod
+	currentMethod JoinMethod
+	currentImpl   Operator // Current join implementation
+
 	// Runtime statistics
 	leftStats  *RuntimeStats
 	rightStats *RuntimeStats
 	joinStats  *RuntimeStats
-	
+
 	// Adaptation configuration
 	switchThreshold    int64         // Row count threshold for considering switch
 	evaluationInterval time.Duration // How often to check for adaptation
 	lastEvaluation     time.Time
-	
+
 	// Execution state
-	phase           JoinPhase
+	phase            JoinPhase
 	leftMaterialized []*Row // Materialized left side for switching
 	rightIndex       int    // Position in right side
 	switchPoint      int64  // Row count where we switched
@@ -88,13 +88,13 @@ func NewAdaptiveJoinOperator(
 	// Build combined schema
 	leftSchema := left.Schema()
 	rightSchema := right.Schema()
-	
+
 	columns := make([]Column, 0, len(leftSchema.Columns)+len(rightSchema.Columns))
 	columns = append(columns, leftSchema.Columns...)
 	columns = append(columns, rightSchema.Columns...)
-	
+
 	schema := &Schema{Columns: columns}
-	
+
 	return &AdaptiveJoinOperator{
 		baseOperator: baseOperator{
 			schema: schema,
@@ -118,34 +118,34 @@ func NewAdaptiveJoinOperator(
 // Open initializes the adaptive join
 func (aj *AdaptiveJoinOperator) Open(ctx *ExecContext) error {
 	aj.ctx = ctx
-	
+
 	// Initialize statistics
-	aj.leftStats = NewRuntimeStats(1000)  // Default estimate
+	aj.leftStats = NewRuntimeStats(1000) // Default estimate
 	aj.rightStats = NewRuntimeStats(1000)
 	aj.joinStats = NewRuntimeStats(1000)
-	
+
 	// Initialize statistics collection
 	aj.initStats(1000)
-	
+
 	// Open child operators
 	if err := aj.left.Open(ctx); err != nil {
 		return fmt.Errorf("failed to open left child: %w", err)
 	}
-	
+
 	if err := aj.right.Open(ctx); err != nil {
 		return fmt.Errorf("failed to open right child: %w", err)
 	}
-	
+
 	// Choose initial join method
 	aj.currentMethod = aj.selectInitialJoinMethod()
-	
+
 	// Create initial join implementation
 	impl, err := aj.createJoinImplementation(aj.currentMethod)
 	if err != nil {
 		return fmt.Errorf("failed to create initial join implementation: %w", err)
 	}
 	aj.currentImpl = impl
-	
+
 	// Log initial decision
 	if aj.adaptiveCtx != nil {
 		aj.adaptiveCtx.LogAdaptiveDecision(
@@ -155,7 +155,7 @@ func (aj *AdaptiveJoinOperator) Open(ctx *ExecContext) error {
 			aj.joinStats,
 		)
 	}
-	
+
 	return aj.currentImpl.Open(ctx)
 }
 
@@ -163,12 +163,12 @@ func (aj *AdaptiveJoinOperator) Open(ctx *ExecContext) error {
 func (aj *AdaptiveJoinOperator) selectInitialJoinMethod() JoinMethod {
 	// Simple heuristics for initial selection
 	// In a real implementation, this would use cost-based optimization
-	
+
 	// If we have join keys, prefer hash join for larger datasets
 	if len(aj.leftKeys) > 0 && len(aj.rightKeys) > 0 {
 		return HashJoinMethod
 	}
-	
+
 	// Fall back to nested loop for simple cases
 	return NestedLoopJoinMethod
 }
@@ -182,13 +182,13 @@ func (aj *AdaptiveJoinOperator) createJoinImplementation(method JoinMethod) (Ope
 			aj.leftKeys, aj.rightKeys,
 			aj.predicate, aj.joinType,
 		), nil
-		
+
 	case NestedLoopJoinMethod:
 		return NewNestedLoopJoinOperator(
 			aj.left, aj.right,
 			aj.predicate, aj.joinType,
 		), nil
-		
+
 	case MergeJoinMethod:
 		// For now, fall back to hash join
 		// In a complete implementation, we'd have a merge join operator
@@ -197,7 +197,7 @@ func (aj *AdaptiveJoinOperator) createJoinImplementation(method JoinMethod) (Ope
 			aj.leftKeys, aj.rightKeys,
 			aj.predicate, aj.joinType,
 		), nil
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported join method: %s", method)
 	}
@@ -211,13 +211,13 @@ func (aj *AdaptiveJoinOperator) Next() (*Row, error) {
 			return nil, fmt.Errorf("adaptation evaluation failed: %w", err)
 		}
 	}
-	
+
 	// Get next row from current implementation
 	row, err := aj.currentImpl.Next()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if row != nil {
 		// Update statistics
 		aj.joinStats.UpdateCardinality(aj.joinStats.ActualRows + 1)
@@ -229,7 +229,7 @@ func (aj *AdaptiveJoinOperator) Next() (*Row, error) {
 			aj.ctx.StatsCollector(aj, aj.stats)
 		}
 	}
-	
+
 	return row, nil
 }
 
@@ -238,41 +238,41 @@ func (aj *AdaptiveJoinOperator) shouldEvaluateAdaptation() bool {
 	if aj.adaptiveCtx == nil || !aj.adaptiveCtx.Enabled {
 		return false
 	}
-	
+
 	// Don't adapt if we've already switched
 	if aj.hasSwitched {
 		return false
 	}
-	
+
 	// Don't adapt too frequently
 	if time.Since(aj.lastEvaluation) < aj.evaluationInterval {
 		return false
 	}
-	
+
 	// Don't adapt until we have enough data
 	if aj.joinStats.ActualRows < aj.switchThreshold {
 		return false
 	}
-	
+
 	return true
 }
 
 // evaluateAdaptation checks if we should switch join methods
 func (aj *AdaptiveJoinOperator) evaluateAdaptation() error {
 	aj.lastEvaluation = time.Now()
-	
+
 	// Collect current runtime statistics
 	snapshot := aj.joinStats.GetSnapshot()
-	
+
 	// Check if current performance is poor
 	shouldSwitch, newMethod, reason := aj.shouldSwitchJoinMethod(&snapshot)
-	
+
 	if shouldSwitch {
 		if err := aj.switchJoinMethod(newMethod, reason); err != nil {
 			return fmt.Errorf("failed to switch join method: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -284,7 +284,7 @@ func (aj *AdaptiveJoinOperator) shouldSwitchJoinMethod(stats *RuntimeStats) (boo
 			return true, NestedLoopJoinMethod, "High memory pressure - switch to nested loop"
 		}
 	}
-	
+
 	// Check for poor cardinality estimates
 	cardinalityError := stats.GetCardinalityError()
 	if cardinalityError > 2.0 { // 200% error
@@ -297,12 +297,12 @@ func (aj *AdaptiveJoinOperator) shouldSwitchJoinMethod(stats *RuntimeStats) (boo
 			return true, HashJoinMethod, fmt.Sprintf("Poor cardinality estimate (%.1fx error)", cardinalityError)
 		}
 	}
-	
+
 	// Check for data skew (would require more sophisticated detection)
 	if stats.IsDataSkewed(1.5) && aj.currentMethod == HashJoinMethod {
 		return true, NestedLoopJoinMethod, "Data skew detected - switch to nested loop"
 	}
-	
+
 	return false, aj.currentMethod, ""
 }
 
@@ -317,80 +317,80 @@ func (aj *AdaptiveJoinOperator) switchJoinMethod(newMethod JoinMethod, reason st
 			aj.joinStats,
 		)
 	}
-	
+
 	// Close current implementation
 	if aj.currentImpl != nil {
 		if err := aj.currentImpl.Close(); err != nil {
 			return fmt.Errorf("failed to close current join implementation: %w", err)
 		}
 	}
-	
+
 	// Create new implementation
 	newImpl, err := aj.createJoinImplementation(newMethod)
 	if err != nil {
 		return fmt.Errorf("failed to create new join implementation: %w", err)
 	}
-	
+
 	// Initialize new implementation
 	if err := newImpl.Open(aj.ctx); err != nil {
 		return fmt.Errorf("failed to open new join implementation: %w", err)
 	}
-	
+
 	// Update state
 	aj.currentMethod = newMethod
 	aj.currentImpl = newImpl
 	aj.switchPoint = aj.joinStats.ActualRows
 	aj.hasSwitched = true
-	
+
 	return nil
 }
 
 // Close cleans up the adaptive join
 func (aj *AdaptiveJoinOperator) Close() error {
 	var err error
-	
+
 	// Close current implementation
 	if aj.currentImpl != nil {
 		if closeErr := aj.currentImpl.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}
-	
+
 	// Close child operators
 	if aj.left != nil {
 		if closeErr := aj.left.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}
-	
+
 	if aj.right != nil {
 		if closeErr := aj.right.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}
-	
+
 	// Ensure stats are finalized
 	aj.finishStats()
 	if aj.ctx != nil && aj.ctx.StatsCollector != nil && aj.stats != nil {
 		aj.ctx.StatsCollector(aj, aj.stats)
 	}
-	
+
 	return err
 }
 
 // GetAdaptiveStats returns adaptive-specific statistics
 func (aj *AdaptiveJoinOperator) GetAdaptiveStats() map[string]interface{} {
 	stats := make(map[string]interface{})
-	
+
 	stats["initial_method"] = aj.initialMethod.String()
 	stats["current_method"] = aj.currentMethod.String()
 	stats["has_switched"] = aj.hasSwitched
 	stats["switch_point"] = aj.switchPoint
-	
+
 	if aj.adaptiveCtx != nil && aj.adaptiveCtx.DecisionLog != nil {
 		stats["decision_count"] = aj.adaptiveCtx.DecisionLog.GetDecisionCount()
 	}
-	
+
 	return stats
 }
 
@@ -398,16 +398,16 @@ func (aj *AdaptiveJoinOperator) GetAdaptiveStats() map[string]interface{} {
 type AdaptiveJoinConfig struct {
 	// Enable adaptive behavior
 	EnableAdaptation bool
-	
+
 	// Threshold for considering method switches
 	SwitchThreshold int64
-	
+
 	// How often to evaluate adaptation
 	EvaluationInterval time.Duration
-	
+
 	// Memory pressure threshold for triggering switches
 	MemoryPressureThreshold float64
-	
+
 	// Cardinality error threshold for triggering switches
 	CardinalityErrorThreshold float64
 }

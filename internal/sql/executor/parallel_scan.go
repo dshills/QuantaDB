@@ -32,13 +32,13 @@ type ScanResult struct {
 
 // ParallelScanWorker represents a single scan worker
 type ParallelScanWorker struct {
-	id        int
-	table     *catalog.Table
-	storage   StorageBackend
-	startKey  []byte
-	endKey    []byte
-	ctx       context.Context
-	resultCh  chan<- *ScanResult
+	id       int
+	table    *catalog.Table
+	storage  StorageBackend
+	startKey []byte
+	endKey   []byte
+	ctx      context.Context
+	resultCh chan<- *ScanResult
 }
 
 // NewParallelScanOperator creates a new parallel scan operator

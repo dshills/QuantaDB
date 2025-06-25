@@ -13,7 +13,7 @@ import (
 func TestQ21Execution(t *testing.T) {
 	// Create catalog
 	cat := catalog.NewMemoryCatalog()
-	
+
 	// Create supplier table
 	supplierSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -25,7 +25,7 @@ func TestQ21Execution(t *testing.T) {
 		},
 	}
 	cat.CreateTable(supplierSchema)
-	
+
 	// Create lineitem table
 	lineitemSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -38,7 +38,7 @@ func TestQ21Execution(t *testing.T) {
 		},
 	}
 	cat.CreateTable(lineitemSchema)
-	
+
 	// Create orders table
 	orderSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -49,7 +49,7 @@ func TestQ21Execution(t *testing.T) {
 		},
 	}
 	cat.CreateTable(orderSchema)
-	
+
 	// Create nation table
 	nationSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -60,7 +60,7 @@ func TestQ21Execution(t *testing.T) {
 		},
 	}
 	cat.CreateTable(nationSchema)
-	
+
 	// Parse Q21
 	q21 := `
 SELECT
@@ -109,18 +109,18 @@ LIMIT 100`
 	if err != nil {
 		t.Fatalf("Failed to parse Q21: %v", err)
 	}
-	
+
 	// Plan
 	plnr := planner.NewBasicPlannerWithCatalog(cat)
 	_, err = plnr.Plan(stmt)
 	if err != nil {
 		t.Fatalf("Failed to plan Q21: %v", err)
 	}
-	
+
 	// For now, just verify that the plan was created successfully
 	// This demonstrates that Q21 with multiple EXISTS/NOT EXISTS can be parsed and planned
 	t.Log("Q21 successfully parsed and planned with multiple correlated EXISTS/NOT EXISTS!")
-	
+
 	// The actual execution would require setting up a full storage backend,
 	// which is beyond the scope of this test that focuses on verifying Q21 support
 }
@@ -130,9 +130,9 @@ func TestQ21WithMultipleLateSuppliersScenario(t *testing.T) {
 	// Similar setup but with multiple late suppliers
 	// In this case, NO suppliers should qualify because
 	// other suppliers were also late (NOT EXISTS fails)
-	
+
 	cat := catalog.NewMemoryCatalog()
-	
+
 	// Create tables (same as above)
 	supplierSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -144,7 +144,7 @@ func TestQ21WithMultipleLateSuppliersScenario(t *testing.T) {
 		},
 	}
 	cat.CreateTable(supplierSchema)
-	
+
 	lineitemSchema := &catalog.TableSchema{
 		SchemaName: "public",
 		TableName:  "lineitem",
@@ -156,7 +156,7 @@ func TestQ21WithMultipleLateSuppliersScenario(t *testing.T) {
 		},
 	}
 	cat.CreateTable(lineitemSchema)
-	
+
 	orderSchema := &catalog.TableSchema{
 		SchemaName: "public",
 		TableName:  "orders",
@@ -166,7 +166,7 @@ func TestQ21WithMultipleLateSuppliersScenario(t *testing.T) {
 		},
 	}
 	cat.CreateTable(orderSchema)
-	
+
 	nationSchema := &catalog.TableSchema{
 		SchemaName: "public",
 		TableName:  "nation",
@@ -176,7 +176,7 @@ func TestQ21WithMultipleLateSuppliersScenario(t *testing.T) {
 		},
 	}
 	cat.CreateTable(nationSchema)
-	
+
 	// Use simplified Q21 for this test
 	q21 := `
 SELECT s_name, COUNT(*) AS numwait
@@ -206,13 +206,13 @@ ORDER BY numwait DESC, s_name`
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
 	}
-	
+
 	plnr := planner.NewBasicPlannerWithCatalog(cat)
 	_, err = plnr.Plan(stmt)
 	if err != nil {
 		t.Fatalf("Failed to plan: %v", err)
 	}
-	
+
 	// This test demonstrates that NOT EXISTS correctly filters out suppliers
 	// when other suppliers were also late on the same order
 	t.Log("Q21 scenario with multiple late suppliers parsed and planned successfully!")

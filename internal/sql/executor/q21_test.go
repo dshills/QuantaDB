@@ -15,7 +15,7 @@ import (
 func TestQ21MultipleCorrelatedExists(t *testing.T) {
 	// Create catalog with TPC-H tables
 	cat := catalog.NewMemoryCatalog()
-	
+
 	// Create supplier table
 	supplierSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -27,7 +27,7 @@ func TestQ21MultipleCorrelatedExists(t *testing.T) {
 		},
 	}
 	cat.CreateTable(supplierSchema)
-	
+
 	// Create lineitem table
 	lineitemSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -40,7 +40,7 @@ func TestQ21MultipleCorrelatedExists(t *testing.T) {
 		},
 	}
 	cat.CreateTable(lineitemSchema)
-	
+
 	// Create orders table
 	orderSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -51,7 +51,7 @@ func TestQ21MultipleCorrelatedExists(t *testing.T) {
 		},
 	}
 	cat.CreateTable(orderSchema)
-	
+
 	// Create nation table
 	nationSchema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -62,7 +62,7 @@ func TestQ21MultipleCorrelatedExists(t *testing.T) {
 		},
 	}
 	cat.CreateTable(nationSchema)
-	
+
 	// Test TPC-H Q21 query
 	q21 := `
 SELECT
@@ -112,33 +112,33 @@ LIMIT 100`
 	if err != nil {
 		t.Fatalf("Failed to parse Q21: %v", err)
 	}
-	
+
 	// Plan the query
 	plnr := planner.NewBasicPlannerWithCatalog(cat)
 	plan, err := plnr.Plan(stmt)
 	if err != nil {
 		t.Fatalf("Failed to plan Q21: %v", err)
 	}
-	
+
 	// Verify the plan was created successfully
 	if plan == nil {
 		t.Fatal("Expected non-nil plan")
 	}
-	
+
 	// Log the plan for debugging
 	t.Logf("Q21 Plan created successfully")
 	t.Logf("Plan type: %T", plan)
-	
+
 	// Verify the plan contains the expected structure
 	// The plan should have decorrelated the EXISTS/NOT EXISTS into semi/anti joins
 	planStr := planToString(plan)
 	t.Logf("Plan structure:\n%s", planStr)
-	
+
 	// Check for semi join (from EXISTS)
 	if !containsNodeType(plan, "*planner.LogicalJoin") {
 		t.Error("Expected plan to contain joins")
 	}
-	
+
 	// The test passes if we can successfully parse and plan Q21
 	// This demonstrates that multiple correlated EXISTS/NOT EXISTS is supported
 }
@@ -148,9 +148,9 @@ func planToString(plan planner.Plan) string {
 	if plan == nil {
 		return "nil"
 	}
-	
+
 	result := fmt.Sprintf("%T", plan)
-	
+
 	// Add more details based on plan type
 	switch p := plan.(type) {
 	case *planner.LogicalJoin:
@@ -164,7 +164,7 @@ func planToString(plan planner.Plan) string {
 	case *planner.LogicalScan:
 		result += fmt.Sprintf(" [%s]", p.TableName)
 	}
-	
+
 	// Add children
 	children := plan.Children()
 	if len(children) > 0 {
@@ -189,7 +189,7 @@ func planToString(plan planner.Plan) string {
 			}
 		}
 	}
-	
+
 	return strings.TrimSuffix(result, "\n")
 }
 
@@ -198,26 +198,26 @@ func containsNodeType(plan planner.Plan, nodeType string) bool {
 	if plan == nil {
 		return false
 	}
-	
+
 	planType := fmt.Sprintf("%T", plan)
 	if planType == nodeType {
 		return true
 	}
-	
+
 	// Check children
 	for _, child := range plan.Children() {
 		if containsNodeType(child, nodeType) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
 // Test simplified version of Q21 pattern
 func TestSimplifiedMultipleExists(t *testing.T) {
 	cat := catalog.NewMemoryCatalog()
-	
+
 	// Create a simple table
 	schema := &catalog.TableSchema{
 		SchemaName: "public",
@@ -228,31 +228,31 @@ func TestSimplifiedMultipleExists(t *testing.T) {
 		},
 	}
 	cat.CreateTable(schema)
-	
+
 	// Test query with multiple EXISTS
 	query := `
 	SELECT a
 	FROM t1 AS outer_t
 	WHERE EXISTS (SELECT * FROM t1 AS t2 WHERE t2.a = outer_t.a AND t2.b > 10)
 	  AND NOT EXISTS (SELECT * FROM t1 AS t3 WHERE t3.a = outer_t.a AND t3.b < 5)`
-	
+
 	// Parse
 	p := parser.NewParser(query)
 	stmt, err := p.Parse()
 	if err != nil {
 		t.Fatalf("Failed to parse query: %v", err)
 	}
-	
+
 	// Plan
 	plnr := planner.NewBasicPlannerWithCatalog(cat)
 	plan, err := plnr.Plan(stmt)
 	if err != nil {
 		t.Fatalf("Failed to plan query: %v", err)
 	}
-	
+
 	if plan == nil {
 		t.Fatal("Expected non-nil plan")
 	}
-	
+
 	t.Log("Successfully planned query with multiple EXISTS/NOT EXISTS")
 }

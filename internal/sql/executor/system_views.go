@@ -9,10 +9,10 @@ import (
 // SystemViewOperator implements system tables/views for database monitoring
 type SystemViewOperator struct {
 	baseOperator
-	viewType    string
-	rows        [][]types.Value
-	currentRow  int
-	cacheStats  interface{} // Plan cache statistics from the planner
+	viewType   string
+	rows       [][]types.Value
+	currentRow int
+	cacheStats interface{} // Plan cache statistics from the planner
 }
 
 // NewSystemViewOperator creates a new system view operator
@@ -61,8 +61,8 @@ func NewSystemViewOperator(viewType string, cacheStats interface{}) *SystemViewO
 func buildPlanCacheStatsRows(cacheStats interface{}) [][]types.Value {
 	// Default empty stats if no cache stats provided
 	var hitCount, missCount, evictionCount int64 = 0, 0, 0
-	var currentSize, maxSize int = 0, 0
-	var hitRate float64 = 0.0
+	var currentSize, maxSize int
+	var hitRate float64
 
 	// Try to extract cache statistics using reflection or type assertion
 	// This approach avoids import cycles

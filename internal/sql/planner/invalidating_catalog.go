@@ -26,12 +26,12 @@ func (ic *InvalidatingCatalog) CreateTable(schema *catalog.TableSchema) (*catalo
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Invalidate cache after successful table creation
 	if ic.planner != nil {
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return table, nil
 }
 
@@ -41,14 +41,14 @@ func (ic *InvalidatingCatalog) DropTable(schemaName, tableName string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Invalidate cache after successful table drop
 	if ic.planner != nil {
 		// For table-specific invalidation, we could be more selective
 		ic.planner.InvalidateTable(tableName)
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return nil
 }
 
@@ -58,13 +58,13 @@ func (ic *InvalidatingCatalog) AddColumn(schemaName, tableName string, column ca
 	if err != nil {
 		return err
 	}
-	
+
 	// Invalidate cache after successful column addition
 	if ic.planner != nil {
 		ic.planner.InvalidateTable(tableName)
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return nil
 }
 
@@ -74,13 +74,13 @@ func (ic *InvalidatingCatalog) DropColumn(schemaName, tableName, columnName stri
 	if err != nil {
 		return err
 	}
-	
+
 	// Invalidate cache after successful column drop
 	if ic.planner != nil {
 		ic.planner.InvalidateTable(tableName)
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return nil
 }
 
@@ -90,13 +90,13 @@ func (ic *InvalidatingCatalog) CreateIndex(index *catalog.IndexSchema) (*catalog
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Invalidate cache after successful index creation
 	// Index changes can affect query plans significantly
 	if ic.planner != nil {
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return result, nil
 }
 
@@ -106,13 +106,13 @@ func (ic *InvalidatingCatalog) DropIndex(schemaName, tableName, indexName string
 	if err != nil {
 		return err
 	}
-	
+
 	// Invalidate cache after successful index drop
 	// Index changes can affect query plans significantly
 	if ic.planner != nil {
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return nil
 }
 
@@ -122,13 +122,13 @@ func (ic *InvalidatingCatalog) UpdateTableStats(schemaName, tableName string) er
 	if err != nil {
 		return err
 	}
-	
+
 	// Invalidate cache after successful statistics update
 	// Statistics changes can affect query plans
 	if ic.planner != nil {
 		ic.planner.UpdateStatsVersion(ic.planner.statsVersion + 1)
 	}
-	
+
 	return nil
 }
 
@@ -138,12 +138,12 @@ func (ic *InvalidatingCatalog) CreateSchema(name string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Invalidate cache after successful schema creation
 	if ic.planner != nil {
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return nil
 }
 
@@ -153,12 +153,12 @@ func (ic *InvalidatingCatalog) DropSchema(name string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Invalidate cache after successful schema drop
 	if ic.planner != nil {
 		ic.planner.UpdateSchemaVersion(ic.planner.schemaVersion + 1)
 	}
-	
+
 	return nil
 }
 

@@ -30,9 +30,9 @@ func NewParallelContext(execCtx *ExecContext, maxDOP int) *ParallelContext {
 	if maxDOP <= 0 {
 		maxDOP = runtime.NumCPU()
 	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &ParallelContext{
 		ExecCtx:    execCtx,
 		Ctx:        ctx,
@@ -46,7 +46,7 @@ func NewParallelContext(execCtx *ExecContext, maxDOP int) *ParallelContext {
 func (pc *ParallelContext) SetError(err error) {
 	pc.ErrorMu.Lock()
 	defer pc.ErrorMu.Unlock()
-	
+
 	if pc.Error == nil {
 		pc.Error = err
 		pc.Cancel()
@@ -85,20 +85,20 @@ type Task interface {
 // NewWorkerPool creates a new worker pool
 func NewWorkerPool(workers int) *WorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	wp := &WorkerPool{
 		workers:   workers,
 		taskQueue: make(chan Task, workers*2), // Buffered queue
 		ctx:       ctx,
 		cancel:    cancel,
 	}
-	
+
 	// Start worker goroutines
 	for i := 0; i < workers; i++ {
 		wp.wg.Add(1)
 		go wp.worker()
 	}
-	
+
 	return wp
 }
 
@@ -106,11 +106,11 @@ func NewWorkerPool(workers int) *WorkerPool {
 func (wp *WorkerPool) Submit(task Task) error {
 	wp.closeMu.RLock()
 	defer wp.closeMu.RUnlock()
-	
+
 	if wp.closed {
 		return fmt.Errorf("worker pool is closed")
 	}
-	
+
 	select {
 	case wp.taskQueue <- task:
 		return nil
@@ -122,22 +122,22 @@ func (wp *WorkerPool) Submit(task Task) error {
 // worker is the main worker goroutine
 func (wp *WorkerPool) worker() {
 	defer wp.wg.Done()
-	
+
 	for {
 		select {
 		case task, ok := <-wp.taskQueue:
 			if !ok {
 				return // Channel closed
 			}
-			
+
 			// Execute task
 			if err := task.Execute(wp.ctx); err != nil {
 				// TODO: Better error handling - for now we continue
 				continue
 			}
-			
+
 		case <-wp.ctx.Done():
-			return // Context cancelled
+			return // Context canceled
 		}
 	}
 }
@@ -146,16 +146,16 @@ func (wp *WorkerPool) worker() {
 func (wp *WorkerPool) Close() error {
 	wp.closeMu.Lock()
 	defer wp.closeMu.Unlock()
-	
+
 	if wp.closed {
 		return nil
 	}
-	
+
 	wp.closed = true
 	wp.cancel()
 	close(wp.taskQueue)
 	wp.wg.Wait()
-	
+
 	return nil
 }
 
@@ -192,17 +192,17 @@ func NewParallelExecutionPlan(root Operator, maxDOP int) *ParallelExecutionPlan 
 // Open initializes parallel execution
 func (pep *ParallelExecutionPlan) Open(ctx *ExecContext) error {
 	pep.ctx = ctx
-	
+
 	// Create parallel context
 	pep.parallelCtx = NewParallelContext(ctx, pep.maxDOP)
-	
+
 	// Try to parallelize the plan
 	parallelRoot, err := pep.parallelizePlan(pep.rootOperator)
 	if err != nil {
 		// If parallelization fails, fall back to sequential execution
 		parallelRoot = pep.rootOperator
 	}
-	
+
 	// Open the (possibly parallelized) plan
 	return parallelRoot.Open(ctx)
 }
@@ -214,7 +214,7 @@ func (pep *ParallelExecutionPlan) parallelizePlan(op Operator) (Operator, error)
 		// Create parallel instance
 		return parallelizable.CreateParallelInstance(pep.parallelCtx)
 	}
-	
+
 	// For now, just return the original operator
 	// TODO: Implement recursive parallelization of child operators
 	return op, nil
@@ -226,26 +226,26 @@ func (pep *ParallelExecutionPlan) Next() (*Row, error) {
 	if err := pep.parallelCtx.GetError(); err != nil {
 		return nil, err
 	}
-	
+
 	return pep.rootOperator.Next()
 }
 
 // Close cleans up parallel execution
 func (pep *ParallelExecutionPlan) Close() error {
 	var err error
-	
+
 	// Close root operator
 	if pep.rootOperator != nil {
 		err = pep.rootOperator.Close()
 	}
-	
+
 	// Close parallel context
 	if pep.parallelCtx != nil {
 		if closeErr := pep.parallelCtx.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}
-	
+
 	return err
 }
 
@@ -265,7 +265,7 @@ type ExchangeOperator struct {
 // NewExchangeOperator creates a new exchange operator
 func NewExchangeOperator(child Operator, bufferSize int) *ExchangeOperator {
 	bgCtx, cancel := context.WithCancel(context.Background())
-	
+
 	return &ExchangeOperator{
 		baseOperator: baseOperator{
 			schema: child.Schema(),
@@ -281,23 +281,23 @@ func NewExchangeOperator(child Operator, bufferSize int) *ExchangeOperator {
 // Open starts the exchange operator
 func (e *ExchangeOperator) Open(ctx *ExecContext) error {
 	e.ctx = ctx
-	
+
 	e.startMu.Lock()
 	defer e.startMu.Unlock()
-	
+
 	if e.started {
 		return nil
 	}
-	
+
 	// Open child operator
 	if err := e.child.Open(ctx); err != nil {
 		return fmt.Errorf("failed to open child: %w", err)
 	}
-	
+
 	// Start producer goroutine
 	e.workerWG.Add(1)
 	go e.producer()
-	
+
 	e.started = true
 	return nil
 }
@@ -306,7 +306,7 @@ func (e *ExchangeOperator) Open(ctx *ExecContext) error {
 func (e *ExchangeOperator) producer() {
 	defer e.workerWG.Done()
 	defer close(e.outputChan)
-	
+
 	for {
 		select {
 		case <-e.bgCtx.Done():
@@ -320,12 +320,12 @@ func (e *ExchangeOperator) producer() {
 				}
 				return
 			}
-			
+
 			if row == nil {
 				// EOF
 				return
 			}
-			
+
 			select {
 			case e.outputChan <- row:
 			case <-e.bgCtx.Done():
@@ -349,10 +349,10 @@ func (e *ExchangeOperator) Next() (*Row, error) {
 			}
 		}
 		return row, nil
-		
+
 	case err := <-e.errorChan:
 		return nil, err
-		
+
 	case <-e.bgCtx.Done():
 		return nil, e.bgCtx.Err()
 	}
@@ -362,10 +362,10 @@ func (e *ExchangeOperator) Next() (*Row, error) {
 func (e *ExchangeOperator) Close() error {
 	e.cancel()
 	e.workerWG.Wait()
-	
+
 	if e.child != nil {
 		return e.child.Close()
 	}
-	
+
 	return nil
 }

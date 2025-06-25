@@ -152,24 +152,24 @@ func TestPlanCache_KeyGeneration(t *testing.T) {
 
 	// Test that similar but different queries generate different keys
 	key1 := &PlanCacheKey{
-		SQL:           "SELECT * FROM users WHERE id = ?",
+		SQL:            "SELECT * FROM users WHERE id = ?",
 		ParameterTypes: []types.DataType{types.Integer},
-		SchemaVersion: 1,
-		StatsVersion:  1,
+		SchemaVersion:  1,
+		StatsVersion:   1,
 	}
 
 	key2 := &PlanCacheKey{
-		SQL:           "SELECT * FROM users WHERE name = ?",
+		SQL:            "SELECT * FROM users WHERE name = ?",
 		ParameterTypes: []types.DataType{types.Text},
-		SchemaVersion: 1,
-		StatsVersion:  1,
+		SchemaVersion:  1,
+		StatsVersion:   1,
 	}
 
 	key3 := &PlanCacheKey{
-		SQL:           "SELECT * FROM users WHERE id = ?",
+		SQL:            "SELECT * FROM users WHERE id = ?",
 		ParameterTypes: []types.DataType{types.Integer},
-		SchemaVersion: 2, // Different schema version
-		StatsVersion:  1,
+		SchemaVersion:  2, // Different schema version
+		StatsVersion:   1,
 	}
 
 	keyStr1 := cache.generateKey(key1)
@@ -362,7 +362,7 @@ func TestPlanCache_ConcurrentAccess(t *testing.T) {
 
 	// Test concurrent reads and writes
 	done := make(chan bool)
-	
+
 	// Writer goroutine
 	go func() {
 		for i := 0; i < 50; i++ {

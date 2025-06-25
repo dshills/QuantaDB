@@ -32,40 +32,40 @@ func (vb *VectorizedBinaryOpEvaluator) EvalVector(batch *VectorizedBatch) (*Vect
 	if err != nil {
 		return nil, err
 	}
-	
+
 	rightVec, err := vb.right.EvalVector(batch)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create result vector
 	var result *Vector
-	
+
 	switch vb.operator {
-	case planner.OpEqual, planner.OpNotEqual, planner.OpLess, planner.OpLessEqual, 
-	     planner.OpGreater, planner.OpGreaterEqual:
+	case planner.OpEqual, planner.OpNotEqual, planner.OpLess, planner.OpLessEqual,
+		planner.OpGreater, planner.OpGreaterEqual:
 		// Comparison operations return boolean
 		result = NewVector(types.Boolean, batch.RowCount)
 		err = vb.evalComparison(leftVec, rightVec, result, batch.RowCount)
-		
+
 	case planner.OpAdd, planner.OpSubtract, planner.OpMultiply, planner.OpDivide:
 		// Arithmetic operations return same type as operands
 		result = NewVector(vb.dataType, batch.RowCount)
 		err = vb.evalArithmetic(leftVec, rightVec, result, batch.RowCount)
-		
+
 	case planner.OpAnd, planner.OpOr:
 		// Logical operations on boolean vectors
 		result = NewVector(types.Boolean, batch.RowCount)
 		err = vb.evalLogical(leftVec, rightVec, result, batch.RowCount)
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported vectorized operator: %v", vb.operator)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	result.Length = batch.RowCount
 	return result, nil
 }
@@ -109,10 +109,10 @@ func (vb *VectorizedBinaryOpEvaluator) evalComparisonInt64(left, right []int64, 
 			result[i] = left[i] >= right[i]
 		}
 	}
-	
+
 	// Handle nulls - if either operand is null, result is null
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
-	
+
 	return nil
 }
 
@@ -144,7 +144,7 @@ func (vb *VectorizedBinaryOpEvaluator) evalComparisonInt32(left, right []int32, 
 			result[i] = left[i] >= right[i]
 		}
 	}
-	
+
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
@@ -177,7 +177,7 @@ func (vb *VectorizedBinaryOpEvaluator) evalComparisonFloat64(left, right []float
 			result[i] = left[i] >= right[i]
 		}
 	}
-	
+
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
@@ -210,7 +210,7 @@ func (vb *VectorizedBinaryOpEvaluator) evalComparisonFloat32(left, right []float
 			result[i] = left[i] >= right[i]
 		}
 	}
-	
+
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
@@ -243,6 +243,9 @@ func (vb *VectorizedBinaryOpEvaluator) evalArithmeticInt64(left, right, result [
 	case planner.OpMultiply:
 		VectorMultiplyInt64(result, left, right, length)
 	case planner.OpDivide:
+		// First propagate existing nulls
+		vb.propagateNulls(leftNull, rightNull, resultNull, length)
+
 		for i := 0; i < length; i++ {
 			if right[i] == 0 {
 				// Set null for division by zero
@@ -254,8 +257,11 @@ func (vb *VectorizedBinaryOpEvaluator) evalArithmeticInt64(left, right, result [
 			}
 		}
 	}
-	
-	vb.propagateNulls(leftNull, rightNull, resultNull, length)
+
+	// Note: propagateNulls was called above for OpDivide case
+	if vb.operator != planner.OpDivide {
+		vb.propagateNulls(leftNull, rightNull, resultNull, length)
+	}
 	return nil
 }
 
@@ -275,8 +281,12 @@ func (vb *VectorizedBinaryOpEvaluator) evalArithmeticInt32(left, right, result [
 			result[i] = left[i] * right[i]
 		}
 	case planner.OpDivide:
+		// First propagate existing nulls
+		vb.propagateNulls(leftNull, rightNull, resultNull, length)
+
 		for i := 0; i < length; i++ {
 			if right[i] == 0 {
+				// Set null for division by zero
 				byteIdx := i / 64
 				bitIdx := uint(i % 64)
 				resultNull[byteIdx] |= (1 << bitIdx)
@@ -285,8 +295,11 @@ func (vb *VectorizedBinaryOpEvaluator) evalArithmeticInt32(left, right, result [
 			}
 		}
 	}
-	
-	vb.propagateNulls(leftNull, rightNull, resultNull, length)
+
+	// Note: propagateNulls was called above for OpDivide case
+	if vb.operator != planner.OpDivide {
+		vb.propagateNulls(leftNull, rightNull, resultNull, length)
+	}
 	return nil
 }
 
@@ -306,7 +319,7 @@ func (vb *VectorizedBinaryOpEvaluator) evalArithmeticFloat64(left, right, result
 			result[i] = left[i] / right[i]
 		}
 	}
-	
+
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
@@ -331,7 +344,7 @@ func (vb *VectorizedBinaryOpEvaluator) evalArithmeticFloat32(left, right, result
 			result[i] = left[i] / right[i]
 		}
 	}
-	
+
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
@@ -350,7 +363,7 @@ func (vb *VectorizedBinaryOpEvaluator) evalLogical(left, right, result *Vector, 
 	default:
 		return fmt.Errorf("unsupported logical operator: %v", vb.operator)
 	}
-	
+
 	vb.propagateNulls(left.NullBitmap, right.NullBitmap, result.NullBitmap, length)
 	return nil
 }
@@ -383,7 +396,7 @@ func (vc *VectorizedColumnRefEvaluator) EvalVector(batch *VectorizedBatch) (*Vec
 	if vc.columnIndex < 0 || vc.columnIndex >= len(batch.Vectors) {
 		return nil, fmt.Errorf("column index %d out of range", vc.columnIndex)
 	}
-	
+
 	// Return the column vector directly (no copy needed)
 	return batch.Vectors[vc.columnIndex], nil
 }
@@ -406,7 +419,7 @@ func NewVectorizedLiteralEvaluator(value types.Value) *VectorizedLiteralEvaluato
 func (vl *VectorizedLiteralEvaluator) EvalVector(batch *VectorizedBatch) (*Vector, error) {
 	result := NewVector(vl.dataType, batch.RowCount)
 	result.Length = batch.RowCount
-	
+
 	// Fill the vector with the literal value
 	if vl.value.IsNull() {
 		// Set all values to null
@@ -450,6 +463,6 @@ func (vl *VectorizedLiteralEvaluator) EvalVector(batch *VectorizedBatch) (*Vecto
 			return nil, fmt.Errorf("unsupported literal type for vectorization: %v", vl.dataType)
 		}
 	}
-	
+
 	return result, nil
 }

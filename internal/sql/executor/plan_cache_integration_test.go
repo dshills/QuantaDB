@@ -88,10 +88,10 @@ func TestCompletePlanCacheIntegration(t *testing.T) {
 	mockStorage := &TestStorageBackend{}
 	mockPlan := &TestOperator{}
 	explainOp := NewExplainOperator(
-		mockPlan,     // Mock plan operator
-		true,         // analyze = true
-		true,         // verbose = true
-		"text",       // format
+		mockPlan, // Mock plan operator
+		true,     // analyze = true
+		true,     // verbose = true
+		"text",   // format
 		mockStorage,
 	)
 

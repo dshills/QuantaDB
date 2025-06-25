@@ -19,29 +19,29 @@ type Vector struct {
 	BoolData    []bool
 	StringData  []string
 	BytesData   [][]byte
-	
+
 	// Null bitmap (1 bit per value)
-	NullBitmap  []uint64
-	
+	NullBitmap []uint64
+
 	// Metadata
-	DataType    types.DataType
-	Length      int      // Number of valid values
-	Capacity    int      // Allocated capacity
-	
+	DataType types.DataType
+	Length   int // Number of valid values
+	Capacity int // Allocated capacity
+
 	// Selection vector for filtered results
-	Selection   []int    // Indices of selected rows
-	SelLength   int      // Number of selected rows
+	Selection []int // Indices of selected rows
+	SelLength int   // Number of selected rows
 }
 
 // NewVector creates a new vector of the specified type and capacity
 func NewVector(dataType types.DataType, capacity int) *Vector {
 	v := &Vector{
-		DataType:  dataType,
-		Capacity:  capacity,
-		Length:    0,
+		DataType:   dataType,
+		Capacity:   capacity,
+		Length:     0,
 		NullBitmap: make([]uint64, (capacity+63)/64), // 1 bit per value
 	}
-	
+
 	// Allocate data array based on type
 	switch dataType {
 	case types.Integer:
@@ -62,7 +62,7 @@ func NewVector(dataType types.DataType, capacity int) *Vector {
 		// For other types, use generic interface (slower but works)
 		v.StringData = make([]string, capacity)
 	}
-	
+
 	return v
 }
 
@@ -92,9 +92,9 @@ func (v *Vector) Reset() {
 
 // VectorizedBatch represents a batch of rows in columnar format
 type VectorizedBatch struct {
-	Vectors     []*Vector    // One vector per column
-	Schema      *Schema      // Schema information
-	RowCount    int          // Number of rows in this batch
+	Vectors  []*Vector // One vector per column
+	Schema   *Schema   // Schema information
+	RowCount int       // Number of rows in this batch
 }
 
 // NewVectorizedBatch creates a new batch with the given schema and capacity
@@ -104,12 +104,12 @@ func NewVectorizedBatch(schema *Schema, capacity int) *VectorizedBatch {
 		Vectors:  make([]*Vector, len(schema.Columns)),
 		RowCount: 0,
 	}
-	
+
 	// Create a vector for each column
 	for i, col := range schema.Columns {
 		batch.Vectors[i] = NewVector(col.Type, capacity)
 	}
-	
+
 	return batch
 }
 
@@ -133,10 +133,10 @@ type VectorizedOperator interface {
 // VectorizedScanOperator implements vectorized table scanning
 type VectorizedScanOperator struct {
 	baseOperator
-	tableID    int64
-	batch      *VectorizedBatch
-	iterator   RowIterator
-	exhausted  bool
+	tableID   int64
+	batch     *VectorizedBatch
+	iterator  RowIterator
+	exhausted bool
 }
 
 // NewVectorizedScanOperator creates a new vectorized scan operator
@@ -169,10 +169,10 @@ func (vs *VectorizedScanOperator) NextBatch() (*VectorizedBatch, error) {
 	if vs.exhausted {
 		return nil, nil
 	}
-	
+
 	// Reset batch for reuse
 	vs.batch.Reset()
-	
+
 	// Fill the batch
 	for i := 0; i < VectorSize; i++ {
 		row, _, err := vs.iterator.Next()
@@ -183,11 +183,11 @@ func (vs *VectorizedScanOperator) NextBatch() (*VectorizedBatch, error) {
 			vs.exhausted = true
 			break
 		}
-		
+
 		// Copy row data into vectors
 		for colIdx, val := range row.Values {
 			vector := vs.batch.Vectors[colIdx]
-			
+
 			if val.IsNull() {
 				vector.SetNull(i)
 			} else {
@@ -212,17 +212,17 @@ func (vs *VectorizedScanOperator) NextBatch() (*VectorizedBatch, error) {
 					vector.StringData[i] = fmt.Sprintf("%v", val.Data)
 				}
 			}
-			
+
 			vector.Length = i + 1
 		}
-		
+
 		vs.batch.RowCount = i + 1
 	}
-	
+
 	if vs.batch.RowCount == 0 {
 		return nil, nil
 	}
-	
+
 	return vs.batch, nil
 }
 
@@ -247,9 +247,9 @@ func (vs *VectorizedScanOperator) Close() error {
 // VectorizedFilterOperator implements vectorized filtering
 type VectorizedFilterOperator struct {
 	baseOperator
-	child      VectorizedOperator
-	predicate  VectorizedExprEvaluator
-	batch      *VectorizedBatch
+	child     VectorizedOperator
+	predicate VectorizedExprEvaluator
+	batch     *VectorizedBatch
 }
 
 // VectorizedExprEvaluator evaluates expressions on vectors
@@ -290,16 +290,16 @@ func (vf *VectorizedFilterOperator) NextBatch() (*VectorizedBatch, error) {
 		if childBatch == nil {
 			return nil, nil
 		}
-		
+
 		// Evaluate predicate on the batch
 		resultVector, err := vf.predicate.EvalVector(childBatch)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Reset output batch
 		vf.batch.Reset()
-		
+
 		// Copy selected rows to output batch
 		outputIdx := 0
 		for i := 0; i < childBatch.RowCount; i++ {
@@ -308,7 +308,7 @@ func (vf *VectorizedFilterOperator) NextBatch() (*VectorizedBatch, error) {
 				// Copy all columns for this row
 				for colIdx, inVector := range childBatch.Vectors {
 					outVector := vf.batch.Vectors[colIdx]
-					
+
 					// Copy value based on type
 					if inVector.IsNull(i) {
 						outVector.SetNull(outputIdx)
@@ -330,16 +330,16 @@ func (vf *VectorizedFilterOperator) NextBatch() (*VectorizedBatch, error) {
 							outVector.BytesData[outputIdx] = inVector.BytesData[i]
 						}
 					}
-					
+
 					outVector.Length = outputIdx + 1
 				}
-				
+
 				outputIdx++
 			}
 		}
-		
+
 		vf.batch.RowCount = outputIdx
-		
+
 		// If we have any rows, return them
 		if vf.batch.RowCount > 0 {
 			return vf.batch, nil
@@ -433,7 +433,7 @@ func (m *VectorizedMockRowIterator) Next() (*Row, RowID, error) {
 	if m.currentRow >= m.maxRows {
 		return nil, RowID{}, nil
 	}
-	
+
 	m.currentRow++
 	return &Row{
 		Values: []types.Value{

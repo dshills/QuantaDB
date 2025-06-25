@@ -35,33 +35,33 @@ func (sm ScanMethod) String() string {
 // AdaptiveScanOperator dynamically adjusts scan strategy based on runtime characteristics
 type AdaptiveScanOperator struct {
 	baseOperator
-	
+
 	// Table information
-	table       *catalog.Table
-	tableAlias  string
-	storage     StorageBackend
-	predicate   ExprEvaluator // Optional filter predicate
-	
+	table      *catalog.Table
+	tableAlias string
+	storage    StorageBackend
+	predicate  ExprEvaluator // Optional filter predicate
+
 	// Adaptive components
 	adaptiveCtx   *AdaptiveContext
 	initialMethod ScanMethod
 	currentMethod ScanMethod
 	currentImpl   Operator // Current scan implementation
-	
+
 	// Runtime statistics
 	scanStats *RuntimeStats
-	
+
 	// Adaptation configuration
 	evaluationInterval time.Duration
 	lastEvaluation     time.Time
 	minRowsForSwitch   int64
-	
+
 	// Execution state
 	rowsProcessed   int64
 	hasSwitched     bool
 	switchPoint     int64
 	parallelContext *ParallelContext
-	
+
 	// Performance tracking
 	startTime           time.Time
 	lastThroughputCheck time.Time
@@ -82,12 +82,12 @@ func NewAdaptiveScanOperator(
 	schema := &Schema{
 		Columns: make([]Column, len(table.Columns)),
 	}
-	
+
 	// Use alias if provided, otherwise use table name
 	if tableAlias == "" {
 		tableAlias = table.TableName
 	}
-	
+
 	for i, col := range table.Columns {
 		schema.Columns[i] = Column{
 			Name:       col.Name,
@@ -97,7 +97,7 @@ func NewAdaptiveScanOperator(
 			TableAlias: tableAlias,
 		}
 	}
-	
+
 	return &AdaptiveScanOperator{
 		baseOperator: baseOperator{
 			schema: schema,
@@ -110,7 +110,7 @@ func NewAdaptiveScanOperator(
 		initialMethod:      AutoScanMethod,
 		currentMethod:      AutoScanMethod,
 		evaluationInterval: 100 * time.Millisecond,
-		minRowsForSwitch:   5000, // Don't switch until we have enough data
+		minRowsForSwitch:   5000,  // Don't switch until we have enough data
 		targetThroughput:   10000, // Target 10K rows/second
 	}
 }
@@ -120,26 +120,26 @@ func (as *AdaptiveScanOperator) Open(ctx *ExecContext) error {
 	as.ctx = ctx
 	as.startTime = time.Now()
 	as.lastThroughputCheck = as.startTime
-	
+
 	// Initialize statistics
 	as.scanStats = NewRuntimeStats(1000) // Default estimate
 	as.initStats(1000)
-	
+
 	// Set transaction ID if available
 	if ctx.Txn != nil {
 		as.storage.SetTransactionID(uint64(ctx.Txn.ID()))
 	}
-	
+
 	// Choose initial scan method
 	as.currentMethod = as.selectInitialScanMethod()
-	
+
 	// Create initial scan implementation
 	impl, err := as.createScanImplementation(as.currentMethod)
 	if err != nil {
 		return fmt.Errorf("failed to create initial scan implementation: %w", err)
 	}
 	as.currentImpl = impl
-	
+
 	// Log initial decision
 	if as.adaptiveCtx != nil {
 		as.adaptiveCtx.LogAdaptiveDecision(
@@ -149,7 +149,7 @@ func (as *AdaptiveScanOperator) Open(ctx *ExecContext) error {
 			as.scanStats,
 		)
 	}
-	
+
 	return as.currentImpl.Open(ctx)
 }
 
@@ -157,20 +157,20 @@ func (as *AdaptiveScanOperator) Open(ctx *ExecContext) error {
 func (as *AdaptiveScanOperator) selectInitialScanMethod() ScanMethod {
 	// Simple heuristics for initial selection
 	// In a real implementation, this would use cost-based optimization
-	
+
 	// If we have a predicate and suitable indexes, prefer index scan
 	if as.predicate != nil {
 		// TODO: Check if table has suitable indexes for the predicate
 		// For now, assume sequential scan is safer
 	}
-	
+
 	// Check table size estimates
 	// For large tables with available parallelism, prefer parallel scan
 	if as.adaptiveCtx != nil && as.adaptiveCtx.ExecCtx != nil {
 		// TODO: Get table size estimate from catalog statistics
 		// For now, default to sequential scan
 	}
-	
+
 	return SequentialScanMethod
 }
 
@@ -183,7 +183,7 @@ func (as *AdaptiveScanOperator) createScanImplementation(method ScanMethod) (Ope
 			return NewFilterOperator(scan, as.predicate), nil
 		}
 		return scan, nil
-		
+
 	case ParallelScanMethod:
 		if as.parallelContext == nil {
 			// Create parallel context for this scan
@@ -194,7 +194,7 @@ func (as *AdaptiveScanOperator) createScanImplementation(method ScanMethod) (Ope
 			return NewFilterOperator(scan, as.predicate), nil
 		}
 		return scan, nil
-		
+
 	case IndexScanMethod:
 		// For now, fall back to sequential scan
 		// In a complete implementation, we'd have index scan selection logic
@@ -203,7 +203,7 @@ func (as *AdaptiveScanOperator) createScanImplementation(method ScanMethod) (Ope
 			return NewFilterOperator(scan, as.predicate), nil
 		}
 		return scan, nil
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported scan method: %s", method)
 	}
@@ -217,13 +217,13 @@ func (as *AdaptiveScanOperator) Next() (*Row, error) {
 			return nil, fmt.Errorf("adaptation evaluation failed: %w", err)
 		}
 	}
-	
+
 	// Get next row from current implementation
 	row, err := as.currentImpl.Next()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if row != nil {
 		// Update statistics
 		as.rowsProcessed++
@@ -237,7 +237,7 @@ func (as *AdaptiveScanOperator) Next() (*Row, error) {
 			as.ctx.StatsCollector(as, as.stats)
 		}
 	}
-	
+
 	return row, nil
 }
 
@@ -245,12 +245,12 @@ func (as *AdaptiveScanOperator) Next() (*Row, error) {
 func (as *AdaptiveScanOperator) updateThroughputStats() {
 	now := time.Now()
 	timeDiff := now.Sub(as.lastThroughputCheck)
-	
+
 	// Update throughput every second
 	if timeDiff >= time.Second {
 		rowsDiff := as.rowsProcessed - as.lastRowCount
 		as.currentThroughput = float64(rowsDiff) / timeDiff.Seconds()
-		
+
 		as.lastThroughputCheck = now
 		as.lastRowCount = as.rowsProcessed
 	}
@@ -261,41 +261,41 @@ func (as *AdaptiveScanOperator) shouldEvaluateAdaptation() bool {
 	if as.adaptiveCtx == nil || !as.adaptiveCtx.Enabled {
 		return false
 	}
-	
+
 	// Don't adapt if we've already switched
 	if as.hasSwitched {
 		return false
 	}
-	
+
 	// Don't adapt too frequently
 	if time.Since(as.lastEvaluation) < as.evaluationInterval {
 		return false
 	}
-	
+
 	// Don't adapt until we have enough data
 	if as.rowsProcessed < as.minRowsForSwitch {
 		return false
 	}
-	
+
 	return true
 }
 
 // evaluateAdaptation checks if we should switch scan methods
 func (as *AdaptiveScanOperator) evaluateAdaptation() error {
 	as.lastEvaluation = time.Now()
-	
+
 	// Collect current runtime statistics
 	snapshot := as.scanStats.GetSnapshot()
-	
+
 	// Check if current performance is poor
 	shouldSwitch, newMethod, reason := as.shouldSwitchScanMethod(&snapshot)
-	
+
 	if shouldSwitch {
 		if err := as.switchScanMethod(newMethod, reason); err != nil {
 			return fmt.Errorf("failed to switch scan method: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -311,21 +311,21 @@ func (as *AdaptiveScanOperator) shouldSwitchScanMethod(stats *RuntimeStats) (boo
 			}
 		}
 	}
-	
+
 	// Check for memory pressure
 	if as.adaptiveCtx.MaxMemory > 0 && stats.IsMemoryPressure(as.adaptiveCtx.MaxMemory, 0.8) {
 		if as.currentMethod == ParallelScanMethod {
 			return true, SequentialScanMethod, "High memory pressure - switch to sequential"
 		}
 	}
-	
+
 	// Check for poor CPU utilization (would require system metrics)
 	// This is a placeholder for more sophisticated monitoring
 	if as.currentThroughput > 0 && as.currentThroughput > as.targetThroughput*2.0 {
 		// Performance is very good, might consider more aggressive parallelism
 		// But for now, keep current method
 	}
-	
+
 	return false, as.currentMethod, ""
 }
 
@@ -340,58 +340,58 @@ func (as *AdaptiveScanOperator) switchScanMethod(newMethod ScanMethod, reason st
 			as.scanStats,
 		)
 	}
-	
+
 	// For scan operations, switching mid-execution is complex because we need to
 	// track where we are in the table. For now, we'll just log the decision
 	// and apply it to future operations. A complete implementation would need
 	// to handle state transfer between scan methods.
-	
+
 	// In a production system, you might:
 	// 1. Materialize current position
 	// 2. Close current implementation
 	// 3. Create new implementation starting from saved position
 	// 4. Handle any necessary state conversion
-	
+
 	// For this implementation, we'll defer the switch to avoid complexity
 	// but still log the adaptive decision for monitoring
-	
+
 	as.switchPoint = as.rowsProcessed
 	as.hasSwitched = true
-	
+
 	return nil
 }
 
 // Close cleans up the adaptive scan
 func (as *AdaptiveScanOperator) Close() error {
 	var err error
-	
+
 	// Close current implementation
 	if as.currentImpl != nil {
 		if closeErr := as.currentImpl.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}
-	
+
 	// Close parallel context if we created one
 	if as.parallelContext != nil {
 		if closeErr := as.parallelContext.Close(); closeErr != nil && err == nil {
 			err = closeErr
 		}
 	}
-	
+
 	// Ensure stats are finalized
 	as.finishStats()
 	if as.ctx != nil && as.ctx.StatsCollector != nil && as.stats != nil {
 		as.ctx.StatsCollector(as, as.stats)
 	}
-	
+
 	return err
 }
 
 // GetAdaptiveStats returns adaptive-specific statistics
 func (as *AdaptiveScanOperator) GetAdaptiveStats() map[string]interface{} {
 	stats := make(map[string]interface{})
-	
+
 	stats["initial_method"] = as.initialMethod.String()
 	stats["current_method"] = as.currentMethod.String()
 	stats["has_switched"] = as.hasSwitched
@@ -399,11 +399,11 @@ func (as *AdaptiveScanOperator) GetAdaptiveStats() map[string]interface{} {
 	stats["rows_processed"] = as.rowsProcessed
 	stats["current_throughput"] = as.currentThroughput
 	stats["target_throughput"] = as.targetThroughput
-	
+
 	if as.adaptiveCtx != nil && as.adaptiveCtx.DecisionLog != nil {
 		stats["decision_count"] = as.adaptiveCtx.DecisionLog.GetDecisionCount()
 	}
-	
+
 	return stats
 }
 
@@ -411,16 +411,16 @@ func (as *AdaptiveScanOperator) GetAdaptiveStats() map[string]interface{} {
 type AdaptiveScanConfig struct {
 	// Enable adaptive behavior
 	EnableAdaptation bool
-	
+
 	// Minimum rows before considering switches
 	MinRowsForSwitch int64
-	
+
 	// How often to evaluate adaptation
 	EvaluationInterval time.Duration
-	
+
 	// Target throughput (rows per second)
 	TargetThroughput float64
-	
+
 	// Memory pressure threshold for triggering switches
 	MemoryPressureThreshold float64
 }
@@ -464,6 +464,6 @@ func (as *AdaptiveScanOperator) CreateParallelInstance(pc *ParallelContext) (Ope
 		targetThroughput:   as.targetThroughput,
 		parallelContext:    pc,
 	}
-	
+
 	return adaptiveScan, nil
 }

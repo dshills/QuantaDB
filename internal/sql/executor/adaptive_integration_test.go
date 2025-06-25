@@ -99,7 +99,7 @@ func testAdaptiveExecutionScenario(t *testing.T, leftRows, rightRows int, dataSk
 	adaptiveJoin := NewAdaptiveJoinOperator(
 		leftScan, rightScan,
 		nil, nil, // No join keys for this test
-		nil,      // No predicate
+		nil, // No predicate
 		InnerJoin,
 		adaptiveCtx,
 	)
@@ -165,8 +165,8 @@ func testAdaptiveExecutionScenario(t *testing.T, leftRows, rightRows int, dataSk
 		// Look for algorithm switching decisions
 		switchDecisionFound := false
 		for _, decision := range report.Decisions {
-			if decision.Operator == "AdaptiveJoin" && 
-			   (decision.Decision == "Switch Hash -> NestedLoop" || decision.Decision == "Switch NestedLoop -> Hash") {
+			if decision.Operator == "AdaptiveJoin" &&
+				(decision.Decision == "Switch Hash -> NestedLoop" || decision.Decision == "Switch NestedLoop -> Hash") {
 				switchDecisionFound = true
 				break
 			}
@@ -212,7 +212,7 @@ func TestAdaptiveParallelismIntegration(t *testing.T) {
 
 	// Create adaptive execution plan with parallelism manager
 	parallelismMgr := NewAdaptiveParallelismManager(adaptiveCtx)
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -249,7 +249,7 @@ func TestAdaptiveParallelismIntegration(t *testing.T) {
 		// Update parallelism manager periodically
 		if rowCount%1000 == 0 {
 			parallelismMgr.UpdateWorkerUtilization(workerUtilization)
-			
+
 			// Simulate varying load
 			for i := range workerUtilization {
 				workerUtilization[i] += 0.1
@@ -262,7 +262,7 @@ func TestAdaptiveParallelismIntegration(t *testing.T) {
 
 	// Get final statistics
 	stats := parallelismMgr.GetAdaptiveStats()
-	
+
 	t.Logf("Processed %d rows", rowCount)
 	t.Logf("Final worker count: %v", stats["current_workers"])
 	t.Logf("Adjustments made: %v", stats["adjustment_count"])
@@ -318,7 +318,7 @@ func TestAdaptiveMemoryManagement(t *testing.T) {
 	adaptiveHashJoin := NewAdaptiveHashJoinOperator(
 		leftScan, rightScan,
 		nil, nil, // No join keys
-		nil,      // No predicate
+		nil, // No predicate
 		InnerJoin,
 		adaptiveCtx,
 		lowMemoryLimit,
@@ -475,21 +475,21 @@ func BenchmarkAdaptiveVsStandardExecution(b *testing.B) {
 func TestAdaptiveDecisionQuality(t *testing.T) {
 	// Test different scenarios and verify decisions make sense
 	scenarios := []struct {
-		name           string
-		memoryLimit    int64
-		dataSize       int
+		name             string
+		memoryLimit      int64
+		dataSize         int
 		expectedDecision string
 	}{
 		{
-			name:           "High memory, small data",
-			memoryLimit:    64 * 1024 * 1024,
-			dataSize:       1000,
+			name:             "High memory, small data",
+			memoryLimit:      64 * 1024 * 1024,
+			dataSize:         1000,
 			expectedDecision: "no spilling",
 		},
 		{
-			name:           "Low memory, large data",
-			memoryLimit:    1 * 1024 * 1024,
-			dataSize:       50000,
+			name:             "Low memory, large data",
+			memoryLimit:      1 * 1024 * 1024,
+			dataSize:         50000,
 			expectedDecision: "spilling enabled",
 		},
 	}

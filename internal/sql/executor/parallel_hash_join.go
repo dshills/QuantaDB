@@ -11,18 +11,18 @@ import (
 // ParallelHashJoinOperator implements parallel hash join
 type ParallelHashJoinOperator struct {
 	baseOperator
-	left         Operator
-	right        Operator
-	predicate    ExprEvaluator
-	joinType     JoinType
-	parallelCtx  *ParallelContext
-	numWorkers   int
-	partitions   []*HashPartition
-	resultChan   chan *JoinResult
-	errorChan    chan error
-	workerWG     sync.WaitGroup
-	started      bool
-	startMu      sync.Mutex
+	left        Operator
+	right       Operator
+	predicate   ExprEvaluator
+	joinType    JoinType
+	parallelCtx *ParallelContext
+	numWorkers  int
+	partitions  []*HashPartition
+	resultChan  chan *JoinResult
+	errorChan   chan error
+	workerWG    sync.WaitGroup
+	started     bool
+	startMu     sync.Mutex
 }
 
 // JoinResult represents a row result from parallel join
@@ -316,7 +316,7 @@ func (phj *ParallelHashJoinOperator) processProbeRow(partition *HashPartition, p
 // hashRow computes a hash for a row
 func (phj *ParallelHashJoinOperator) hashRow(row *Row) uint64 {
 	hasher := fnv.New64a()
-	
+
 	// For simplicity, hash all values in the row
 	// TODO: Hash only join key columns for better performance
 	for _, value := range row.Values {
@@ -324,7 +324,7 @@ func (phj *ParallelHashJoinOperator) hashRow(row *Row) uint64 {
 			hasher.Write([]byte(fmt.Sprintf("%v", value.Data)))
 		}
 	}
-	
+
 	return hasher.Sum64()
 }
 

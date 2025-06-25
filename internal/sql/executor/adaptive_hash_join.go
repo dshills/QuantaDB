@@ -34,10 +34,10 @@ type AdaptiveHashJoinOperator struct {
 	spillFileCounter int
 
 	// Hash table management
-	hashTable        map[uint64][]*Row
-	buildPhaseRows   []*Row
-	spillEnabled     bool
-	hasSpilled       bool
+	hashTable      map[uint64][]*Row
+	buildPhaseRows []*Row
+	spillEnabled   bool
+	hasSpilled     bool
 
 	// Execution state
 	buildComplete bool
@@ -46,18 +46,18 @@ type AdaptiveHashJoinOperator struct {
 	currentBucket *SpillBucket
 
 	// Performance tracking
-	spillCount     int64
-	spillTime      time.Duration
-	memoryPeak     int64
+	spillCount int64
+	spillTime  time.Duration
+	memoryPeak int64
 }
 
 // SpillBucket represents a partition that has been spilled to disk
 type SpillBucket struct {
-	ID           int
-	FilePath     string
-	RowCount     int64
+	ID            int
+	FilePath      string
+	RowCount      int64
 	EstimatedSize int64
-	KeyRange     KeyRange
+	KeyRange      KeyRange
 }
 
 // KeyRange represents the range of hash values in a spill bucket
@@ -509,7 +509,7 @@ type AdaptiveHashJoinConfig struct {
 	// Performance tuning
 	InitialHashTableSize int
 	SpillBucketSize      int64
-	LoadFactor          float64
+	LoadFactor           float64
 }
 
 // DefaultAdaptiveHashJoinConfig returns reasonable defaults
@@ -521,6 +521,6 @@ func DefaultAdaptiveHashJoinConfig() *AdaptiveHashJoinConfig {
 		SpillDirectory:       "/tmp/quantadb_spill",
 		InitialHashTableSize: 16384,
 		SpillBucketSize:      8 * 1024 * 1024, // 8MB per bucket
-		LoadFactor:          0.75,
+		LoadFactor:           0.75,
 	}
 }

@@ -70,7 +70,7 @@ func TestPlanCacheStatsIntegration(t *testing.T) {
 	// Test system view for cache statistics
 	sysView := NewSystemViewOperator("plan_cache_stats", stats)
 	ctx := &ExecContext{}
-	
+
 	err = sysView.Open(ctx)
 	if err != nil {
 		t.Fatalf("Failed to open system view: %v", err)

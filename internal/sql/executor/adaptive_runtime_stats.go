@@ -10,26 +10,26 @@ type RuntimeStats struct {
 	// Cardinality tracking
 	EstimatedRows int64 // Original planner estimate
 	ActualRows    int64 // Actual rows processed so far
-	
+
 	// Performance metrics
 	ExecutionTime time.Duration // Time spent so far
 	MemoryUsage   int64         // Current memory usage in bytes
 	MemoryPeak    int64         // Peak memory usage
-	
+
 	// Data characteristics
-	DataSkew      float64       // Coefficient of variation for data distribution
-	NullRate      float64       // Percentage of null values
-	Selectivity   float64       // Actual selectivity observed
-	
+	DataSkew    float64 // Coefficient of variation for data distribution
+	NullRate    float64 // Percentage of null values
+	Selectivity float64 // Actual selectivity observed
+
 	// Resource utilization
-	CPUTime       time.Duration // CPU time consumed
-	IOReads       int64         // Number of disk reads
-	IOWrites      int64         // Number of disk writes
-	
+	CPUTime  time.Duration // CPU time consumed
+	IOReads  int64         // Number of disk reads
+	IOWrites int64         // Number of disk writes
+
 	// Concurrency metrics
-	WorkerUtilization []float64  // Utilization per worker (for parallel ops)
-	LoadImbalance     float64    // Measure of work distribution imbalance
-	
+	WorkerUtilization []float64 // Utilization per worker (for parallel ops)
+	LoadImbalance     float64   // Measure of work distribution imbalance
+
 	mu sync.RWMutex // Protect concurrent updates
 }
 
@@ -50,7 +50,7 @@ func NewRuntimeStats(estimatedRows int64) *RuntimeStats {
 func (rs *RuntimeStats) UpdateCardinality(actualRows int64) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	
+
 	rs.ActualRows = actualRows
 }
 
@@ -58,7 +58,7 @@ func (rs *RuntimeStats) UpdateCardinality(actualRows int64) {
 func (rs *RuntimeStats) UpdateMemoryUsage(currentMemory int64) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	
+
 	rs.MemoryUsage = currentMemory
 	if currentMemory > rs.MemoryPeak {
 		rs.MemoryPeak = currentMemory
@@ -69,31 +69,31 @@ func (rs *RuntimeStats) UpdateMemoryUsage(currentMemory int64) {
 func (rs *RuntimeStats) UpdateDataSkew(values []float64) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	
+
 	if len(values) < 2 {
 		rs.DataSkew = 0.0
 		return
 	}
-	
+
 	// Calculate coefficient of variation
 	mean := 0.0
 	for _, v := range values {
 		mean += v
 	}
 	mean /= float64(len(values))
-	
+
 	if mean == 0.0 {
 		rs.DataSkew = 0.0
 		return
 	}
-	
+
 	variance := 0.0
 	for _, v := range values {
 		diff := v - mean
 		variance += diff * diff
 	}
 	variance /= float64(len(values))
-	
+
 	stddev := variance // Simplified - would use math.Sqrt in real implementation
 	rs.DataSkew = stddev / mean
 }
@@ -102,34 +102,34 @@ func (rs *RuntimeStats) UpdateDataSkew(values []float64) {
 func (rs *RuntimeStats) UpdateWorkerUtilization(workerStats []float64) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	
+
 	rs.WorkerUtilization = make([]float64, len(workerStats))
 	copy(rs.WorkerUtilization, workerStats)
-	
+
 	// Calculate load imbalance (coefficient of variation of worker utilization)
 	if len(workerStats) < 2 {
 		rs.LoadImbalance = 0.0
 		return
 	}
-	
+
 	sum := 0.0
 	for _, util := range workerStats {
 		sum += util
 	}
 	mean := sum / float64(len(workerStats))
-	
+
 	if mean == 0.0 {
 		rs.LoadImbalance = 0.0
 		return
 	}
-	
+
 	variance := 0.0
 	for _, util := range workerStats {
 		diff := util - mean
 		variance += diff * diff
 	}
 	variance /= float64(len(workerStats))
-	
+
 	stddev := variance // Simplified
 	rs.LoadImbalance = stddev / mean
 }
@@ -138,14 +138,14 @@ func (rs *RuntimeStats) UpdateWorkerUtilization(workerStats []float64) {
 func (rs *RuntimeStats) GetCardinalityError() float64 {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
-	
+
 	if rs.EstimatedRows == 0 {
 		if rs.ActualRows == 0 {
 			return 0.0
 		}
 		return 1.0 // 100% error
 	}
-	
+
 	return float64(abs(rs.ActualRows-rs.EstimatedRows)) / float64(rs.EstimatedRows)
 }
 
@@ -158,11 +158,11 @@ func (rs *RuntimeStats) IsEstimateAccurate(threshold float64) bool {
 func (rs *RuntimeStats) IsMemoryPressure(maxMemory int64, threshold float64) bool {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
-	
+
 	if maxMemory <= 0 {
 		return false
 	}
-	
+
 	usage := float64(rs.MemoryUsage) / float64(maxMemory)
 	return usage >= threshold
 }
@@ -171,7 +171,7 @@ func (rs *RuntimeStats) IsMemoryPressure(maxMemory int64, threshold float64) boo
 func (rs *RuntimeStats) IsDataSkewed(threshold float64) bool {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
-	
+
 	return rs.DataSkew >= threshold
 }
 
@@ -179,7 +179,7 @@ func (rs *RuntimeStats) IsDataSkewed(threshold float64) bool {
 func (rs *RuntimeStats) IsLoadImbalanced(threshold float64) bool {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
-	
+
 	return rs.LoadImbalance >= threshold
 }
 
@@ -187,13 +187,13 @@ func (rs *RuntimeStats) IsLoadImbalanced(threshold float64) bool {
 func (rs *RuntimeStats) GetSnapshot() RuntimeStats {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
-	
+
 	snapshot := *rs
 	if len(rs.WorkerUtilization) > 0 {
 		snapshot.WorkerUtilization = make([]float64, len(rs.WorkerUtilization))
 		copy(snapshot.WorkerUtilization, rs.WorkerUtilization)
 	}
-	
+
 	return snapshot
 }
 
@@ -223,7 +223,7 @@ func NewAdaptiveDecisionLog() *AdaptiveDecisionLog {
 func (adl *AdaptiveDecisionLog) LogDecision(operator, decision, reason string, stats RuntimeStats) {
 	adl.mu.Lock()
 	defer adl.mu.Unlock()
-	
+
 	adl.decisions = append(adl.decisions, AdaptiveDecision{
 		Timestamp:   time.Now(),
 		Operator:    operator,
@@ -237,7 +237,7 @@ func (adl *AdaptiveDecisionLog) LogDecision(operator, decision, reason string, s
 func (adl *AdaptiveDecisionLog) GetDecisions() []AdaptiveDecision {
 	adl.mu.RLock()
 	defer adl.mu.RUnlock()
-	
+
 	decisions := make([]AdaptiveDecision, len(adl.decisions))
 	copy(decisions, adl.decisions)
 	return decisions
@@ -247,7 +247,7 @@ func (adl *AdaptiveDecisionLog) GetDecisions() []AdaptiveDecision {
 func (adl *AdaptiveDecisionLog) GetDecisionCount() int {
 	adl.mu.RLock()
 	defer adl.mu.RUnlock()
-	
+
 	return len(adl.decisions)
 }
 
@@ -255,19 +255,19 @@ func (adl *AdaptiveDecisionLog) GetDecisionCount() int {
 type AdaptiveThresholds struct {
 	// Cardinality estimation error threshold (0.5 = 50% error)
 	CardinalityErrorThreshold float64
-	
+
 	// Memory pressure threshold (0.8 = 80% of available memory)
 	MemoryPressureThreshold float64
-	
+
 	// Data skew threshold (coefficient of variation)
 	DataSkewThreshold float64
-	
+
 	// Load imbalance threshold for parallel workers
 	LoadImbalanceThreshold float64
-	
+
 	// Minimum rows before considering adaptations
 	MinRowsForAdaptation int64
-	
+
 	// Time-based adaptation interval
 	AdaptationInterval time.Duration
 }
@@ -288,16 +288,16 @@ func DefaultAdaptiveThresholds() *AdaptiveThresholds {
 type AdaptiveContext struct {
 	// Configuration
 	Thresholds *AdaptiveThresholds
-	
+
 	// Decision logging
 	DecisionLog *AdaptiveDecisionLog
-	
+
 	// Global execution context
 	ExecCtx *ExecContext
-	
+
 	// Adaptive execution enabled flag
 	Enabled bool
-	
+
 	// Maximum memory available for this query
 	MaxMemory int64
 }
@@ -318,12 +318,12 @@ func (ac *AdaptiveContext) ShouldAdapt(stats *RuntimeStats) bool {
 	if !ac.Enabled {
 		return false
 	}
-	
+
 	// Don't adapt for small row counts
 	if stats.ActualRows < ac.Thresholds.MinRowsForAdaptation {
 		return false
 	}
-	
+
 	// Check various conditions that trigger adaptation
 	return stats.GetCardinalityError() > ac.Thresholds.CardinalityErrorThreshold ||
 		stats.IsMemoryPressure(ac.MaxMemory, ac.Thresholds.MemoryPressureThreshold) ||

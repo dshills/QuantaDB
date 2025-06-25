@@ -160,7 +160,7 @@ func (pb *ParallelExecutorBuilder) parallelizeOperator(op Operator, parallelCtx 
 func (pb *ParallelExecutorBuilder) parallelizeChildren(op Operator, parallelCtx *ParallelContext) (Operator, error) {
 	// This is a simplified implementation
 	// In practice, you'd need to handle each operator type specifically
-	
+
 	switch o := op.(type) {
 	case *FilterOperator:
 		// Parallelize child, keep filter sequential
@@ -169,7 +169,7 @@ func (pb *ParallelExecutorBuilder) parallelizeChildren(op Operator, parallelCtx 
 			return nil, err
 		}
 		return NewFilterOperator(parallelChild, o.predicate), nil
-		
+
 	case *ProjectOperator:
 		// Parallelize child, keep projection sequential
 		parallelChild, err := pb.parallelizeOperator(o.child, parallelCtx)
@@ -177,7 +177,7 @@ func (pb *ParallelExecutorBuilder) parallelizeChildren(op Operator, parallelCtx 
 			return nil, err
 		}
 		return NewProjectOperator(parallelChild, o.projections, o.schema), nil
-		
+
 	case *LimitOperator:
 		// Parallelize child, keep limit sequential
 		parallelChild, err := pb.parallelizeOperator(o.child, parallelCtx)
@@ -187,7 +187,7 @@ func (pb *ParallelExecutorBuilder) parallelizeChildren(op Operator, parallelCtx 
 		// Add exchange operator to collect parallel results
 		exchange := NewExchangeOperator(parallelChild, pb.config.MaxDOP*2)
 		return NewLimitOperator(exchange, o.limit, o.offset), nil
-		
+
 	default:
 		// For unknown operators, return as-is
 		return op, nil
@@ -212,16 +212,16 @@ func (pb *ParallelExecutorBuilder) ApplyParallelHints(hints *ParallelQueryHint) 
 
 	// Create a copy of the config with hints applied
 	newConfig := *pb.config
-	
+
 	if hints.NoParallel {
 		newConfig.EnableParallelExecution = false
 	}
-	
+
 	if hints.ForceParallel {
 		newConfig.ForceParallel = true
 		newConfig.EnableParallelExecution = true
 	}
-	
+
 	if hints.DegreeOfParallelism > 0 {
 		newConfig.MaxDOP = hints.DegreeOfParallelism
 	}
@@ -256,7 +256,7 @@ func NewParallelExecutionMonitor() *ParallelExecutionMonitor {
 // RecordQuery records a query execution decision
 func (pem *ParallelExecutionMonitor) RecordQuery(wasParallel bool, dop int) {
 	pem.metrics.TotalQueries++
-	
+
 	if wasParallel {
 		pem.metrics.ParallelQueries++
 		// Update average DOP calculation
