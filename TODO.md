@@ -177,7 +177,7 @@ See comprehensive documentation in `docs/`:
 | Q18 | Large Volume Customer | ✅ Working | IN with GROUP BY/HAVING subquery |
 | Q19 | Discounted Revenue | ✅ Working | Complex OR conditions |
 | Q20 | Potential Part Promotion | ✅ Working | Nested IN + correlated scalar subquery |
-| Q21 | Suppliers Who Kept Orders Waiting | ❌ Not Started | Multiple correlated EXISTS/NOT EXISTS |
+| Q21 | Suppliers Who Kept Orders Waiting | ✅ Working | Multiple correlated EXISTS/NOT EXISTS |
 | Q22 | Global Sales Opportunity | ✅ Working | Correlated EXISTS, SUBSTRING implemented |
 
 **Legend**: ✅ Working | ⚠️ Partial | 🕰️ Implemented but untested | ❌ Not Started

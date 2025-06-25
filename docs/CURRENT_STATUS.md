@@ -2,9 +2,15 @@
 
 ## 🎉 Executive Summary
 
-**Major Milestone Achieved**: QuantaDB has reached **100% TPC-H benchmark coverage** with all 22 complex analytical queries working!
+**Major Milestone Achieved**: QuantaDB has reached **100% TPC-H benchmark coverage** with all 22 complex analytical queries working, including Q21 (Suppliers Who Kept Orders Waiting)!
 
-QuantaDB has evolved from an experimental project to a **production-ready PostgreSQL-compatible database** featuring comprehensive SQL support, ACID transactions, crash recovery, and enterprise-grade query processing capabilities. The focus is now shifting to performance optimization and distributed features.
+QuantaDB has evolved from an experimental project to a **production-ready PostgreSQL-compatible database** featuring comprehensive SQL support, ACID transactions, crash recovery, and enterprise-grade query processing capabilities. The database now supports the complete TPC-H benchmark suite, demonstrating its ability to handle complex analytical workloads with features like:
+- Multiple correlated EXISTS/NOT EXISTS in a single query
+- Complex multi-way joins (up to 8 tables)
+- Advanced aggregations and subqueries
+- Cost-based query optimization with index selection
+
+The focus is now shifting to performance optimization and distributed features.
 
 ## Architecture Overview
 

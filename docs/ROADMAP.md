@@ -18,7 +18,7 @@ QuantaDB has evolved from an experimental database to a **production-ready Postg
    - Complete SQL parser supporting all ANSI SQL constructs
    - Cost-based query optimizer with join reordering and index selection
    - Complex query support: correlated subqueries, CTEs, window functions
-   - **🎯 100% TPC-H benchmark coverage (22/22 queries)**
+   - **🎯 100% TPC-H benchmark coverage (22/22 queries)** including Q21 with multiple correlated EXISTS/NOT EXISTS
 
 2. **Production Storage** ✅  
    - Page-based disk storage with intelligent buffer pool management

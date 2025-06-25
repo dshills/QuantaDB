@@ -2,12 +2,12 @@
 
 🎉 **A production-ready PostgreSQL-compatible database written in Go with 100% TPC-H benchmark coverage!**
 
-QuantaDB is a complete SQL database featuring persistent storage, MVCC transactions, crash recovery, and enterprise-grade query processing capabilities.
+QuantaDB is a complete SQL database featuring persistent storage, MVCC transactions, crash recovery, and enterprise-grade query processing capabilities. All 22 TPC-H queries are fully functional, including the most complex analytical workloads with correlated subqueries.
 
 ## Features
 
 ### ✅ Fully Implemented
-- **🎯 100% TPC-H Benchmark Coverage**: All 22 complex analytical queries working
+- **🎯 100% TPC-H Benchmark Coverage**: All 22 complex analytical queries working, including Q21 with multiple correlated EXISTS/NOT EXISTS
 - **PostgreSQL Wire Protocol**: Compatible with all PostgreSQL clients (psql, pgAdmin, etc.)
 - **Complete SQL Engine**: Full ANSI SQL support with complex query processing
 - **Persistent Storage**: Production-ready page-based disk storage with buffer pool

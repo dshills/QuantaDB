@@ -15,7 +15,7 @@ Welcome to the QuantaDB documentation! This directory contains comprehensive inf
 
 ## 🎯 Project Status
 
-**QuantaDB has achieved 100% TPC-H benchmark coverage!** All 22 complex analytical queries are working, demonstrating enterprise-grade SQL capabilities.
+**QuantaDB has achieved 100% TPC-H benchmark coverage!** All 22 complex analytical queries are working, including the challenging Q21 (Suppliers Who Kept Orders Waiting) with multiple correlated EXISTS/NOT EXISTS predicates.
 
 ### Key Achievements
 - ✅ Complete PostgreSQL wire protocol compatibility
@@ -23,7 +23,12 @@ Welcome to the QuantaDB documentation! This directory contains comprehensive inf
 - ✅ ACID transactions with MVCC isolation
 - ✅ Write-Ahead Logging with crash recovery
 - ✅ B+Tree indexes with cost-based optimization
-- ✅ Complex query processing (correlated subqueries, CTEs, window functions)
+- ✅ Complex query processing:
+  - Correlated subqueries (EXISTS/NOT EXISTS, scalar)
+  - Multiple correlation predicates in single query
+  - Common Table Expressions (CTEs)
+  - Advanced aggregations and window functions
+  - Semi/anti joins for efficient subquery execution
 
 ## 📖 Documentation Structure
 
