@@ -1097,7 +1097,7 @@ func (e *existsEvaluator) Eval(row *Row, ctx *ExecContext) (types.Value, error) 
 		}
 
 		// If we have a correlation schema and a current row, bind the values
-		// For EXISTS, we should always bind values if available since the subquery 
+		// For EXISTS, we should always bind values if available since the subquery
 		// might reference outer columns even if not marked as correlated
 		if ctx.CorrelationSchema != nil && row != nil {
 			for i, col := range ctx.CorrelationSchema.Columns {

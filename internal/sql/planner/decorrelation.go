@@ -160,7 +160,7 @@ func (d *SubqueryDecorrelation) transformExists(exists *ExistsExpr, leftPlan Log
 
 	// Extract correlation predicates from the subquery
 	correlationPreds, remainingSubquery := d.extractCorrelationPredicates(subqueryPlan, leftPlan.Schema())
-	
+
 	// Use correlation predicates as join condition, or TRUE if none found
 	var joinCondition Expression
 	if len(correlationPreds) == 0 {
@@ -270,11 +270,11 @@ func (d *SubqueryDecorrelation) extractCorrelationPredicates(subqueryPlan Logica
 	if filter, ok := subqueryPlan.(*LogicalFilter); ok {
 		// Extract correlation predicates from the filter
 		correlationPreds, remainingPred := d.splitCorrelationPredicates(filter.Predicate, outerSchema, filter.Children()[0].(LogicalPlan).Schema())
-		
+
 		if len(correlationPreds) > 0 {
 			// We found correlation predicates
 			childPlan := filter.Children()[0].(LogicalPlan)
-			
+
 			if remainingPred != nil {
 				// Create new filter with remaining predicates
 				return correlationPreds, NewLogicalFilter(childPlan, remainingPred)
@@ -284,7 +284,7 @@ func (d *SubqueryDecorrelation) extractCorrelationPredicates(subqueryPlan Logica
 			}
 		}
 	}
-	
+
 	// If the plan has children, recursively check them
 	if len(subqueryPlan.Children()) > 0 {
 		// For now, only handle the first child (simple case)
@@ -300,7 +300,7 @@ func (d *SubqueryDecorrelation) extractCorrelationPredicates(subqueryPlan Logica
 			}
 		}
 	}
-	
+
 	// No correlation predicates found
 	return nil, subqueryPlan
 }
@@ -313,10 +313,10 @@ func (d *SubqueryDecorrelation) splitCorrelationPredicates(predicate Expression,
 			// Split AND predicates
 			leftCorr, leftRemaining := d.splitCorrelationPredicates(pred.Left, outerSchema, innerSchema)
 			rightCorr, rightRemaining := d.splitCorrelationPredicates(pred.Right, outerSchema, innerSchema)
-			
+
 			// Combine correlation predicates
 			correlationPreds := append(leftCorr, rightCorr...)
-			
+
 			// Combine remaining predicates
 			var remaining Expression
 			if leftRemaining != nil && rightRemaining != nil {
@@ -331,7 +331,7 @@ func (d *SubqueryDecorrelation) splitCorrelationPredicates(predicate Expression,
 			} else if rightRemaining != nil {
 				remaining = rightRemaining
 			}
-			
+
 			return correlationPreds, remaining
 		} else if d.isCorrelationPredicate(pred, outerSchema, innerSchema) {
 			// This is a correlation predicate
@@ -343,7 +343,7 @@ func (d *SubqueryDecorrelation) splitCorrelationPredicates(predicate Expression,
 			return []Expression{predicate}, nil
 		}
 	}
-	
+
 	// Not a correlation predicate
 	return nil, predicate
 }
@@ -352,7 +352,7 @@ func (d *SubqueryDecorrelation) splitCorrelationPredicates(predicate Expression,
 func (d *SubqueryDecorrelation) isCorrelationPredicate(expr Expression, outerSchema, innerSchema *Schema) bool {
 	hasOuter := false
 	hasInner := false
-	
+
 	// Check if expression references columns from both schemas
 	d.walkExpression(expr, func(e Expression) {
 		if col, ok := e.(*ColumnRef); ok {
@@ -364,7 +364,7 @@ func (d *SubqueryDecorrelation) isCorrelationPredicate(expr Expression, outerSch
 			}
 		}
 	})
-	
+
 	return hasOuter && hasInner
 }
 
@@ -386,9 +386,9 @@ func (d *SubqueryDecorrelation) walkExpression(expr Expression, visitor func(Exp
 	if expr == nil {
 		return
 	}
-	
+
 	visitor(expr)
-	
+
 	switch e := expr.(type) {
 	case *BinaryOp:
 		d.walkExpression(e.Left, visitor)
