@@ -6,6 +6,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 func TestInsertWithParameters(t *testing.T) {
@@ -205,6 +206,10 @@ func (m *mockInsertStorageBackend) CreateTable(table *catalog.Table) error {
 }
 
 func (m *mockInsertStorageBackend) DropTable(tableID int64) error {
+	return nil
+}
+
+func (m *mockInsertStorageBackend) GetBufferPoolStats() *storage.BufferPoolStats {
 	return nil
 }
 

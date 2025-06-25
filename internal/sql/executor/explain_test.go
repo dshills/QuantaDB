@@ -71,7 +71,7 @@ func TestExplainOperator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			explainOp := NewExplainOperator(mockOp, tt.analyze, tt.verbose, tt.format)
+			explainOp := NewExplainOperator(mockOp, tt.analyze, tt.verbose, tt.format, nil)
 
 			ctx := &ExecContext{
 				PlanningTime: 5 * time.Millisecond,

@@ -6,6 +6,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 // mockStorageBackend implements StorageBackend for testing
@@ -59,6 +60,10 @@ func (m *mockStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS int64
 
 func (m *mockStorageBackend) SetTransactionID(txnID uint64) {
 	// Not implemented for this test
+}
+
+func (m *mockStorageBackend) GetBufferPoolStats() *storage.BufferPoolStats {
+	return nil
 }
 
 // mockRowIterator implements RowIterator

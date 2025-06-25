@@ -306,3 +306,7 @@ func (m *mockBitmapStorageBackend) DropTable(tableID int64) error {
 func (m *mockBitmapStorageBackend) SetTransactionID(txnID uint64) {
 	// No-op for mock
 }
+
+func (m *mockBitmapStorageBackend) GetBufferPoolStats() *storage.BufferPoolStats {
+	return nil
+}

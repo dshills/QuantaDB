@@ -7,6 +7,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/executor"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 func TestDropTableIntegration(t *testing.T) {
@@ -211,6 +212,10 @@ func (m *mockStorageForDropTest) GetRow(tableID int64, rowID executor.RowID, sna
 
 func (m *mockStorageForDropTest) SetTransactionID(txnID uint64) {
 	// Not implemented for this test
+}
+
+func (m *mockStorageForDropTest) GetBufferPoolStats() *storage.BufferPoolStats {
+	return nil
 }
 
 // mockRowIteratorForDropTest implements RowIterator

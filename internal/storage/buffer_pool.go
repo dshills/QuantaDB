@@ -6,6 +6,15 @@ import (
 	"sync"
 )
 
+// BufferPoolStats tracks buffer pool performance metrics.
+type BufferPoolStats struct {
+	PagesHit     int64 // Cache hits
+	PagesRead    int64 // Pages read from disk
+	PagesDirtied int64 // Pages marked dirty
+	PagesEvicted int64 // Pages evicted from cache
+	mu           sync.RWMutex
+}
+
 // BufferPool manages pages in memory with LRU eviction.
 type BufferPool struct {
 	diskManager *DiskManager
@@ -14,6 +23,9 @@ type BufferPool struct {
 	maxPages    int
 	mu          sync.RWMutex
 	pageLockMgr *PageLockManager
+
+	// Statistics
+	stats BufferPoolStats
 }
 
 // BufferPoolPage wraps a page with metadata for buffer management.
@@ -49,6 +61,12 @@ func (bp *BufferPool) FetchPage(pageID PageID) (*Page, error) {
 		if bpPage.pinCount == 1 && bpPage.lruNode != nil {
 			bp.lruList.MoveToFront(bpPage.lruNode)
 		}
+
+		// Track cache hit
+		bp.stats.mu.Lock()
+		bp.stats.PagesHit++
+		bp.stats.mu.Unlock()
+
 		return bpPage.page, nil
 	}
 
@@ -65,6 +83,11 @@ func (bp *BufferPool) FetchPage(pageID PageID) (*Page, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read page from disk: %w", err)
 	}
+
+	// Track page read from disk
+	bp.stats.mu.Lock()
+	bp.stats.PagesRead++
+	bp.stats.mu.Unlock()
 
 	// Add to buffer pool
 	bpPage := &BufferPoolPage{
@@ -133,7 +156,15 @@ func (bp *BufferPool) UnpinPage(pageID PageID, isDirty bool) error {
 
 	// Mark as dirty if requested
 	if isDirty {
+		wasClean := !bpPage.dirty
 		bpPage.dirty = true
+
+		// Track pages dirtied (only count when transitioning from clean to dirty)
+		if wasClean {
+			bp.stats.mu.Lock()
+			bp.stats.PagesDirtied++
+			bp.stats.mu.Unlock()
+		}
 	}
 
 	// If no longer pinned, ensure it's in LRU list
@@ -209,6 +240,11 @@ func (bp *BufferPool) evictPage() bool {
 			// Clean up page lock
 			bp.pageLockMgr.CleanupPageLock(pageID)
 
+			// Track page eviction
+			bp.stats.mu.Lock()
+			bp.stats.PagesEvicted++
+			bp.stats.mu.Unlock()
+
 			return true
 		}
 	}
@@ -247,4 +283,28 @@ func (bp *BufferPool) AcquirePageLock(pageID PageID) {
 // ReleasePageLock releases the exclusive lock on a page
 func (bp *BufferPool) ReleasePageLock(pageID PageID) {
 	bp.pageLockMgr.ReleasePageLock(pageID)
+}
+
+// GetStats returns a copy of the current buffer pool statistics
+func (bp *BufferPool) GetStats() BufferPoolStats {
+	bp.stats.mu.RLock()
+	defer bp.stats.mu.RUnlock()
+
+	return BufferPoolStats{
+		PagesHit:     bp.stats.PagesHit,
+		PagesRead:    bp.stats.PagesRead,
+		PagesDirtied: bp.stats.PagesDirtied,
+		PagesEvicted: bp.stats.PagesEvicted,
+	}
+}
+
+// ResetStats resets all buffer pool statistics to zero
+func (bp *BufferPool) ResetStats() {
+	bp.stats.mu.Lock()
+	defer bp.stats.mu.Unlock()
+
+	bp.stats.PagesHit = 0
+	bp.stats.PagesRead = 0
+	bp.stats.PagesDirtied = 0
+	bp.stats.PagesEvicted = 0
 }

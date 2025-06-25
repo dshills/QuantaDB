@@ -35,6 +35,9 @@ type StorageBackend interface {
 
 	// SetTransactionID sets the current transaction ID for operations
 	SetTransactionID(txnID uint64)
+
+	// GetBufferPoolStats returns buffer pool statistics (nil if not supported)
+	GetBufferPoolStats() *storage.BufferPoolStats
 }
 
 // RowID uniquely identifies a row in storage
@@ -629,4 +632,13 @@ func (d *DiskStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS int64
 
 	// Deserialize row
 	return rowFormat.Deserialize(rowData)
+}
+
+// GetBufferPoolStats returns buffer pool statistics
+func (d *DiskStorageBackend) GetBufferPoolStats() *storage.BufferPoolStats {
+	if d.bufferPool == nil {
+		return nil
+	}
+	stats := d.bufferPool.GetStats()
+	return &stats
 }

@@ -19,10 +19,11 @@ type ExplainOperator struct {
 	format   string
 	planText string
 	executed bool
+	storage  StorageBackend // For accessing buffer pool statistics
 }
 
 // NewExplainOperator creates a new EXPLAIN operator
-func NewExplainOperator(plan Operator, analyze, verbose bool, format string) *ExplainOperator {
+func NewExplainOperator(plan Operator, analyze, verbose bool, format string, storage StorageBackend) *ExplainOperator {
 	// Create single column schema for explain output
 	schema := &Schema{
 		Columns: []Column{
@@ -42,6 +43,7 @@ func NewExplainOperator(plan Operator, analyze, verbose bool, format string) *Ex
 		analyze: analyze,
 		verbose: verbose,
 		format:  format,
+		storage: storage,
 	}
 }
 
@@ -59,6 +61,19 @@ func (e *ExplainOperator) Open(ctx *ExecContext) error {
 		// Set up stats collector callback
 		ctx.StatsCollector = func(op Operator, stats *OperatorStats) {
 			ctx.OperatorStats[op] = stats
+		}
+
+		// Initialize buffer pool statistics collection
+		if ctx.BufferStats == nil {
+			ctx.BufferStats = &BufferPoolStats{}
+		}
+
+		// Get starting buffer pool statistics if available
+		if e.storage != nil {
+			if startStats := e.storage.GetBufferPoolStats(); startStats != nil {
+				ctx.BufferStats.StartHitCount = startStats.PagesHit
+				ctx.BufferStats.StartMissCount = startStats.PagesRead
+			}
 		}
 
 		// Execute the plan to collect runtime statistics
@@ -84,8 +99,24 @@ func (e *ExplainOperator) Open(ctx *ExecContext) error {
 			return fmt.Errorf("error closing plan for EXPLAIN ANALYZE: %w", err)
 		}
 
-		// Calculate execution time
+		// Calculate execution time and final buffer pool statistics
 		ctx.ExecutionTime = time.Since(ctx.StartTime)
+
+		// Get final buffer pool statistics and calculate deltas
+		if e.storage != nil {
+			if finalStats := e.storage.GetBufferPoolStats(); finalStats != nil {
+				ctx.BufferStats.HitCount = finalStats.PagesHit
+				ctx.BufferStats.MissCount = finalStats.PagesRead
+				ctx.BufferStats.EvictionCount = finalStats.PagesEvicted
+				ctx.BufferStats.DirtyPages = finalStats.PagesDirtied
+
+				// Calculate deltas for this query
+				ctx.BufferStats.Hits = ctx.BufferStats.HitCount - ctx.BufferStats.StartHitCount
+				ctx.BufferStats.Misses = ctx.BufferStats.MissCount - ctx.BufferStats.StartMissCount
+				ctx.BufferStats.PagesRead = ctx.BufferStats.Misses
+				ctx.BufferStats.PagesWritten = ctx.BufferStats.DirtyPages // Approximate for now
+			}
+		}
 	}
 
 	// Generate the explain output

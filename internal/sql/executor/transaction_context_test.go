@@ -207,6 +207,10 @@ func (m *mockTxnStorageBackend) SetTransactionID(txnID uint64) {
 	m.StorageBackend.SetTransactionID(txnID)
 }
 
+func (m *mockTxnStorageBackend) GetBufferPoolStats() *storage.BufferPoolStats {
+	return m.StorageBackend.GetBufferPoolStats()
+}
+
 // TestExecContextFields verifies that ExecContext properly stores transaction metadata
 func TestExecContextFields(t *testing.T) {
 	eng := engine.NewMemoryEngine()

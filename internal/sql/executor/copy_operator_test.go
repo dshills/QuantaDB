@@ -8,6 +8,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 func TestCopyOperatorTextFormat(t *testing.T) {
@@ -290,4 +291,8 @@ func (m *copyTestStorageBackend) GetRow(tableID int64, rowID RowID, snapshotTS i
 }
 
 func (m *copyTestStorageBackend) SetTransactionID(txnID uint64) {
+}
+
+func (m *copyTestStorageBackend) GetBufferPoolStats() *storage.BufferPoolStats {
+	return nil
 }

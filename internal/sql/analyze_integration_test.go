@@ -8,6 +8,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 // TestAnalyzeIntegration tests the full ANALYZE flow from parsing to execution
@@ -297,6 +298,10 @@ func (m *mockStorageForTest) GetRow(tableID int64, rowID executor.RowID, snapsho
 }
 
 func (m *mockStorageForTest) SetTransactionID(txnID uint64) {}
+
+func (m *mockStorageForTest) GetBufferPoolStats() *storage.BufferPoolStats {
+	return nil
+}
 
 type mockRowIteratorForTest struct {
 	rows []*executor.Row

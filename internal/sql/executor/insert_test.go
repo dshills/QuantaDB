@@ -6,6 +6,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/types"
+	"github.com/dshills/QuantaDB/internal/storage"
 )
 
 func TestInsertOperatorWithParameters(t *testing.T) {
@@ -115,4 +116,8 @@ func (s *testInsertStorage) GetRow(tableID int64, rowID RowID, snapshotTS int64)
 }
 
 func (s *testInsertStorage) SetTransactionID(txnID uint64) {
+}
+
+func (s *testInsertStorage) GetBufferPoolStats() *storage.BufferPoolStats {
+	return nil
 }
