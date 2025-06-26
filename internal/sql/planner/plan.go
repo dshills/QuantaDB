@@ -45,23 +45,7 @@ type RequiredColumnsAnalyzer interface {
 	RequiredInputColumns(childIndex int) *ColumnSet
 }
 
-// PhysicalPlan represents a physical plan node.
-type PhysicalPlan interface {
-	Plan
-	// EstimatedCost returns the estimated cost of this plan.
-	EstimatedCost() Cost
-	// EstimatedRows returns the estimated number of rows.
-	EstimatedRows() float64
-	physicalNode()
-}
-
-// Cost represents the cost of a plan.
-type Cost struct {
-	StartupCost float64 // Cost before first row
-	TotalCost   float64 // Total execution cost
-	Rows        float64 // Estimated row count
-	Width       int     // Average row width in bytes
-}
+// PhysicalPlan interface is defined in physical.go to avoid circular dependencies
 
 // JoinType represents the type of join.
 type JoinType int
@@ -112,11 +96,7 @@ func (s SortOrder) String() string {
 	return "ASC"
 }
 
-// SortKey represents a sort key.
-type SortKey struct {
-	Column int       // Column index in schema
-	Order  SortOrder // Sort order
-}
+// SortKey is defined in physical.go to avoid duplication
 
 // PlanVisitor is used to traverse plan trees.
 type PlanVisitor interface {
