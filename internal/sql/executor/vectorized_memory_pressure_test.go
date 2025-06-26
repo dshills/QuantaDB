@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -38,10 +39,10 @@ func TestVectorizedMemoryPressure(t *testing.T) {
 		},
 		{
 			name:          "Large vectors exceeding limit",
-			vectorSize:    8192,
-			numColumns:    50,
-			numBatches:    100,
-			memoryLimit:   5 * 1024 * 1024, // 5MB - much tighter
+			vectorSize:    1024,  // Reduced to ensure we can allocate at least one batch
+			numColumns:    10,    // Reduced columns
+			numBatches:    50,    // More batches to accumulate memory
+			memoryLimit:   500 * 1024, // 500KB limit
 			expectOOM:     true,
 			concurrentOps: 1,
 		},
@@ -56,10 +57,10 @@ func TestVectorizedMemoryPressure(t *testing.T) {
 		},
 		{
 			name:          "High concurrency with tight limit",
-			vectorSize:    2048,
-			numColumns:    15,
-			numBatches:    50,
-			memoryLimit:   2 * 1024 * 1024, // 2MB - very tight for 8 workers
+			vectorSize:    512,
+			numColumns:    5,
+			numBatches:    20,
+			memoryLimit:   200 * 1024, // 200KB - very tight for 8 workers
 			expectOOM:     true,
 			concurrentOps: 8,
 		},
@@ -128,8 +129,13 @@ func TestVectorizedMemoryPressure(t *testing.T) {
 
 			// Check peak usage
 			peakUsage := tracker.PeakUsage()
-			t.Logf("Peak memory usage: %d MB (limit: %d MB)", 
-				peakUsage/(1024*1024), tt.memoryLimit/(1024*1024))
+			if tt.memoryLimit >= 1024*1024 {
+				t.Logf("Peak memory usage: %d MB (limit: %d MB)", 
+					peakUsage/(1024*1024), tt.memoryLimit/(1024*1024))
+			} else {
+				t.Logf("Peak memory usage: %d KB (limit: %d KB)", 
+					peakUsage/1024, tt.memoryLimit/1024)
+			}
 		})
 	}
 }
@@ -334,6 +340,15 @@ func runVectorizedOperation(workerID, vectorSize, numColumns, numBatches int,
 	}
 	schema := &Schema{Columns: columns}
 
+	// Track allocated batches for cleanup
+	allocatedBatches := make([]string, 0, numBatches)
+	defer func() {
+		// Release all allocated memory at the end
+		for _, batchID := range allocatedBatches {
+			tracker.Release(batchID)
+		}
+	}()
+
 	// Process batches
 	for i := 0; i < numBatches; i++ {
 		batchID := fmt.Sprintf("worker%d_batch%d", workerID, i)
@@ -346,6 +361,9 @@ func runVectorizedOperation(workerID, vectorSize, numColumns, numBatches int,
 		if err := tracker.Allocate(size, batchID); err != nil {
 			return err
 		}
+		
+		// Track allocation
+		allocatedBatches = append(allocatedBatches, batchID)
 
 		// Simulate some work
 		fillBatchWithTestData(batch)
@@ -353,18 +371,18 @@ func runVectorizedOperation(workerID, vectorSize, numColumns, numBatches int,
 		// Simulate processing time
 		time.Sleep(time.Microsecond * 100)
 		
-		// Release memory
-		tracker.Release(batchID)
+		// Don't release memory immediately - accumulate it
 	}
 
 	return nil
 }
 
 func isOOMError(err error) bool {
-	return err != nil && 
-		(err.Error() == "memory limit exceeded" ||
-		 // Match the actual error format from MemoryTracker
-		 len(err.Error()) > 20 && err.Error()[:20] == "memory limit exceeded")
+	if err == nil {
+		return false
+	}
+	// The error format is "memory limit exceeded: requested X bytes, limit Y bytes"
+	return strings.HasPrefix(err.Error(), "memory limit exceeded")
 }
 
 func estimateBatchMemory(batch *VectorizedBatch) int64 {
