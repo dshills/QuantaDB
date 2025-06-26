@@ -1,34 +1,46 @@
 # QuantaDB Documentation
 
-Welcome to the QuantaDB documentation! This directory contains comprehensive information about the database system.
+## Overview
+
+QuantaDB is a production-ready PostgreSQL-compatible distributed database written in Go, featuring enterprise-grade capabilities including advanced query optimization, synchronous replication, and comprehensive cluster management.
 
 ## 📚 Main Documentation
 
 ### Getting Started
+- **[Production Deployment Guide](production-deployment-guide.md)** - Complete production setup guide
 - **[Project README](../README.md)** - Quick start and overview
-- **[Current Status](CURRENT_STATUS.md)** - Detailed component status and capabilities
-- **[Roadmap](ROADMAP.md)** - Future development plans and milestones
+- **[Architecture Overview](architecture/overview.md)** - System design and component interactions
+
+### Cluster Documentation
+- **[Cluster Setup Guide](cluster/README.md)** - Complete distributed cluster documentation
+- **[Cluster Architecture](cluster/architecture.md)** - Distributed systems design
+- **[Configuration Guide](cluster/configuration-guide.md)** - Cluster setup instructions
 
 ### Technical Documentation
-- **[Architecture Overview](architecture/overview.md)** - System design and component interactions
 - **[Reference Documentation](reference/)** - Technical specifications and design documents
+- **[Planning Documents](planning/)** - Feature planning and implementation guides
 
 ## 🎯 Project Status
 
-**QuantaDB has achieved 100% TPC-H benchmark coverage!** All 22 complex analytical queries are working, including the challenging Q21 (Suppliers Who Kept Orders Waiting) with multiple correlated EXISTS/NOT EXISTS predicates.
+**QuantaDB is now production-ready!** 🎉
 
-### Key Achievements
-- ✅ Complete PostgreSQL wire protocol compatibility
-- ✅ Full ANSI SQL support with advanced features
-- ✅ ACID transactions with MVCC isolation
-- ✅ Write-Ahead Logging with crash recovery
-- ✅ B+Tree indexes with cost-based optimization
-- ✅ Complex query processing:
-  - Correlated subqueries (EXISTS/NOT EXISTS, scalar)
-  - Multiple correlation predicates in single query
+### Production-Ready Features
+- ✅ **100% TPC-H benchmark coverage** (22/22 queries)
+- ✅ **Complete SQL engine** with PostgreSQL wire protocol compatibility
+- ✅ **High-performance vectorized execution** (20-25% performance gains)
+- ✅ **ACID transactions** with MVCC and Write-Ahead Logging
+- ✅ **Enterprise-grade distributed systems**:
+  - Synchronous replication with multiple consistency modes
+  - Advanced query routing with intelligent load balancing
+  - Enhanced split-brain prevention with witness nodes
+  - Comprehensive cluster monitoring and management API
+  - Distributed backup and point-in-time recovery
+- ✅ **B+Tree indexes** with automatic recommendations
+- ✅ **Advanced SQL features**:
+  - Complex subqueries (correlated, EXISTS/NOT EXISTS)
   - Common Table Expressions (CTEs)
-  - Advanced aggregations and window functions
-  - Semi/anti joins for efficient subquery execution
+  - Window functions and advanced aggregations
+  - All JOIN types with optimization
 
 ## 📖 Documentation Structure
 
