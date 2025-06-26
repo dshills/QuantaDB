@@ -284,7 +284,7 @@ func (bp *BufferPool) GetMaxPages() int {
 func (bp *BufferPool) GetMemoryUsageBytes() int64 {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	
+
 	pageSize := int64(4096) // Assuming 4KB pages
 	return int64(len(bp.pages)) * pageSize
 }
@@ -299,7 +299,7 @@ func (bp *BufferPool) GetMaxMemoryBytes() int64 {
 func (bp *BufferPool) IsMemoryPressure(threshold float64) bool {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	
+
 	usage := float64(len(bp.pages)) / float64(bp.maxPages)
 	return usage >= threshold
 }
@@ -308,7 +308,7 @@ func (bp *BufferPool) IsMemoryPressure(threshold float64) bool {
 func (bp *BufferPool) GetAvailableMemoryBytes() int64 {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	
+
 	pageSize := int64(4096) // Assuming 4KB pages
 	availablePages := bp.maxPages - len(bp.pages)
 	return int64(availablePages) * pageSize

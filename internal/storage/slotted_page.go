@@ -167,10 +167,67 @@ func (sp *SlottedPage) GetSlots() []Slot {
 
 // Compact reorganizes the page to reclaim space from deleted records
 func (sp *SlottedPage) Compact() {
-	// TODO: Implement page compaction
-	// This would involve:
-	// 1. Collecting all live records
-	// 2. Rewriting them contiguously from the end
-	// 3. Updating all slot offsets
-	// 4. Updating free space pointers
+	// Collect all live records and their slot numbers
+	type LiveRecord struct {
+		SlotNum uint16
+		Data    []byte
+	}
+
+	var liveRecords []LiveRecord
+	var totalLiveSize uint16
+
+	// First pass: collect all live records
+	for slotNum := uint16(0); slotNum < sp.Header.ItemCount; slotNum++ {
+		slotOffset := PageHeaderSize + slotNum*SlotSize
+		length := binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize+2:])
+
+		if length > 0 { // Record is not deleted
+			offset := binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize:])
+
+			// Read the live record data
+			recordData := make([]byte, length)
+			copy(recordData, sp.Data[offset-PageHeaderSize:offset-PageHeaderSize+length])
+
+			liveRecords = append(liveRecords, LiveRecord{
+				SlotNum: slotNum,
+				Data:    recordData,
+			})
+			totalLiveSize += length
+		}
+	}
+
+	// If no live records, clear the page
+	if len(liveRecords) == 0 {
+		sp.Header.ItemCount = 0
+		sp.Header.FreeSpace = PageSize - PageHeaderSize
+		sp.Header.FreeSpacePtr = PageSize
+		return
+	}
+
+	// Second pass: rewrite records contiguously from the end
+	currentOffset := uint16(PageSize)
+
+	for i := range liveRecords {
+		record := &liveRecords[i]
+		if len(record.Data) > 65535 {
+			// Skip records that are too large - shouldn't happen but be safe
+			continue
+		}
+		recordLen := uint16(len(record.Data)) //nolint:gosec // Bounds checked above
+
+		// Place record at the end of free space
+		currentOffset -= recordLen
+		copy(sp.Data[currentOffset-PageHeaderSize:], record.Data)
+
+		// Update the slot with new offset
+		slotOffset := PageHeaderSize + record.SlotNum*SlotSize
+		binary.LittleEndian.PutUint16(sp.Data[slotOffset-PageHeaderSize:], currentOffset)
+		binary.LittleEndian.PutUint16(sp.Data[slotOffset-PageHeaderSize+2:], recordLen)
+	}
+
+	// Update page header
+	slotsSize := sp.Header.ItemCount * SlotSize
+	usedSpace := slotsSize + totalLiveSize
+	sp.Header.FreeSpace = PageSize - PageHeaderSize - usedSpace
+	sp.Header.FreeSpacePtr = currentOffset
 }

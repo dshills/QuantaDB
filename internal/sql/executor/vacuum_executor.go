@@ -95,6 +95,12 @@ func (ve *VacuumExecutor) VacuumTable(tableID int64) error {
 		}
 	}
 
+	// After processing all dead versions, compact pages that might benefit
+	if err := ve.compactTablePages(tableID); err != nil {
+		ve.addError(fmt.Errorf("page compaction failed for table %d: %w", tableID, err))
+		// Don't fail the entire vacuum operation if compaction fails
+	}
+
 	return nil
 }
 
@@ -325,15 +331,89 @@ func (ve *VacuumExecutor) addError(err error) {
 	ve.stats.Errors = append(ve.stats.Errors, err)
 }
 
+// compactTablePages compacts all data pages in a table to reclaim fragmented space
+func (ve *VacuumExecutor) compactTablePages(tableID int64) error {
+	// Get table metadata
+	ve.storage.mu.RLock()
+	meta, exists := ve.storage.tableMeta[tableID]
+	if !exists {
+		ve.storage.mu.RUnlock()
+		return NewTableNotFoundError(tableID)
+	}
+	firstPageID := meta.FirstPageID
+	ve.storage.mu.RUnlock()
+
+	// Traverse all pages in the table
+	currentPageID := firstPageID
+	for currentPageID != 0 {
+		page, err := ve.storage.bufferPool.FetchPage(currentPageID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch page %d: %w", currentPageID, err)
+		}
+
+		// Only compact if page has significant fragmentation (e.g., less than 50% utilization)
+		if page.Header.PageType == storage.PageTypeData {
+			// Calculate utilization
+			usedSpace := storage.PageSize - storage.PageHeaderSize - page.Header.FreeSpace
+			utilization := float64(usedSpace) / float64(storage.PageSize-storage.PageHeaderSize)
+			
+			// Compact if utilization is low and there are deleted records
+			if utilization < 0.5 && page.Header.ItemCount > 0 {
+				ve.storage.bufferPool.UnpinPage(currentPageID, false)
+				if err := ve.CompactPage(currentPageID); err != nil {
+					return fmt.Errorf("failed to compact page %d: %w", currentPageID, err)
+				}
+				// Re-fetch page to get next page ID after compaction
+				page, err = ve.storage.bufferPool.FetchPage(currentPageID)
+				if err != nil {
+					return fmt.Errorf("failed to re-fetch page %d after compaction: %w", currentPageID, err)
+				}
+			}
+		}
+
+		// Move to next page
+		nextPageID := page.Header.NextPageID
+		ve.storage.bufferPool.UnpinPage(currentPageID, false)
+		currentPageID = nextPageID
+
+		// Throttle to avoid overwhelming the system
+		if ve.batchDelay > 0 {
+			time.Sleep(ve.batchDelay / 10) // Shorter delay for page operations
+		}
+	}
+
+	return nil
+}
+
 // CompactPage attempts to compact a page by moving rows to fill gaps
-// This is optional and can be implemented later for better space efficiency
 func (ve *VacuumExecutor) CompactPage(pageID storage.PageID) error {
-	// TODO: Implement page compaction
-	// This would involve:
-	// 1. Reading all live rows from the page
-	// 2. Calculating optimal layout
-	// 3. Moving rows to eliminate gaps
-	// 4. Updating slot array
-	// 5. Updating free space pointers
+	// Fetch the page from buffer pool
+	page, err := ve.storage.bufferPool.FetchPage(pageID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch page %d: %w", pageID, err)
+	}
+	defer ve.storage.bufferPool.UnpinPage(pageID, true) // Mark dirty since we're compacting
+	
+	// Only compact data pages with slotted layout
+	if page.Header.PageType != storage.PageTypeData {
+		return nil // Skip non-data pages
+	}
+	
+	// Create a slotted page wrapper
+	slottedPage := &storage.SlottedPage{Page: page}
+	
+	// Get free space before compaction
+	freeSpaceBefore := page.Header.FreeSpace
+	
+	// Perform compaction
+	slottedPage.Compact()
+	
+	// Update statistics
+	ve.mu.Lock()
+	ve.stats.PagesCompacted++
+	spaceReclaimed := int64(page.Header.FreeSpace - freeSpaceBefore)
+	ve.stats.SpaceReclaimed += spaceReclaimed
+	ve.mu.Unlock()
+	
 	return nil
 }
