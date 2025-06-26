@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"context"
 	"time"
 
 	"github.com/dshills/QuantaDB/internal/wal"
@@ -144,6 +145,20 @@ func (rm ReplicationMode) String() string {
 	}
 }
 
+// SynchronousReplicationMode defines the level of synchronous replication
+type SynchronousReplicationMode int
+
+const (
+	// AsyncMode - No synchronous replication (existing behavior)
+	AsyncMode SynchronousReplicationMode = iota
+	// SyncMode - Wait for acknowledgment from at least one replica
+	SyncMode
+	// QuorumMode - Wait for acknowledgment from majority of replicas
+	QuorumMode
+	// AllMode - Wait for acknowledgment from all replicas
+	AllMode
+)
+
 // DefaultReplicationConfig returns default replication configuration
 func DefaultReplicationConfig() *ReplicationConfig {
 	return &ReplicationConfig{
@@ -171,6 +186,12 @@ type ReplicationManager interface {
 	// Replica node operations
 	StartReplica(primaryAddr string) error
 	StopReplica() error
+
+	// Synchronous replication operations
+	WaitForSynchronousReplication(ctx context.Context, lsn wal.LSN) error
+	ProcessReplicaAcknowledgment(replicaID string, lsn wal.LSN)
+	SetSynchronousReplicationMode(mode SynchronousReplicationMode)
+	GetSynchronousReplicationStatus() map[string]interface{}
 
 	// Common operations
 	GetStatus() ReplicationStatus

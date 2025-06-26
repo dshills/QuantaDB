@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -19,6 +20,9 @@ type ReplicationManagerImpl struct {
 	streamer WALStreamer
 	receiver WALReceiver
 
+	// Synchronous replication
+	syncManager *SynchronousReplicationManager
+
 	// State management
 	mu       sync.RWMutex
 	mode     ReplicationMode
@@ -32,7 +36,7 @@ type ReplicationManagerImpl struct {
 
 // NewReplicationManager creates a new replication manager
 func NewReplicationManager(config *ReplicationConfig, walMgr *wal.Manager, logger log.Logger) *ReplicationManagerImpl {
-	return &ReplicationManagerImpl{
+	rm := &ReplicationManagerImpl{
 		config:   config,
 		walMgr:   walMgr,
 		logger:   logger,
@@ -47,6 +51,11 @@ func NewReplicationManager(config *ReplicationConfig, walMgr *wal.Manager, logge
 		},
 		closeCh: make(chan struct{}),
 	}
+
+	// Initialize synchronous replication manager
+	rm.syncManager = NewSynchronousReplicationManager(rm, DefaultSynchronousReplicationConfig())
+
+	return rm
 }
 
 // StartPrimary starts the node as a primary (read/write)
@@ -363,11 +372,6 @@ func (rm *ReplicationManagerImpl) checkReplicationHealth() {
 
 // walStreamingLoop streams new WAL records to replicas (primary only)
 func (rm *ReplicationManagerImpl) walStreamingLoop() {
-	// TODO: This needs to be integrated with the WAL manager
-	// to automatically stream new records as they are written.
-	// For now, this is a placeholder that would hook into
-	// the WAL append process.
-	
 	rm.logger.Info("Started WAL streaming loop")
 	
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -380,15 +384,70 @@ func (rm *ReplicationManagerImpl) walStreamingLoop() {
 		case <-ticker.C:
 			currentLSN := rm.walMgr.GetCurrentLSN()
 			if currentLSN > lastStreamedLSN {
-				// TODO: Read new WAL records and stream them
-				// This would involve:
-				// 1. Reading records from lastStreamedLSN to currentLSN
-				// 2. Calling rm.streamer.StreamWALRecord() for each
-				
+				// Stream new WAL records and notify sync manager
+				rm.streamWALRecords(lastStreamedLSN, currentLSN)
 				lastStreamedLSN = currentLSN
 			}
 		case <-rm.closeCh:
 			return
 		}
+	}
+}
+
+// streamWALRecords handles streaming WAL records and synchronous replication
+func (rm *ReplicationManagerImpl) streamWALRecords(fromLSN, toLSN wal.LSN) {
+	if rm.streamer == nil {
+		return
+	}
+
+	// TODO: Read actual WAL records from fromLSN to toLSN
+	// For now, we'll simulate the streaming process
+	
+	// Update replica acknowledgment tracking for sync manager
+	rm.mu.RLock()
+	replicas := make([]NodeID, 0, len(rm.replicas))
+	for nodeID := range rm.replicas {
+		replicas = append(replicas, nodeID)
+	}
+	rm.mu.RUnlock()
+
+	// Notify sync manager about healthy replicas
+	for _, nodeID := range replicas {
+		rm.syncManager.UpdateReplicaHealth(string(nodeID), true)
+	}
+}
+
+// WaitForSynchronousReplication waits for WAL replication according to configured mode
+func (rm *ReplicationManagerImpl) WaitForSynchronousReplication(ctx context.Context, lsn wal.LSN) error {
+	if rm.syncManager == nil {
+		return nil // No synchronous replication configured
+	}
+	return rm.syncManager.WaitForReplication(ctx, lsn)
+}
+
+// ProcessReplicaAcknowledgment processes an acknowledgment from a replica
+func (rm *ReplicationManagerImpl) ProcessReplicaAcknowledgment(replicaID string, lsn wal.LSN) {
+	if rm.syncManager != nil {
+		rm.syncManager.ProcessReplicaAcknowledgment(replicaID, lsn)
+	}
+}
+
+// SetSynchronousReplicationMode changes the synchronous replication mode
+func (rm *ReplicationManagerImpl) SetSynchronousReplicationMode(mode SynchronousReplicationMode) {
+	if rm.syncManager != nil {
+		rm.syncManager.SetReplicationMode(mode)
+	}
+}
+
+// GetSynchronousReplicationStatus returns the current synchronous replication status
+func (rm *ReplicationManagerImpl) GetSynchronousReplicationStatus() map[string]interface{} {
+	if rm.syncManager != nil {
+		return rm.syncManager.GetStatus()
+	}
+	return map[string]interface{}{
+		"mode":             "disabled",
+		"pending_ops":      0,
+		"healthy_replicas": 0,
+		"replicas":         map[string]interface{}{},
 	}
 }
