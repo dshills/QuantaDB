@@ -1,0 +1,20 @@
+{
+  "host": "localhost",
+  "port": 5432,
+  "data_dir": "./data/primary",
+  "log_level": "debug",
+  "cluster": {
+    "node_id": "node1",
+    "mode": "primary",
+    "data_dir": "./data/primary/cluster",
+    "replication": {
+      "stream_buffer_size": 1048576,
+      "batch_size": 100,
+      "flush_interval": 100,
+      "heartbeat_interval": 10,
+      "heartbeat_timeout": 30,
+      "max_lag_bytes": 16777216,
+      "max_lag_time": 300
+    }
+  }
+}

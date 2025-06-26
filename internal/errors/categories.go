@@ -215,6 +215,10 @@ func PermissionDeniedError(operation, objectType, objectName string) *Error {
 	return InsufficientPrivilegeError(operation, objectType, objectName)
 }
 
+func PermissionDeniedErrorf(format string, args ...interface{}) *Error {
+	return Newf(InsufficientPrivilege, format, args...)
+}
+
 func ReadOnlyTransactionError() *Error {
 	return New(ReadOnlySQLTransaction, "cannot execute operation in a read-only transaction")
 }

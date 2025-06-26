@@ -129,6 +129,47 @@ UPDATE users SET email = 'alice@newdomain.com' WHERE id = 1;
 DELETE FROM users WHERE id = 2;
 ```
 
+### Running in Cluster Mode (Experimental)
+
+QuantaDB includes experimental support for distributed clusters with Raft consensus, streaming replication, and automatic failover.
+
+```bash
+# Start a primary node
+./build/quantadb --cluster-mode primary --node-id node1
+
+# Start a replica node (on different port)
+./build/quantadb --cluster-mode replica --node-id node2 --port 5433 \
+  --primary localhost:6432
+
+# Or use configuration files
+./build/quantadb --config examples/cluster-primary.json
+./build/quantadb --config examples/cluster-replica.json
+
+# Quick cluster test
+./scripts/start-cluster.sh
+```
+
+**Cluster Features:**
+- Raft consensus for metadata coordination
+- WAL-based streaming replication
+- Automatic failover with health monitoring
+- Read replicas for load distribution
+- Read-only query enforcement on replicas
+
+**Cluster API Endpoints:**
+```bash
+# Check cluster status (API port = SQL port + 3000)
+curl http://localhost:8432/cluster/status
+
+# List all cluster nodes
+curl http://localhost:8432/cluster/nodes
+
+# Health check endpoint
+curl http://localhost:8432/cluster/health
+```
+
+**Note:** Distributed features are experimental and not recommended for production use yet.
+
 ## Architecture
 
 ```

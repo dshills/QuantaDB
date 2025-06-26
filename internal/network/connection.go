@@ -71,6 +71,9 @@ type Connection struct {
 
 	// Extended query protocol session
 	extQuerySession *ExtendedQuerySession
+	
+	// Cluster support
+	clusterCoordinator interface{} // *cluster.Coordinator
 }
 
 // setState sets the connection state and logs the transition.
@@ -424,6 +427,12 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) (er
 		return errors.SyntaxErrorf(0, "parse error: %v", err)
 	}
 	c.logger.Debug("Parsing successful", "statement_type", fmt.Sprintf("%T", stmt))
+
+	// Check cluster permissions
+	if err := c.checkQueryPermissions(query, stmt); err != nil {
+		c.logger.Warn("Query denied by cluster policy", "error", err)
+		return errors.PermissionDeniedErrorf("%v", err)
+	}
 
 	// Plan query
 	c.logger.Debug("Starting query planning")
@@ -1025,6 +1034,12 @@ func (c *Connection) handleExecute(ctx context.Context, msg *protocol.Message) e
 
 	// Get the prepared statement
 	prepStmt := portal.Statement
+
+	// Check cluster permissions
+	if err := c.checkQueryPermissions(prepStmt.SQL, prepStmt.ParseTree); err != nil {
+		c.logger.Warn("Query denied by cluster policy", "error", err)
+		return errors.PermissionDeniedErrorf("%v", err)
+	}
 
 	// Create a plan
 	// For now, we'll re-plan the query

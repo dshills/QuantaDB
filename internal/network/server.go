@@ -47,6 +47,9 @@ type Server struct {
 	nextConnID  uint32
 	shutdown    chan struct{}
 	wg          sync.WaitGroup
+	
+	// Cluster support
+	clusterCoordinator interface{} // *cluster.Coordinator
 }
 
 // Config holds server configuration
@@ -247,18 +250,19 @@ func (s *Server) handleConnection(ctx context.Context, netConn net.Conn) {
 
 	// Create connection wrapper
 	conn := &Connection{
-		id:         connID,
-		conn:       netConn,
-		server:     s,
-		catalog:    s.catalog,
-		engine:     s.engine,
-		storage:    s.storage,
-		indexMgr:   s.indexMgr,
-		txnManager: s.txnManager,
-		tsService:  s.tsService,
-		logger:     s.logger.With("conn_id", connID),
-		state:      StateStartup,
-		params:     make(map[string]string),
+		id:                 connID,
+		conn:               netConn,
+		server:             s,
+		catalog:            s.catalog,
+		engine:             s.engine,
+		storage:            s.storage,
+		indexMgr:           s.indexMgr,
+		txnManager:         s.txnManager,
+		tsService:          s.tsService,
+		logger:             s.logger.With("conn_id", connID),
+		state:              StateStartup,
+		params:             make(map[string]string),
+		clusterCoordinator: s.clusterCoordinator,
 	}
 
 	// Register connection

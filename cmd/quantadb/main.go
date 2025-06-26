@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
 	"github.com/dshills/QuantaDB/internal/config"
@@ -19,6 +21,7 @@ import (
 	"github.com/dshills/QuantaDB/internal/storage"
 	"github.com/dshills/QuantaDB/internal/txn"
 	"github.com/dshills/QuantaDB/internal/wal"
+	"github.com/dshills/QuantaDB/internal/cluster"
 )
 
 var (
@@ -34,6 +37,11 @@ func main() {
 		port        = flag.Int("port", 5432, "Port to listen on")
 		dataDir     = flag.String("data", "./data", "Data directory")
 		logLevel    = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+		
+		// Cluster flags
+		clusterMode = flag.String("cluster-mode", "none", "Cluster mode: none, primary, replica")
+		nodeID      = flag.String("node-id", "", "Unique node identifier for cluster mode")
+		primaryAddr = flag.String("primary", "", "Primary node address (for replica mode)")
 	)
 
 	flag.Parse()
@@ -58,6 +66,17 @@ func main() {
 
 	// Override config with command-line flags
 	cfg.LoadFromFlags(*host, *port, *dataDir, *logLevel)
+	
+	// Override cluster configuration with command-line flags
+	if *clusterMode != "" {
+		cfg.Cluster.Mode = *clusterMode
+	}
+	if *nodeID != "" {
+		cfg.Cluster.NodeID = *nodeID
+	}
+	if *primaryAddr != "" {
+		cfg.Cluster.Replication.PrimaryAddress = *primaryAddr
+	}
 
 	// Initialize logger
 	level := slog.LevelInfo
@@ -77,7 +96,9 @@ func main() {
 		"config", *configFile,
 		"host", cfg.Host,
 		"port", cfg.Port,
-		"data_dir", cfg.DataDir)
+		"data_dir", cfg.DataDir,
+		"cluster_mode", cfg.Cluster.Mode,
+		"node_id", cfg.Cluster.NodeID)
 
 	// Ensure data directory exists
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
@@ -121,6 +142,69 @@ func main() {
 		defer walManager.Close()
 	}
 
+	// Initialize cluster coordinator if cluster mode is enabled
+	var clusterCoordinator *cluster.Coordinator
+	if cfg.IsClusterEnabled() {
+		// Create cluster configuration
+		clusterConfig := &cluster.Config{
+			NodeID:              cfg.Cluster.NodeID,
+			RaftAddress:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port+2000), // Raft port = main port + 2000
+			ReplicationPort:     cfg.Port + 1000, // Replication port = main port + 1000
+			DataDir:             cfg.GetClusterDataDir(),
+			ElectionTimeout:     150 * time.Millisecond,
+			HeartbeatInterval:   50 * time.Millisecond,
+			HealthCheckInterval: 5 * time.Second,
+			FailoverTimeout:     30 * time.Second,
+			MinFailoverInterval: 60 * time.Second,
+		}
+		
+		// For replica mode, add primary as a peer
+		if cfg.IsReplica() && cfg.Cluster.Replication.PrimaryAddress != "" {
+			// Parse primary address to extract host
+			primaryHost := cfg.Cluster.Replication.PrimaryAddress
+			if idx := strings.LastIndex(primaryHost, ":"); idx > 0 {
+				primaryHost = primaryHost[:idx]
+			}
+			clusterConfig.Peers = []cluster.Peer{
+				{
+					NodeID:             "primary",
+					RaftAddress:        fmt.Sprintf("%s:%d", primaryHost, cfg.Port+2000),
+					ReplicationAddress: cfg.Cluster.Replication.PrimaryAddress,
+				},
+			}
+		}
+		
+		clusterCoordinator, err = cluster.NewCoordinator(clusterConfig, walManager, logger)
+		if err != nil {
+			logger.Error("Failed to create cluster coordinator", "error", err)
+			os.Exit(1)
+		}
+		defer clusterCoordinator.Stop()
+		
+		// Start cluster coordinator
+		if err := clusterCoordinator.Start(); err != nil {
+			logger.Error("Failed to start cluster coordinator", "error", err)
+			os.Exit(1)
+		}
+		
+		logger.Info("Cluster coordinator started",
+			"node_id", cfg.Cluster.NodeID,
+			"mode", cfg.Cluster.Mode,
+			"raft_address", clusterConfig.RaftAddress,
+			"replication_port", clusterConfig.ReplicationPort)
+		
+		// Start cluster API server
+		apiAddr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port+3000) // API port = main port + 3000
+		clusterAPI := cluster.NewAPI(clusterCoordinator, apiAddr)
+		if err := clusterAPI.Start(); err != nil {
+			logger.Error("Failed to start cluster API", "error", err)
+			os.Exit(1)
+		}
+		defer clusterAPI.Stop()
+		
+		logger.Info("Cluster API started", "address", apiAddr)
+	}
+
 	// Create MVCC storage backend
 	storageBackend := executor.NewMVCCStorageBackend(bufferPool, cat, walManager, txnManager)
 
@@ -134,6 +218,11 @@ func main() {
 	server := network.NewServerWithTxnManager(networkConfig, cat, eng, txnManager, logger)
 	server.SetStorageBackend(storageBackend)
 	server.SetIndexManager(indexMgr)
+	
+	// Set cluster coordinator if available
+	if clusterCoordinator != nil {
+		server.SetClusterCoordinator(clusterCoordinator)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

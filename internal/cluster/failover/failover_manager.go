@@ -61,6 +61,7 @@ const (
 	RoleFollower NodeRole = iota
 	RolePrimary
 	RoleStandby
+	RoleReplica // Alias for RoleStandby
 )
 
 // String returns string representation of node role
@@ -72,6 +73,8 @@ func (r NodeRole) String() string {
 		return "PRIMARY"
 	case RoleStandby:
 		return "STANDBY"
+	case RoleReplica:
+		return "REPLICA"
 	default:
 		return "UNKNOWN"
 	}

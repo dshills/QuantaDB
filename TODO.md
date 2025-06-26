@@ -193,19 +193,30 @@
    - Page compression and storage efficiency
    - Parallel I/O operations
 
-**Phase 8: Distributed Systems & Scalability** [HIGH PRIORITY]
+**Phase 8: Distributed Systems & Scalability** [IN PROGRESS] 🚧
 
-1. **Horizontal Scaling**
-   - Sharding and partitioning strategies
-   - Distributed query planning and execution
-   - Cross-shard joins and aggregations
-   - Automated shard rebalancing
+1. **Core Distributed Infrastructure** ✅ **IMPLEMENTED**
+   - [x] Raft consensus algorithm for coordination
+   - [x] WAL-based streaming replication 
+   - [x] Automatic failover with health checking
+   - [x] Cluster coordinator integration
+   - [x] Basic cluster configuration and CLI flags
+   - [x] Example configurations and startup scripts
 
-2. **Replication & High Availability**
-   - Streaming replication with async/sync modes
-   - Read replicas for load distribution
-   - Automatic failover and leader election
-   - Point-in-time recovery across replicas
+2. **Remaining Distributed Features** [HIGH PRIORITY]
+   - [ ] Query routing to appropriate nodes
+   - [ ] Read-only queries on replicas
+   - [ ] Synchronous replication mode
+   - [ ] Point-in-time recovery across replicas
+   - [ ] Cluster status monitoring API
+   - [ ] Node addition/removal operations
+   - [ ] Split-brain prevention mechanisms
+
+3. **Horizontal Scaling** [FUTURE]
+   - [ ] Sharding and partitioning strategies
+   - [ ] Distributed query planning and execution
+   - [ ] Cross-shard joins and aggregations
+   - [ ] Automated shard rebalancing
 
 **Phase 9: Enterprise Features** [MEDIUM PRIORITY]
 
