@@ -33,6 +33,9 @@ type Config struct {
 
 	// Cluster configuration
 	Cluster ClusterConfig `json:"cluster"`
+
+	// Executor configuration
+	Executor ExecutorConfig `json:"executor"`
 }
 
 // NetworkConfig represents network-specific configuration.
@@ -99,6 +102,31 @@ type ReplicationConfig struct {
 	MaxReconnectTries int `json:"max_reconnect_tries"`
 }
 
+// ExecutorConfig represents query executor configuration.
+type ExecutorConfig struct {
+	// Vectorized execution settings
+	EnableVectorizedExecution bool  `json:"enable_vectorized_execution"`
+	VectorizedBatchSize       int   `json:"vectorized_batch_size"`
+	VectorizedMemoryLimit     int64 `json:"vectorized_memory_limit"` // in bytes
+
+	// Result caching settings
+	EnableResultCaching   bool   `json:"enable_result_caching"`
+	ResultCacheMaxSize    int64  `json:"result_cache_max_size"`    // in bytes
+	ResultCacheMaxEntries int    `json:"result_cache_max_entries"`
+	ResultCacheTTL        string `json:"result_cache_ttl"` // duration string
+
+	// Query execution settings
+	MaxParallelWorkers int `json:"max_parallel_workers"`
+	WorkQueueSize      int `json:"work_queue_size"`
+	
+	// Memory management
+	QueryMemoryLimit int64 `json:"query_memory_limit"` // per-query memory limit in bytes
+	
+	// Statistics and monitoring
+	EnableStatistics bool `json:"enable_statistics"`
+	StatsSampleRate  float64 `json:"stats_sample_rate"` // 0.0 to 1.0
+}
+
 // DefaultConfig returns a configuration with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
@@ -144,6 +172,20 @@ func DefaultConfig() *Config {
 				ReconnectInterval: 5,   // 5 seconds
 				MaxReconnectTries: 10,
 			},
+		},
+		Executor: ExecutorConfig{
+			EnableVectorizedExecution: true,
+			VectorizedBatchSize:       1024,
+			VectorizedMemoryLimit:     256 * 1024 * 1024, // 256MB
+			EnableResultCaching:       true,
+			ResultCacheMaxSize:        64 * 1024 * 1024, // 64MB
+			ResultCacheMaxEntries:     1000,
+			ResultCacheTTL:            "5m",
+			MaxParallelWorkers:        4,
+			WorkQueueSize:             100,
+			QueryMemoryLimit:          512 * 1024 * 1024, // 512MB per query
+			EnableStatistics:          true,
+			StatsSampleRate:           1.0, // Sample all queries by default
 		},
 	}
 }
@@ -221,6 +263,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid cluster configuration: %w", err)
 	}
 
+	// Validate executor configuration
+	if err := c.validateExecutor(); err != nil {
+		return fmt.Errorf("invalid executor configuration: %w", err)
+	}
+
 	return nil
 }
 
@@ -250,6 +297,55 @@ func (c *Config) validateCluster() error {
 	}
 	if c.Cluster.Replication.HeartbeatTimeout < c.Cluster.Replication.HeartbeatInterval {
 		return fmt.Errorf("heartbeat timeout must be greater than heartbeat interval")
+	}
+
+	return nil
+}
+
+// validateExecutor validates executor-specific configuration
+func (c *Config) validateExecutor() error {
+	// Skip validation if executor config is not enabled
+	if !c.Executor.EnableVectorizedExecution && !c.Executor.EnableResultCaching && !c.Executor.EnableStatistics {
+		return nil
+	}
+	
+	// Validate vectorized execution settings
+	if c.Executor.EnableVectorizedExecution && (c.Executor.VectorizedBatchSize < 1 || c.Executor.VectorizedBatchSize > 65536) {
+		return fmt.Errorf("vectorized batch size must be between 1 and 65536")
+	}
+	if c.Executor.VectorizedMemoryLimit < 0 {
+		return fmt.Errorf("vectorized memory limit cannot be negative")
+	}
+
+	// Validate result cache settings
+	if c.Executor.ResultCacheMaxSize < 0 {
+		return fmt.Errorf("result cache max size cannot be negative")
+	}
+	if c.Executor.ResultCacheMaxEntries < 0 {
+		return fmt.Errorf("result cache max entries cannot be negative")
+	}
+	if c.Executor.ResultCacheTTL != "" {
+		if _, err := time.ParseDuration(c.Executor.ResultCacheTTL); err != nil {
+			return fmt.Errorf("invalid result cache TTL: %w", err)
+		}
+	}
+
+	// Validate parallel execution settings
+	if c.Executor.MaxParallelWorkers < 0 {
+		return fmt.Errorf("max parallel workers cannot be negative")
+	}
+	if c.Executor.MaxParallelWorkers > 0 && c.Executor.WorkQueueSize < 1 {
+		return fmt.Errorf("work queue size must be at least 1 when parallel workers are enabled")
+	}
+
+	// Validate memory settings
+	if c.Executor.QueryMemoryLimit < 0 {
+		return fmt.Errorf("query memory limit cannot be negative")
+	}
+
+	// Validate statistics settings
+	if c.Executor.StatsSampleRate < 0.0 || c.Executor.StatsSampleRate > 1.0 {
+		return fmt.Errorf("stats sample rate must be between 0.0 and 1.0")
 	}
 
 	return nil
