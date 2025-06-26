@@ -30,7 +30,7 @@ See [COMPLETED.md](COMPLETED.md) for the full list of completed features.
 - [x] Add vectorized execution cost models
 - [x] Implement adaptive execution (vectorized vs row-at-a-time)
 - [x] Cost-based decision making for result caching
-- [ ] Integration with executor for runtime adaptation
+- [x] Integration with executor for runtime adaptation
 - [ ] Performance validation with benchmarks
 
 ### 2. Advanced Index Features [COMPLETED] ✅
