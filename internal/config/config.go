@@ -70,9 +70,9 @@ type TransactionConfig struct {
 // ClusterConfig represents cluster-specific configuration.
 type ClusterConfig struct {
 	// Node configuration
-	NodeID   string `json:"node_id"`
-	Mode     string `json:"mode"`     // "none", "primary", "replica"
-	DataDir  string `json:"data_dir"`
+	NodeID  string `json:"node_id"`
+	Mode    string `json:"mode"` // "none", "primary", "replica"
+	DataDir string `json:"data_dir"`
 
 	// Replication configuration
 	Replication ReplicationConfig `json:"replication"`
@@ -97,8 +97,8 @@ type ReplicationConfig struct {
 	MaxLagTime  int `json:"max_lag_time"`  // in seconds
 
 	// Connection settings
-	ConnectTimeout    int `json:"connect_timeout"`     // in seconds
-	ReconnectInterval int `json:"reconnect_interval"`  // in seconds
+	ConnectTimeout    int `json:"connect_timeout"`    // in seconds
+	ReconnectInterval int `json:"reconnect_interval"` // in seconds
 	MaxReconnectTries int `json:"max_reconnect_tries"`
 }
 
@@ -111,19 +111,19 @@ type ExecutorConfig struct {
 
 	// Result caching settings
 	EnableResultCaching   bool   `json:"enable_result_caching"`
-	ResultCacheMaxSize    int64  `json:"result_cache_max_size"`    // in bytes
+	ResultCacheMaxSize    int64  `json:"result_cache_max_size"` // in bytes
 	ResultCacheMaxEntries int    `json:"result_cache_max_entries"`
 	ResultCacheTTL        string `json:"result_cache_ttl"` // duration string
 
 	// Query execution settings
 	MaxParallelWorkers int `json:"max_parallel_workers"`
 	WorkQueueSize      int `json:"work_queue_size"`
-	
+
 	// Memory management
 	QueryMemoryLimit int64 `json:"query_memory_limit"` // per-query memory limit in bytes
-	
+
 	// Statistics and monitoring
-	EnableStatistics bool `json:"enable_statistics"`
+	EnableStatistics bool    `json:"enable_statistics"`
 	StatsSampleRate  float64 `json:"stats_sample_rate"` // 0.0 to 1.0
 }
 
@@ -156,20 +156,20 @@ func DefaultConfig() *Config {
 			DefaultTimeout: 300, // 5 minutes
 		},
 		Cluster: ClusterConfig{
-			NodeID:  "",    // Empty means single-node mode
+			NodeID:  "",     // Empty means single-node mode
 			Mode:    "none", // "none", "primary", "replica"
 			DataDir: "./cluster",
 			Replication: ReplicationConfig{
 				PrimaryAddress:    "",
 				StreamBufferSize:  1024 * 1024, // 1MB
 				BatchSize:         100,
-				FlushInterval:     100, // 100ms
-				HeartbeatInterval: 10,  // 10 seconds
-				HeartbeatTimeout:  30,  // 30 seconds
+				FlushInterval:     100,              // 100ms
+				HeartbeatInterval: 10,               // 10 seconds
+				HeartbeatTimeout:  30,               // 30 seconds
 				MaxLagBytes:       16 * 1024 * 1024, // 16MB
-				MaxLagTime:        300, // 5 minutes
-				ConnectTimeout:    30,  // 30 seconds
-				ReconnectInterval: 5,   // 5 seconds
+				MaxLagTime:        300,              // 5 minutes
+				ConnectTimeout:    30,               // 30 seconds
+				ReconnectInterval: 5,                // 5 seconds
 				MaxReconnectTries: 10,
 			},
 		},
@@ -308,7 +308,7 @@ func (c *Config) validateExecutor() error {
 	if !c.Executor.EnableVectorizedExecution && !c.Executor.EnableResultCaching && !c.Executor.EnableStatistics {
 		return nil
 	}
-	
+
 	// Validate vectorized execution settings
 	if c.Executor.EnableVectorizedExecution && (c.Executor.VectorizedBatchSize < 1 || c.Executor.VectorizedBatchSize > 65536) {
 		return fmt.Errorf("vectorized batch size must be between 1 and 65536")

@@ -11,33 +11,33 @@ import (
 
 // HealthMonitor monitors the health of database nodes
 type HealthMonitor struct {
-	config    *QueryRouterConfig
-	logger    log.Logger
-	mu        sync.RWMutex
-	
+	config *QueryRouterConfig
+	logger log.Logger
+	mu     sync.RWMutex
+
 	// Monitored nodes
-	nodes     map[string]*MonitoredNode
-	
+	nodes map[string]*MonitoredNode
+
 	// Health check callback
-	callback  HealthCheckCallback
-	
+	callback HealthCheckCallback
+
 	// Control
-	stopCh    chan struct{}
-	stopOnce  sync.Once
-	started   bool
+	stopCh   chan struct{}
+	stopOnce sync.Once
+	started  bool
 }
 
 // MonitoredNode represents a node being monitored
 type MonitoredNode struct {
-	ID               string
-	Address          string
-	IsHealthy        bool
-	LastCheck        time.Time
-	LastSuccess      time.Time
+	ID                  string
+	Address             string
+	IsHealthy           bool
+	LastCheck           time.Time
+	LastSuccess         time.Time
 	ConsecutiveFailures int
-	ResponseTime     time.Duration
-	CheckCount       int64
-	FailureCount     int64
+	ResponseTime        time.Duration
+	CheckCount          int64
+	FailureCount        int64
 }
 
 // HealthCheckCallback is called when node health changes
@@ -85,11 +85,11 @@ func (hm *HealthMonitor) Start(ctx context.Context, callback HealthCheckCallback
 func (hm *HealthMonitor) Stop() error {
 	hm.stopOnce.Do(func() {
 		close(hm.stopCh)
-		
+
 		hm.mu.Lock()
 		hm.started = false
 		hm.mu.Unlock()
-		
+
 		hm.logger.Info("Health monitor stopped")
 	})
 	return nil
@@ -101,10 +101,10 @@ func (hm *HealthMonitor) AddNode(nodeID, address string) {
 	defer hm.mu.Unlock()
 
 	hm.nodes[nodeID] = &MonitoredNode{
-		ID:        nodeID,
-		Address:   address,
-		IsHealthy: true,
-		LastCheck: time.Now(),
+		ID:          nodeID,
+		Address:     address,
+		IsHealthy:   true,
+		LastCheck:   time.Now(),
 		LastSuccess: time.Now(),
 	}
 
@@ -148,7 +148,7 @@ func (hm *HealthMonitor) performHealthChecks(ctx context.Context) {
 
 	// Perform health checks concurrently
 	resultCh := make(chan *HealthCheckResult, len(nodes))
-	
+
 	for _, node := range nodes {
 		go hm.checkNodeHealth(ctx, node, resultCh)
 	}
@@ -167,7 +167,7 @@ func (hm *HealthMonitor) performHealthChecks(ctx context.Context) {
 // checkNodeHealth performs a health check on a single node
 func (hm *HealthMonitor) checkNodeHealth(ctx context.Context, node *MonitoredNode, resultCh chan<- *HealthCheckResult) {
 	start := time.Now()
-	
+
 	// Create timeout context for this health check
 	checkCtx, cancel := context.WithTimeout(ctx, hm.config.HealthCheckTimeout)
 	defer cancel()
@@ -238,14 +238,14 @@ func (hm *HealthMonitor) processHealthCheckResult(result *HealthCheckResult) {
 		// Health check failed
 		node.FailureCount++
 		node.ConsecutiveFailures++
-		
+
 		// Mark as unhealthy if failure threshold exceeded
 		if node.ConsecutiveFailures >= hm.config.MaxFailureThreshold {
 			node.IsHealthy = false
 		}
 
-		hm.logger.Warn("Health check failed", 
-			"node_id", result.NodeID, 
+		hm.logger.Warn("Health check failed",
+			"node_id", result.NodeID,
 			"consecutive_failures", node.ConsecutiveFailures,
 			"error", result.Error)
 	}
@@ -253,14 +253,14 @@ func (hm *HealthMonitor) processHealthCheckResult(result *HealthCheckResult) {
 	// Notify callback if health status changed
 	if wasHealthy != node.IsHealthy && hm.callback != nil {
 		hm.callback(result.NodeID, node.IsHealthy, result.ResponseTime)
-		
-		hm.logger.Info("Node health status changed", 
-			"node_id", result.NodeID, 
+
+		hm.logger.Info("Node health status changed",
+			"node_id", result.NodeID,
 			"healthy", node.IsHealthy,
 			"response_time", result.ResponseTime)
 	}
 
-	hm.logger.Debug("Health check completed", 
+	hm.logger.Debug("Health check completed",
 		"node_id", result.NodeID,
 		"healthy", result.IsHealthy,
 		"response_time", result.ResponseTime,
@@ -292,7 +292,7 @@ func (hm *HealthMonitor) GetAllNodeHealth() map[string]*MonitoredNode {
 		nodeCopy := *node
 		result[id] = &nodeCopy
 	}
-	
+
 	return result
 }
 
@@ -335,19 +335,19 @@ func (hm *HealthMonitor) GetStatus() map[string]interface{} {
 	totalChecks := int64(0)
 	totalFailures := int64(0)
 	healthyCount := 0
-	
+
 	for id, node := range hm.nodes {
 		nodes[id] = map[string]interface{}{
-			"address":             node.Address,
-			"is_healthy":          node.IsHealthy,
-			"last_check":          node.LastCheck,
-			"last_success":        node.LastSuccess,
+			"address":              node.Address,
+			"is_healthy":           node.IsHealthy,
+			"last_check":           node.LastCheck,
+			"last_success":         node.LastSuccess,
 			"consecutive_failures": node.ConsecutiveFailures,
-			"response_time":       node.ResponseTime,
-			"check_count":         node.CheckCount,
-			"failure_count":       node.FailureCount,
+			"response_time":        node.ResponseTime,
+			"check_count":          node.CheckCount,
+			"failure_count":        node.FailureCount,
 		}
-		
+
 		totalChecks += node.CheckCount
 		totalFailures += node.FailureCount
 		if node.IsHealthy {
@@ -361,17 +361,17 @@ func (hm *HealthMonitor) GetStatus() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"started":       hm.started,
-		"total_nodes":   len(hm.nodes),
-		"healthy_nodes": healthyCount,
+		"started":         hm.started,
+		"total_nodes":     len(hm.nodes),
+		"healthy_nodes":   healthyCount,
 		"unhealthy_nodes": len(hm.nodes) - healthyCount,
-		"total_checks":  totalChecks,
-		"total_failures": totalFailures,
-		"success_rate":  successRate,
+		"total_checks":    totalChecks,
+		"total_failures":  totalFailures,
+		"success_rate":    successRate,
 		"config": map[string]interface{}{
-			"check_interval":     hm.config.HealthCheckInterval,
-			"check_timeout":      hm.config.HealthCheckTimeout,
-			"failure_threshold":  hm.config.MaxFailureThreshold,
+			"check_interval":    hm.config.HealthCheckInterval,
+			"check_timeout":     hm.config.HealthCheckTimeout,
+			"failure_threshold": hm.config.MaxFailureThreshold,
 		},
 		"nodes": nodes,
 	}

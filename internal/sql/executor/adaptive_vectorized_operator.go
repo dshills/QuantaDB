@@ -11,8 +11,8 @@ import (
 // VectorizedConfig holds configuration for vectorized execution
 type VectorizedConfig struct {
 	EnableVectorizedExecution   bool
-	VectorizedBatchSize        int
-	VectorizedMemoryLimit      int64
+	VectorizedBatchSize         int
+	VectorizedMemoryLimit       int64
 	VectorizedFallbackThreshold int
 }
 
@@ -20,8 +20,8 @@ type VectorizedConfig struct {
 func DefaultVectorizedConfig() *VectorizedConfig {
 	return &VectorizedConfig{
 		EnableVectorizedExecution:   true,
-		VectorizedBatchSize:        1024,
-		VectorizedMemoryLimit:      64 * 1024 * 1024, // 64MB
+		VectorizedBatchSize:         1024,
+		VectorizedMemoryLimit:       64 * 1024 * 1024, // 64MB
 		VectorizedFallbackThreshold: 100,
 	}
 }
@@ -39,15 +39,15 @@ type AdaptiveVectorizedOperator struct {
 	config *VectorizedConfig
 
 	// Adaptive state
-	useVectorized    bool
-	fallbackReason   string
-	switchCount      int
-	lastSwitchTime   time.Time
+	useVectorized  bool
+	fallbackReason string
+	switchCount    int
+	lastSwitchTime time.Time
 
 	// Performance tracking
 	vectorizedStats *RuntimeStats
 	scalarStats     *RuntimeStats
-	
+
 	// Memory monitoring
 	memoryUsage     int64
 	memoryThreshold int64
@@ -91,7 +91,7 @@ func NewAdaptiveVectorizedScanOperator(
 	}
 }
 
-// NewAdaptiveVectorizedFilterOperator creates an adaptive filter operator  
+// NewAdaptiveVectorizedFilterOperator creates an adaptive filter operator
 func NewAdaptiveVectorizedFilterOperator(
 	child Operator,
 	predicate ExprEvaluator,
@@ -144,11 +144,11 @@ func (avo *AdaptiveVectorizedOperator) chooseInitialImplementation() error {
 	// Check memory availability using memory manager if available
 	estimatedMemory := avo.estimateVectorizedMemoryUsage()
 	availableMemory := avo.memoryThreshold
-	
+
 	if avo.memoryManager != nil {
 		availableMemory = avo.memoryManager.GetAvailableMemory(storage.SubsystemVectorized)
 	}
-	
+
 	if estimatedMemory > availableMemory {
 		avo.useVectorized = false
 		avo.fallbackReason = "Insufficient memory for vectorized execution"
@@ -176,7 +176,7 @@ func (avo *AdaptiveVectorizedOperator) Next() (*Row, error) {
 
 	// Get next row from current implementation
 	row, err := avo.currentImpl.Next()
-	
+
 	// Handle vectorized-specific errors with fallback
 	if err != nil && avo.useVectorized {
 		if avo.isVectorizedError(err) {
@@ -218,7 +218,7 @@ func (avo *AdaptiveVectorizedOperator) shouldConsiderSwitch() bool {
 // evaluateSwitching checks if we should switch between vectorized and scalar execution
 func (avo *AdaptiveVectorizedOperator) evaluateSwitching() error {
 	currentStats := avo.getCurrentStats()
-	
+
 	// Check memory pressure using memory manager if available
 	isMemoryPressure := false
 	if avo.memoryManager != nil {
@@ -227,7 +227,7 @@ func (avo *AdaptiveVectorizedOperator) evaluateSwitching() error {
 		// Fallback to local memory threshold check
 		isMemoryPressure = avo.memoryUsage > avo.memoryThreshold
 	}
-	
+
 	if isMemoryPressure && avo.useVectorized {
 		return avo.switchToScalar("Memory pressure detected")
 	}
@@ -249,7 +249,7 @@ func (avo *AdaptiveVectorizedOperator) evaluateSwitching() error {
 func (avo *AdaptiveVectorizedOperator) isVectorizedError(err error) bool {
 	// Check for common vectorized execution errors
 	errorString := err.Error()
-	
+
 	vectorizedErrors := []string{
 		"unsupported vectorized operator",
 		"vectorized batch overflow",
@@ -270,7 +270,7 @@ func (avo *AdaptiveVectorizedOperator) isVectorizedError(err error) bool {
 // fallbackToScalar switches to scalar implementation due to error
 func (avo *AdaptiveVectorizedOperator) fallbackToScalar(originalError error) error {
 	avo.fallbackReason = fmt.Sprintf("Fallback due to error: %v", originalError)
-	
+
 	// Close current vectorized implementation
 	if avo.currentImpl != nil {
 		avo.currentImpl.Close()
@@ -293,7 +293,7 @@ func (avo *AdaptiveVectorizedOperator) switchToScalar(reason string) error {
 	}
 
 	avo.fallbackReason = reason
-	
+
 	// Close current implementation
 	if avo.currentImpl != nil {
 		avo.currentImpl.Close()
@@ -385,7 +385,7 @@ func (avo *AdaptiveVectorizedOperator) updateStats(row *Row) {
 	// Update memory usage (simplified estimation)
 	if row != nil {
 		avo.memoryUsage += 128 // Estimated row size
-		
+
 		// Update memory manager with vectorized operator usage
 		if avo.memoryManager != nil {
 			avo.memoryManager.UpdateSubsystemUsage(storage.SubsystemVectorized, avo.memoryUsage)
@@ -397,7 +397,7 @@ func (avo *AdaptiveVectorizedOperator) updateStats(row *Row) {
 func (avo *AdaptiveVectorizedOperator) estimateVectorizedMemoryUsage() int64 {
 	batchSize := int64(avo.config.VectorizedBatchSize)
 	avgRowSize := int64(128) // Estimated average row size
-	
+
 	// Memory for input batch + output batch + null bitmaps + overhead
 	return batchSize * avgRowSize * 3
 }
@@ -421,13 +421,13 @@ func (avo *AdaptiveVectorizedOperator) Close() error {
 // GetAdaptiveStats returns adaptive execution statistics
 func (avo *AdaptiveVectorizedOperator) GetAdaptiveStats() map[string]interface{} {
 	stats := make(map[string]interface{})
-	
+
 	stats["use_vectorized"] = avo.useVectorized
 	stats["fallback_reason"] = avo.fallbackReason
 	stats["switch_count"] = avo.switchCount
 	stats["memory_usage"] = avo.memoryUsage
 	stats["memory_threshold"] = avo.memoryThreshold
-	
+
 	if avo.useVectorized {
 		stats["vectorized_rows"] = avo.vectorizedStats.ActualRows
 		if avo.vectorizedStats.ExecutionTime.Seconds() > 0 {
@@ -443,7 +443,7 @@ func (avo *AdaptiveVectorizedOperator) GetAdaptiveStats() map[string]interface{}
 			stats["scalar_rows_per_second"] = 0.0
 		}
 	}
-	
+
 	return stats
 }
 

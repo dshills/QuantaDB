@@ -182,7 +182,7 @@ func GetCompositeIndexScan(plan Plan) (*IndexScanResult, bool) {
 		// Since IndexOnlyScan is typically chosen when it's an optimization of a CompositeIndexScan,
 		// we can make a reasonable estimate based on the index structure
 		matchingColumns := len(scan.Index.Columns) // Assume the index is being used effectively
-		
+
 		// If we have specific start/end values, use that as a better estimate
 		if len(scan.StartValues) > 0 || len(scan.EndValues) > 0 {
 			startLen := len(scan.StartValues)
@@ -195,7 +195,7 @@ func GetCompositeIndexScan(plan Plan) (*IndexScanResult, bool) {
 				matchingColumns = maxRangeColumns
 			}
 		}
-		
+
 		return &IndexScanResult{
 			IndexName:       scan.IndexName,
 			MatchingColumns: matchingColumns,

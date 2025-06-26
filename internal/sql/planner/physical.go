@@ -98,21 +98,21 @@ func (c *Cost) EstimateRows() float64 {
 // PhysicalPlan represents a physical execution plan
 type PhysicalPlan interface {
 	Plan
-	
+
 	// Cost estimation
 	EstimateCost(context *PhysicalPlanContext) *Cost
 	EstimateMemory() int64
 	EstimateCardinality() int64
-	
+
 	// Execution properties
 	GetOperatorType() OperatorType
 	GetExecutionMode() ExecutionMode
 	RequiresVectorization() bool
-	
+
 	// Plan properties
 	GetInputs() []PhysicalPlan
 	SetInputs(inputs []PhysicalPlan)
-	
+
 	// Optimization support
 	GetProperties() *PhysicalProperties
 	SetProperties(props *PhysicalProperties)
@@ -142,10 +142,10 @@ const (
 
 // RuntimeStatistics provides runtime feedback for planning decisions
 type RuntimeStatistics struct {
-	OperatorStats     map[string]*OperatorStats
-	MemoryPressure    float64
-	CacheHitRate      float64
-	LastUpdate        time.Time
+	OperatorStats  map[string]*OperatorStats
+	MemoryPressure float64
+	CacheHitRate   float64
+	LastUpdate     time.Time
 }
 
 // OperatorStats tracks performance metrics for specific operators
@@ -159,12 +159,12 @@ type OperatorStats struct {
 
 // PhysicalProperties describe the output properties of a physical plan
 type PhysicalProperties struct {
-	EstimatedRows     int64
-	OutputColumns     []*OutputColumn
-	SortOrder         []SortKey
-	DistributionKey   []string
-	HasDuplicates     bool
-	IsPartitioned     bool
+	EstimatedRows   int64
+	OutputColumns   []*OutputColumn
+	SortOrder       []SortKey
+	DistributionKey []string
+	HasDuplicates   bool
+	IsPartitioned   bool
 }
 
 // OutputColumn describes a column in the output
@@ -192,28 +192,27 @@ const (
 
 // BasePhysicalPlan provides common functionality for physical plans
 type BasePhysicalPlan struct {
-	id          int
-	schema      *Schema
-	inputs      []PhysicalPlan
-	properties  *PhysicalProperties
-	cost        *Cost
-	memoryEst   int64
+	id         int
+	schema     *Schema
+	inputs     []PhysicalPlan
+	properties *PhysicalProperties
+	memoryEst  int64
 }
 
-func (bpp *BasePhysicalPlan) ID() int                        { return bpp.id }
-func (bpp *BasePhysicalPlan) Schema() *Schema                { return bpp.schema }
-func (bpp *BasePhysicalPlan) Children() []Plan               { 
+func (bpp *BasePhysicalPlan) ID() int         { return bpp.id }
+func (bpp *BasePhysicalPlan) Schema() *Schema { return bpp.schema }
+func (bpp *BasePhysicalPlan) Children() []Plan {
 	children := make([]Plan, len(bpp.inputs))
 	for i, input := range bpp.inputs {
 		children[i] = input
 	}
 	return children
 }
-func (bpp *BasePhysicalPlan) GetInputs() []PhysicalPlan      { return bpp.inputs }
-func (bpp *BasePhysicalPlan) SetInputs(inputs []PhysicalPlan) { bpp.inputs = inputs }
-func (bpp *BasePhysicalPlan) GetProperties() *PhysicalProperties { return bpp.properties }
+func (bpp *BasePhysicalPlan) GetInputs() []PhysicalPlan               { return bpp.inputs }
+func (bpp *BasePhysicalPlan) SetInputs(inputs []PhysicalPlan)         { bpp.inputs = inputs }
+func (bpp *BasePhysicalPlan) GetProperties() *PhysicalProperties      { return bpp.properties }
 func (bpp *BasePhysicalPlan) SetProperties(props *PhysicalProperties) { bpp.properties = props }
-func (bpp *BasePhysicalPlan) EstimateMemory() int64          { return bpp.memoryEst }
+func (bpp *BasePhysicalPlan) EstimateMemory() int64                   { return bpp.memoryEst }
 
 // PhysicalScan represents a table scan operation
 type PhysicalScan struct {
@@ -243,7 +242,7 @@ func NewPhysicalScan(table *catalog.Table, predicate Expression) *PhysicalScan {
 			DataType: col.DataType,
 		}
 	}
-	
+
 	return &PhysicalScan{
 		BasePhysicalPlan: &BasePhysicalPlan{
 			schema: schema,
@@ -255,7 +254,7 @@ func NewPhysicalScan(table *catalog.Table, predicate Expression) *PhysicalScan {
 	}
 }
 
-func (ps *PhysicalScan) GetOperatorType() OperatorType { return OperatorTypeScan }
+func (ps *PhysicalScan) GetOperatorType() OperatorType   { return OperatorTypeScan }
 func (ps *PhysicalScan) GetExecutionMode() ExecutionMode { return ps.ExecutionMode }
 func (ps *PhysicalScan) RequiresVectorization() bool {
 	return ps.ExecutionMode == ExecutionModeVectorized || ps.ExecutionMode == ExecutionModeHybrid
@@ -265,13 +264,13 @@ func (ps *PhysicalScan) EstimateCost(context *PhysicalPlanContext) *Cost {
 	if context == nil || context.CostModel == nil {
 		return &Cost{TotalCost: 1000.0} // Default fallback
 	}
-	
+
 	tableStats := context.TableStats[ps.Table.TableName]
 	estimatedRows := int64(1000) // Default
 	if tableStats != nil {
 		estimatedRows = tableStats.RowCount
 	}
-	
+
 	// Base scan cost
 	baseCost := &Cost{
 		IOCost:    float64(estimatedRows) * 1.0, // Default page cost
@@ -279,17 +278,17 @@ func (ps *PhysicalScan) EstimateCost(context *PhysicalPlanContext) *Cost {
 		TotalCost: 0,
 	}
 	baseCost.TotalCost = baseCost.IOCost + baseCost.CPUCost
-	
+
 	// Apply vectorization if applicable
 	if ps.RequiresVectorization() {
 		vectorizedCost := float64(estimatedRows) * context.CostModel.vectorizedRowCost
 		setupCost := context.CostModel.vectorizedSetupCost
-		
+
 		baseCost.CPUCost = vectorizedCost
 		baseCost.SetupCost = setupCost
 		baseCost.TotalCost = baseCost.IOCost + baseCost.CPUCost + baseCost.SetupCost
 	}
-	
+
 	return baseCost
 }
 
@@ -306,7 +305,7 @@ func (ps *PhysicalScan) String() string {
 	if ps.ExecutionMode != ExecutionModeScalar {
 		mode = fmt.Sprintf(" [%s]", ps.ExecutionMode.String())
 	}
-	
+
 	if ps.IndexAccess != nil {
 		return fmt.Sprintf("IndexScan(%s.%s)%s", ps.Table.SchemaName, ps.Table.TableName, mode)
 	}
@@ -335,7 +334,7 @@ func NewPhysicalFilter(input PhysicalPlan, predicate Expression) *PhysicalFilter
 	}
 }
 
-func (pf *PhysicalFilter) GetOperatorType() OperatorType { return OperatorTypeFilter }
+func (pf *PhysicalFilter) GetOperatorType() OperatorType   { return OperatorTypeFilter }
 func (pf *PhysicalFilter) GetExecutionMode() ExecutionMode { return pf.ExecutionMode }
 func (pf *PhysicalFilter) RequiresVectorization() bool {
 	return pf.ExecutionMode == ExecutionModeVectorized || pf.ExecutionMode == ExecutionModeHybrid
@@ -345,21 +344,21 @@ func (pf *PhysicalFilter) EstimateCost(context *PhysicalPlanContext) *Cost {
 	if context == nil || context.CostModel == nil {
 		return &Cost{TotalCost: 100.0}
 	}
-	
+
 	inputCost := pf.Input.EstimateCost(context)
 	inputRows := pf.Input.EstimateCardinality()
-	
+
 	// Filter processing cost
 	filterCost := &Cost{
 		CPUCost: float64(inputRows) * context.CostModel.scalarRowCost * 0.1, // 10% of row cost
 	}
-	
+
 	// Apply vectorization if applicable
 	if pf.RequiresVectorization() {
 		filterCost.CPUCost = float64(inputRows) * context.CostModel.vectorizedRowCost * 0.08
 		filterCost.SetupCost = context.CostModel.vectorizedSetupCost * 0.1
 	}
-	
+
 	filterCost.TotalCost = filterCost.CPUCost + filterCost.SetupCost
 	return inputCost.Add(filterCost)
 }
@@ -417,13 +416,13 @@ func NewPhysicalJoin(left, right PhysicalPlan, joinType JoinType, condition Expr
 	// Combine schemas
 	leftSchema := left.Schema()
 	rightSchema := right.Schema()
-	
+
 	combinedColumns := make([]Column, 0, len(leftSchema.Columns)+len(rightSchema.Columns))
 	combinedColumns = append(combinedColumns, leftSchema.Columns...)
 	combinedColumns = append(combinedColumns, rightSchema.Columns...)
-	
+
 	schema := &Schema{Columns: combinedColumns}
-	
+
 	return &PhysicalJoin{
 		BasePhysicalPlan: &BasePhysicalPlan{
 			schema: schema,
@@ -439,7 +438,7 @@ func NewPhysicalJoin(left, right PhysicalPlan, joinType JoinType, condition Expr
 	}
 }
 
-func (pj *PhysicalJoin) GetOperatorType() OperatorType { return OperatorTypeJoin }
+func (pj *PhysicalJoin) GetOperatorType() OperatorType   { return OperatorTypeJoin }
 func (pj *PhysicalJoin) GetExecutionMode() ExecutionMode { return pj.ExecutionMode }
 func (pj *PhysicalJoin) RequiresVectorization() bool {
 	return pj.ExecutionMode == ExecutionModeVectorized || pj.ExecutionMode == ExecutionModeHybrid
@@ -449,13 +448,13 @@ func (pj *PhysicalJoin) EstimateCost(context *PhysicalPlanContext) *Cost {
 	if context == nil || context.CostModel == nil {
 		return &Cost{TotalCost: 1000.0}
 	}
-	
+
 	leftCost := pj.Left.EstimateCost(context)
 	rightCost := pj.Right.EstimateCost(context)
-	
+
 	leftRows := pj.Left.EstimateCardinality()
 	rightRows := pj.Right.EstimateCardinality()
-	
+
 	// Algorithm-specific costs
 	var joinCost *Cost
 	switch pj.Algorithm {
@@ -467,23 +466,23 @@ func (pj *PhysicalJoin) EstimateCost(context *PhysicalPlanContext) *Cost {
 			CPUCost:    buildCost + probeCost,
 			MemoryCost: float64(rightRows) * 50, // Estimated hash table overhead
 		}
-		
+
 	case JoinAlgorithmNestedLoop:
 		// Nested loop cost
 		joinCost = &Cost{
 			CPUCost: float64(leftRows*rightRows) * context.CostModel.scalarRowCost * 0.1,
 		}
-		
+
 	default:
 		joinCost = &Cost{CPUCost: float64(leftRows+rightRows) * context.CostModel.scalarRowCost}
 	}
-	
+
 	// Apply vectorization if applicable
 	if pj.RequiresVectorization() {
 		joinCost.CPUCost *= context.CostModel.vectorizedBatchFactor
 		joinCost.SetupCost = context.CostModel.vectorizedSetupCost
 	}
-	
+
 	joinCost.TotalCost = joinCost.CPUCost + joinCost.MemoryCost + joinCost.SetupCost
 	return leftCost.Add(rightCost).Add(joinCost)
 }
@@ -491,7 +490,7 @@ func (pj *PhysicalJoin) EstimateCost(context *PhysicalPlanContext) *Cost {
 func (pj *PhysicalJoin) EstimateCardinality() int64 {
 	leftRows := pj.Left.EstimateCardinality()
 	rightRows := pj.Right.EstimateCardinality()
-	
+
 	// Simplified join cardinality estimation
 	switch pj.JoinType {
 	case InnerJoin:
@@ -512,8 +511,8 @@ func (pj *PhysicalJoin) String() string {
 	if pj.ExecutionMode != ExecutionModeScalar {
 		mode = fmt.Sprintf(" [%s]", pj.ExecutionMode.String())
 	}
-	return fmt.Sprintf("%sJoin_%s(%s)%s", 
-		pj.JoinType.String(), 
+	return fmt.Sprintf("%sJoin_%s(%s)%s",
+		pj.JoinType.String(),
 		pj.Algorithm.String(),
 		pj.Condition.String(),
 		mode)
@@ -531,23 +530,23 @@ func NewPhysicalProject(input PhysicalPlan, projections []Expression) *PhysicalP
 	schema := &Schema{
 		Columns: make([]Column, len(projections)),
 	}
-	
+
 	for i, proj := range projections {
 		switch p := proj.(type) {
 		case *ColumnRef:
 			schema.Columns[i] = Column{
-				Name: p.ColumnName,
+				Name:     p.ColumnName,
 				DataType: p.ColumnType,
 			}
 		default:
 			// For expressions, use a default name and infer type
 			schema.Columns[i] = Column{
-				Name: fmt.Sprintf("expr_%d", i),
+				Name:     fmt.Sprintf("expr_%d", i),
 				DataType: types.Text, // Default type, should be inferred properly
 			}
 		}
 	}
-	
+
 	return &PhysicalProject{
 		BasePhysicalPlan: &BasePhysicalPlan{
 			schema: schema,
@@ -558,7 +557,7 @@ func NewPhysicalProject(input PhysicalPlan, projections []Expression) *PhysicalP
 	}
 }
 
-func (pp *PhysicalProject) GetOperatorType() OperatorType { return OperatorTypeProjection }
+func (pp *PhysicalProject) GetOperatorType() OperatorType   { return OperatorTypeProjection }
 func (pp *PhysicalProject) GetExecutionMode() ExecutionMode { return pp.ExecutionMode }
 func (pp *PhysicalProject) RequiresVectorization() bool {
 	return pp.ExecutionMode == ExecutionModeVectorized || pp.ExecutionMode == ExecutionModeHybrid
@@ -568,17 +567,17 @@ func (pp *PhysicalProject) EstimateCost(context *PhysicalPlanContext) *Cost {
 	if len(pp.inputs) == 0 {
 		return &Cost{TotalCost: 0}
 	}
-	
+
 	inputCost := pp.inputs[0].EstimateCost(context)
 	cardinality := pp.inputs[0].EstimateCardinality()
-	
+
 	// Project cost is proportional to number of expressions and rows
 	projectionCost := float64(len(pp.Projections)) * float64(cardinality) * 0.1
-	
+
 	if pp.RequiresVectorization() && context.CostModel != nil {
 		projectionCost *= 0.8 // Vectorized expressions are more efficient
 	}
-	
+
 	return &Cost{
 		IOCost:    inputCost.IOCost,
 		CPUCost:   inputCost.CPUCost + projectionCost,
@@ -637,30 +636,30 @@ func NewPhysicalAggregate(input PhysicalPlan, groupBy []Expression, aggregates [
 	schema := &Schema{
 		Columns: make([]Column, numCols),
 	}
-	
+
 	// Add group by columns
 	for i, expr := range groupBy {
 		if col, ok := expr.(*ColumnRef); ok {
 			schema.Columns[i] = Column{
-				Name: col.ColumnName,
+				Name:     col.ColumnName,
 				DataType: col.ColumnType,
 			}
 		} else {
 			schema.Columns[i] = Column{
-				Name: fmt.Sprintf("group_%d", i),
+				Name:     fmt.Sprintf("group_%d", i),
 				DataType: types.Text,
 			}
 		}
 	}
-	
+
 	// Add aggregate columns
 	for i, agg := range aggregates {
 		schema.Columns[len(groupBy)+i] = Column{
-			Name: agg.Function.String(),
+			Name:     agg.Function.String(),
 			DataType: types.Integer, // Default, should be inferred
 		}
 	}
-	
+
 	return &PhysicalAggregate{
 		BasePhysicalPlan: &BasePhysicalPlan{
 			schema: schema,
@@ -673,7 +672,7 @@ func NewPhysicalAggregate(input PhysicalPlan, groupBy []Expression, aggregates [
 	}
 }
 
-func (pa *PhysicalAggregate) GetOperatorType() OperatorType { return OperatorTypeAggregate }
+func (pa *PhysicalAggregate) GetOperatorType() OperatorType   { return OperatorTypeAggregate }
 func (pa *PhysicalAggregate) GetExecutionMode() ExecutionMode { return pa.ExecutionMode }
 func (pa *PhysicalAggregate) RequiresVectorization() bool {
 	return pa.ExecutionMode == ExecutionModeVectorized || pa.ExecutionMode == ExecutionModeHybrid
@@ -683,10 +682,10 @@ func (pa *PhysicalAggregate) EstimateCost(context *PhysicalPlanContext) *Cost {
 	if len(pa.inputs) == 0 {
 		return &Cost{TotalCost: 0}
 	}
-	
+
 	inputCost := pa.inputs[0].EstimateCost(context)
 	inputCardinality := pa.inputs[0].EstimateCardinality()
-	
+
 	// Aggregate cost depends on algorithm and input size
 	var aggregateCost float64
 	switch pa.Algorithm {
@@ -700,11 +699,11 @@ func (pa *PhysicalAggregate) EstimateCost(context *PhysicalPlanContext) *Cost {
 		// Stream aggregation: O(n) but requires sorted input
 		aggregateCost = float64(inputCardinality) * 1.5
 	}
-	
+
 	if pa.RequiresVectorization() && context.CostModel != nil {
 		aggregateCost *= 0.7 // Vectorized aggregation is more efficient
 	}
-	
+
 	return &Cost{
 		IOCost:    inputCost.IOCost,
 		CPUCost:   inputCost.CPUCost + aggregateCost,
@@ -716,14 +715,14 @@ func (pa *PhysicalAggregate) EstimateCardinality() int64 {
 	if len(pa.inputs) == 0 {
 		return 0
 	}
-	
+
 	inputCardinality := pa.inputs[0].EstimateCardinality()
-	
+
 	// Estimate output cardinality based on group by columns
 	if len(pa.GroupBy) == 0 {
 		return 1 // Single group (no GROUP BY)
 	}
-	
+
 	// Rough estimate: sqrt of input cardinality for grouping
 	// This is a simplification - should use column statistics
 	return int64(float64(inputCardinality) * 0.1)
@@ -734,11 +733,11 @@ func (pa *PhysicalAggregate) String() string {
 	if pa.ExecutionMode != ExecutionModeScalar {
 		mode = fmt.Sprintf(" [%s]", pa.ExecutionMode.String())
 	}
-	return fmt.Sprintf("Aggregate%s(%s, %d groups, %d aggs)", 
+	return fmt.Sprintf("Aggregate%s(%s, %d groups, %d aggs)",
 		mode, pa.Algorithm.String(), len(pa.GroupBy), len(pa.Aggregates))
 }
 
-// PhysicalSort represents a sort operation  
+// PhysicalSort represents a sort operation
 type PhysicalSort struct {
 	*BasePhysicalPlan
 	SortKeys      []SortKey
@@ -779,7 +778,7 @@ func NewPhysicalSort(input PhysicalPlan, sortKeys []SortKey) *PhysicalSort {
 	}
 }
 
-func (ps *PhysicalSort) GetOperatorType() OperatorType { return OperatorTypeSort }
+func (ps *PhysicalSort) GetOperatorType() OperatorType   { return OperatorTypeSort }
 func (ps *PhysicalSort) GetExecutionMode() ExecutionMode { return ps.ExecutionMode }
 func (ps *PhysicalSort) RequiresVectorization() bool {
 	return ps.ExecutionMode == ExecutionModeVectorized || ps.ExecutionMode == ExecutionModeHybrid
@@ -789,17 +788,17 @@ func (ps *PhysicalSort) EstimateCost(context *PhysicalPlanContext) *Cost {
 	if len(ps.inputs) == 0 {
 		return &Cost{TotalCost: 0}
 	}
-	
+
 	inputCost := ps.inputs[0].EstimateCost(context)
 	inputCardinality := ps.inputs[0].EstimateCardinality()
-	
+
 	// Sort cost: O(n log n)
 	sortCost := float64(inputCardinality) * math.Log2(float64(inputCardinality)) * 0.5
-	
+
 	if ps.RequiresVectorization() && context.CostModel != nil {
 		sortCost *= 0.8 // Vectorized sorting can be more efficient
 	}
-	
+
 	return &Cost{
 		IOCost:    inputCost.IOCost,
 		CPUCost:   inputCost.CPUCost + sortCost,
@@ -842,7 +841,7 @@ func NewPhysicalLimit(input PhysicalPlan, limit, offset int64) *PhysicalLimit {
 	}
 }
 
-func (pl *PhysicalLimit) GetOperatorType() OperatorType { return OperatorTypeLimit }
+func (pl *PhysicalLimit) GetOperatorType() OperatorType   { return OperatorTypeLimit }
 func (pl *PhysicalLimit) GetExecutionMode() ExecutionMode { return pl.ExecutionMode }
 func (pl *PhysicalLimit) RequiresVectorization() bool {
 	return pl.ExecutionMode == ExecutionModeVectorized || pl.ExecutionMode == ExecutionModeHybrid
@@ -852,12 +851,12 @@ func (pl *PhysicalLimit) EstimateCost(context *PhysicalPlanContext) *Cost {
 	if len(pl.inputs) == 0 {
 		return &Cost{TotalCost: 0}
 	}
-	
+
 	inputCost := pl.inputs[0].EstimateCost(context)
-	
+
 	// Limit operation is very cheap - just track how many rows to output
 	limitCost := float64(pl.Limit+pl.Offset) * 0.01
-	
+
 	return &Cost{
 		IOCost:    inputCost.IOCost,
 		CPUCost:   inputCost.CPUCost + limitCost,
@@ -869,19 +868,19 @@ func (pl *PhysicalLimit) EstimateCardinality() int64 {
 	if len(pl.inputs) == 0 {
 		return 0
 	}
-	
+
 	inputCardinality := pl.inputs[0].EstimateCardinality()
-	
+
 	// Output cardinality is limited by the LIMIT clause
 	available := inputCardinality - pl.Offset
 	if available <= 0 {
 		return 0
 	}
-	
+
 	if pl.Limit >= 0 && available > pl.Limit {
 		return pl.Limit
 	}
-	
+
 	return available
 }
 
@@ -890,7 +889,7 @@ func (pl *PhysicalLimit) String() string {
 	if pl.ExecutionMode != ExecutionModeScalar {
 		mode = fmt.Sprintf(" [%s]", pl.ExecutionMode.String())
 	}
-	
+
 	if pl.Offset > 0 {
 		return fmt.Sprintf("Limit%s(%d, %d)", mode, pl.Limit, pl.Offset)
 	}

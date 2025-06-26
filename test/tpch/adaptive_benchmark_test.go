@@ -15,7 +15,6 @@ import (
 	"github.com/dshills/QuantaDB/internal/engine/disk"
 	"github.com/dshills/QuantaDB/internal/network"
 	"github.com/dshills/QuantaDB/internal/sql/executor"
-	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/txn"
 	"github.com/dshills/QuantaDB/internal/wal"
@@ -23,28 +22,28 @@ import (
 
 // BenchmarkConfig holds configuration for adaptive benchmarks
 type BenchmarkConfig struct {
-	DataDir           string
-	ScaleFactor       float64
-	EnableAdaptive    bool
-	EnableVectorized  bool
-	EnableCaching     bool
-	MemoryLimit       int64
-	WarmupRuns        int
-	MeasurementRuns   int
+	DataDir          string
+	ScaleFactor      float64
+	EnableAdaptive   bool
+	EnableVectorized bool
+	EnableCaching    bool
+	MemoryLimit      int64
+	WarmupRuns       int
+	MeasurementRuns  int
 }
 
 // BenchmarkResult holds results from a benchmark run
 type BenchmarkResult struct {
-	Query            string
-	Config           string
-	ExecutionTime    time.Duration
-	RowsProcessed    int64
-	MemoryUsed       int64
-	VectorizedOps    int64
-	ScalarOps        int64
-	CacheHits        int64
-	CacheMisses      int64
-	ModeSwitches     int64
+	Query         string
+	Config        string
+	ExecutionTime time.Duration
+	RowsProcessed int64
+	MemoryUsed    int64
+	VectorizedOps int64
+	ScalarOps     int64
+	CacheHits     int64
+	CacheMisses   int64
+	ModeSwitches  int64
 }
 
 // AdaptiveBenchmarkSuite runs TPC-H queries with different configurations
@@ -98,15 +97,15 @@ func NewAdaptiveBenchmarkSuite(dataDir string, scaleFactor float64) (*AdaptiveBe
 func (abs *AdaptiveBenchmarkSuite) Start(config *BenchmarkConfig) error {
 	// Create executor configuration
 	execConfig := &executor.ExecutorRuntimeConfig{
-		VectorizedExecutionEnabled:   config.EnableVectorized,
-		AdaptiveExecutionEnabled:     config.EnableAdaptive,
-		ResultCachingEnabled:         config.EnableCaching,
-		QueryMemoryLimit:            config.MemoryLimit,
-		VectorizedMemoryThreshold:   0.8,
-		ResultCacheMaxSize:          1024 * 1024 * 1024, // 1GB
-		ResultCacheMaxEntries:       1000,
-		ResultCacheTTL:              5 * time.Minute,
-		EnableStatistics:            true,
+		VectorizedExecutionEnabled: config.EnableVectorized,
+		AdaptiveExecutionEnabled:   config.EnableAdaptive,
+		ResultCachingEnabled:       config.EnableCaching,
+		QueryMemoryLimit:           config.MemoryLimit,
+		VectorizedMemoryThreshold:  0.8,
+		ResultCacheMaxSize:         1024 * 1024 * 1024, // 1GB
+		ResultCacheMaxEntries:      1000,
+		ResultCacheTTL:             5 * time.Minute,
+		EnableStatistics:           true,
 	}
 
 	// Create planners
@@ -116,9 +115,9 @@ func (abs *AdaptiveBenchmarkSuite) Start(config *BenchmarkConfig) error {
 		VectorizedBatchCost: 10.0,
 		DefaultBatchSize:    1024,
 	})
-	
+
 	physicalPlanner := planner.NewPhysicalPlanner(costEstimator, vectorizedModel, abs.catalog)
-	
+
 	var exec executor.Executor
 	if config.EnableAdaptive {
 		adaptivePlanner := planner.NewAdaptivePhysicalPlanner(physicalPlanner)
@@ -129,13 +128,13 @@ func (abs *AdaptiveBenchmarkSuite) Start(config *BenchmarkConfig) error {
 
 	// Create server configuration
 	serverConfig := &network.ServerConfig{
-		Address:      "localhost:5433",
+		Address:        "localhost:5433",
 		MaxConnections: 100,
 	}
 
 	// Create and start server
 	abs.server = network.NewServer(serverConfig, abs.engine, abs.catalog, abs.txnManager, exec, abs.wal)
-	
+
 	go func() {
 		if err := abs.server.Start(); err != nil {
 			fmt.Printf("Server error: %v\n", err)
@@ -155,15 +154,15 @@ func (abs *AdaptiveBenchmarkSuite) Stop() error {
 		defer cancel()
 		abs.server.Shutdown(ctx)
 	}
-	
+
 	if abs.wal != nil {
 		abs.wal.Close()
 	}
-	
+
 	if abs.engine != nil {
 		abs.engine.Close()
 	}
-	
+
 	return nil
 }
 
@@ -187,7 +186,7 @@ func (abs *AdaptiveBenchmarkSuite) RunBenchmark(query string, config *BenchmarkC
 		if err != nil {
 			return nil, fmt.Errorf("warmup query failed: %w", err)
 		}
-		
+
 		// Consume all rows
 		for rows.Next() {
 			// Just consume
@@ -201,18 +200,18 @@ func (abs *AdaptiveBenchmarkSuite) RunBenchmark(query string, config *BenchmarkC
 
 	for i := 0; i < config.MeasurementRuns; i++ {
 		start := time.Now()
-		
+
 		rows, err := db.Query(query)
 		if err != nil {
 			return nil, fmt.Errorf("measurement query failed: %w", err)
 		}
-		
+
 		rowCount := int64(0)
 		for rows.Next() {
 			rowCount++
 		}
 		rows.Close()
-		
+
 		elapsed := time.Since(start)
 		totalTime += elapsed
 		totalRows += rowCount
@@ -429,7 +428,7 @@ func TestTPCHAdaptivePerformance(t *testing.T) {
 
 	// Results table
 	fmt.Println("\n=== TPC-H Adaptive Execution Performance ===\n")
-	fmt.Printf("%-15s %-30s %-15s %-15s %-15s %-15s\n", 
+	fmt.Printf("%-15s %-30s %-15s %-15s %-15s %-15s\n",
 		"Query", "Configuration", "Exec Time", "Rows", "Memory (MB)", "Mode Switches")
 	fmt.Println(strings.Repeat("-", 105))
 
@@ -452,7 +451,7 @@ func TestTPCHAdaptivePerformance(t *testing.T) {
 			// Run benchmark
 			result, err := suite.RunBenchmark(query.query, &config)
 			if err != nil {
-				t.Errorf("Benchmark failed for %s with %s: %v", 
+				t.Errorf("Benchmark failed for %s with %s: %v",
 					query.name, suite.getConfigName(&config), err)
 				suite.Stop()
 				continue
@@ -478,7 +477,7 @@ func TestTPCHAdaptivePerformance(t *testing.T) {
 func (abs *AdaptiveBenchmarkSuite) LoadTestData() error {
 	// This is a simplified version - in production, you'd load actual TPC-H data
 	// For now, create minimal test tables
-	
+
 	db, err := sql.Open("postgres", "host=localhost port=5433 user=test password=test dbname=tpch sslmode=disable")
 	if err != nil {
 		return err
@@ -536,7 +535,7 @@ func (abs *AdaptiveBenchmarkSuite) LoadTestData() error {
 
 	// Insert minimal test data
 	// In production, this would load actual TPC-H data files
-	
+
 	return nil
 }
 

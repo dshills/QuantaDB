@@ -32,12 +32,12 @@ const (
 
 // FunctionVectorizability describes how well a function can be vectorized
 type FunctionVectorizability struct {
-	IsVectorizable    bool
-	ComplexityScore   int
-	MemoryMultiplier  float64
-	SpeedupFactor     float64
-	RequiredTypes     []types.DataType
-	BlockingFactors   []string
+	IsVectorizable   bool
+	ComplexityScore  int
+	MemoryMultiplier float64
+	SpeedupFactor    float64
+	RequiredTypes    []types.DataType
+	BlockingFactors  []string
 }
 
 // VectorizationAssessment provides detailed analysis of expression vectorization
@@ -88,7 +88,7 @@ func NewVectorizationAnalyzer() *VectorizationAnalyzer {
 		supportedOperators:    make(map[BinaryOperator]bool),
 		supportedTypes:        make(map[types.DataType]bool),
 	}
-	
+
 	va.initializeDefaults()
 	return va
 }
@@ -105,7 +105,7 @@ func (va *VectorizationAnalyzer) initializeDefaults() {
 	va.complexityWeights[ExprTypeSubquery] = 15
 	va.complexityWeights[ExprTypeCase] = 4
 	va.complexityWeights[ExprTypeComplex] = 10
-	
+
 	// Initialize supported operators
 	va.supportedOperators[OpAdd] = true
 	va.supportedOperators[OpSubtract] = true
@@ -119,7 +119,7 @@ func (va *VectorizationAnalyzer) initializeDefaults() {
 	va.supportedOperators[OpGreaterEqual] = true
 	va.supportedOperators[OpAnd] = true
 	va.supportedOperators[OpOr] = true
-	
+
 	// Unsupported operators
 	va.supportedOperators[OpModulo] = false
 	va.supportedOperators[OpConcat] = false
@@ -127,20 +127,20 @@ func (va *VectorizationAnalyzer) initializeDefaults() {
 	va.supportedOperators[OpNotLike] = false
 	va.supportedOperators[OpIn] = false
 	va.supportedOperators[OpNotIn] = false
-	
+
 	// Initialize supported types
 	va.supportedTypes[types.Integer] = true
 	va.supportedTypes[types.BigInt] = true
 	va.supportedTypes[types.Float] = true
 	va.supportedTypes[types.Double] = true
 	va.supportedTypes[types.Boolean] = true
-	
+
 	// Partially supported types
 	va.supportedTypes[types.Text] = false
 	va.supportedTypes[types.Bytea] = false
 	va.supportedTypes[types.Date] = false
 	va.supportedTypes[types.Timestamp] = false
-	
+
 	// Initialize vectorizable functions
 	va.initializeVectorizableFunctions()
 }
@@ -155,7 +155,7 @@ func (va *VectorizationAnalyzer) initializeVectorizableFunctions() {
 		SpeedupFactor:    1.5,
 		RequiredTypes:    []types.DataType{types.Integer, types.BigInt, types.Float, types.Double},
 	}
-	
+
 	va.vectorizableFunctions["SQRT"] = &FunctionVectorizability{
 		IsVectorizable:   true,
 		ComplexityScore:  3,
@@ -163,7 +163,7 @@ func (va *VectorizationAnalyzer) initializeVectorizableFunctions() {
 		SpeedupFactor:    1.3,
 		RequiredTypes:    []types.DataType{types.Float, types.Double},
 	}
-	
+
 	va.vectorizableFunctions["FLOOR"] = &FunctionVectorizability{
 		IsVectorizable:   true,
 		ComplexityScore:  2,
@@ -171,7 +171,7 @@ func (va *VectorizationAnalyzer) initializeVectorizableFunctions() {
 		SpeedupFactor:    1.4,
 		RequiredTypes:    []types.DataType{types.Float, types.Double},
 	}
-	
+
 	// String functions (not vectorizable in current implementation)
 	va.vectorizableFunctions["SUBSTRING"] = &FunctionVectorizability{
 		IsVectorizable:   false,
@@ -180,7 +180,7 @@ func (va *VectorizationAnalyzer) initializeVectorizableFunctions() {
 		SpeedupFactor:    0.8,
 		BlockingFactors:  []string{"string_manipulation", "variable_length_output"},
 	}
-	
+
 	va.vectorizableFunctions["LENGTH"] = &FunctionVectorizability{
 		IsVectorizable:   false,
 		ComplexityScore:  3,
@@ -188,7 +188,7 @@ func (va *VectorizationAnalyzer) initializeVectorizableFunctions() {
 		SpeedupFactor:    0.9,
 		BlockingFactors:  []string{"string_processing"},
 	}
-	
+
 	// Date/time functions (not vectorizable in current implementation)
 	va.vectorizableFunctions["EXTRACT"] = &FunctionVectorizability{
 		IsVectorizable:   false,
@@ -197,7 +197,7 @@ func (va *VectorizationAnalyzer) initializeVectorizableFunctions() {
 		SpeedupFactor:    0.9,
 		BlockingFactors:  []string{"date_time_processing"},
 	}
-	
+
 	// Aggregate functions (require special handling)
 	va.vectorizableFunctions["SUM"] = &FunctionVectorizability{
 		IsVectorizable:   true,
@@ -207,7 +207,7 @@ func (va *VectorizationAnalyzer) initializeVectorizableFunctions() {
 		RequiredTypes:    []types.DataType{types.Integer, types.BigInt, types.Float, types.Double},
 		BlockingFactors:  []string{"requires_aggregate_context"},
 	}
-	
+
 	va.vectorizableFunctions["COUNT"] = &FunctionVectorizability{
 		IsVectorizable:   true,
 		ComplexityScore:  2,
@@ -231,18 +231,18 @@ func (va *VectorizationAnalyzer) AnalyzeExpression(
 		SupportedOperators:  0,
 		UnsupportedFeatures: []string{},
 	}
-	
+
 	if expr == nil {
 		assessment.RecommendedAction = RecommendScalar
 		return assessment
 	}
-	
+
 	// Analyze the expression tree
 	va.analyzeExpressionRecursive(expr, assessment)
-	
+
 	// Calculate final metrics
 	va.calculateFinalAssessment(assessment, inputCardinality)
-	
+
 	return assessment
 }
 
@@ -254,30 +254,30 @@ func (va *VectorizationAnalyzer) analyzeExpressionRecursive(
 	switch e := expr.(type) {
 	case *BinaryOp:
 		va.analyzeBinaryOp(e, assessment)
-		
+
 	case *UnaryOp:
 		va.analyzeUnaryOp(e, assessment)
-		
+
 	case *FunctionCall:
 		va.analyzeFunctionCall(e, assessment)
-		
+
 	case *AggregateExpr:
 		va.analyzeAggregateExpr(e, assessment)
-		
+
 	case *SubqueryExpr:
 		va.analyzeSubqueryExpr(e, assessment)
-		
+
 	case *CaseExpr:
 		va.analyzeCaseExpr(e, assessment)
-		
+
 	case *ColumnRef:
 		va.analyzeColumnRef(e, assessment)
-		
+
 	case *Literal:
 		va.analyzeLiteral(e, assessment)
-		
+
 	default:
-		assessment.UnsupportedFeatures = append(assessment.UnsupportedFeatures, 
+		assessment.UnsupportedFeatures = append(assessment.UnsupportedFeatures,
 			fmt.Sprintf("unknown_expression_type_%T", expr))
 		assessment.IsVectorizable = false
 	}
@@ -287,12 +287,12 @@ func (va *VectorizationAnalyzer) analyzeExpressionRecursive(
 func (va *VectorizationAnalyzer) analyzeBinaryOp(op *BinaryOp, assessment *VectorizationAssessment) {
 	// Check if operator is supported
 	if supported, exists := va.supportedOperators[op.Operator]; !exists || !supported {
-		assessment.BlockingFactors = append(assessment.BlockingFactors, 
+		assessment.BlockingFactors = append(assessment.BlockingFactors,
 			fmt.Sprintf("unsupported_operator_%s", op.Operator.String()))
 		assessment.IsVectorizable = false
 	} else {
 		assessment.SupportedOperators++
-		
+
 		// Estimate speedup based on operator type
 		switch op.Operator {
 		case OpAdd, OpSubtract, OpMultiply:
@@ -305,7 +305,7 @@ func (va *VectorizationAnalyzer) analyzeBinaryOp(op *BinaryOp, assessment *Vecto
 			assessment.EstimatedSpeedup *= 1.10 // Slightly less due to division complexity
 		}
 	}
-	
+
 	// Add complexity
 	if isArithmeticOp(op.Operator) {
 		assessment.ComplexityScore += va.complexityWeights[ExprTypeArithmetic]
@@ -314,7 +314,7 @@ func (va *VectorizationAnalyzer) analyzeBinaryOp(op *BinaryOp, assessment *Vecto
 	} else if isLogicalOp(op.Operator) {
 		assessment.ComplexityScore += va.complexityWeights[ExprTypeLogical]
 	}
-	
+
 	// Recursively analyze operands
 	va.analyzeExpressionRecursive(op.Left, assessment)
 	va.analyzeExpressionRecursive(op.Right, assessment)
@@ -336,11 +336,11 @@ func (va *VectorizationAnalyzer) analyzeUnaryOp(op *UnaryOp, assessment *Vectori
 		assessment.SupportedOperators++
 		assessment.EstimatedSpeedup *= 1.30
 	default:
-		assessment.BlockingFactors = append(assessment.BlockingFactors, 
+		assessment.BlockingFactors = append(assessment.BlockingFactors,
 			fmt.Sprintf("unsupported_unary_operator_%s", op.Operator.String()))
 		assessment.IsVectorizable = false
 	}
-	
+
 	assessment.ComplexityScore += va.complexityWeights[ExprTypeSimple]
 	va.analyzeExpressionRecursive(op.Expr, assessment)
 }
@@ -348,13 +348,13 @@ func (va *VectorizationAnalyzer) analyzeUnaryOp(op *UnaryOp, assessment *Vectori
 // analyzeFunctionCall analyzes function calls
 func (va *VectorizationAnalyzer) analyzeFunctionCall(fn *FunctionCall, assessment *VectorizationAssessment) {
 	funcName := strings.ToUpper(fn.Name)
-	
+
 	if vectorizability, exists := va.vectorizableFunctions[funcName]; exists {
 		if vectorizability.IsVectorizable {
 			assessment.EstimatedSpeedup *= vectorizability.SpeedupFactor
 			assessment.MemoryRequirement += int64(float64(assessment.MemoryRequirement) * vectorizability.MemoryMultiplier)
 		} else {
-			assessment.BlockingFactors = append(assessment.BlockingFactors, 
+			assessment.BlockingFactors = append(assessment.BlockingFactors,
 				fmt.Sprintf("non_vectorizable_function_%s", funcName))
 			assessment.BlockingFactors = append(assessment.BlockingFactors, vectorizability.BlockingFactors...)
 			assessment.IsVectorizable = false
@@ -362,12 +362,12 @@ func (va *VectorizationAnalyzer) analyzeFunctionCall(fn *FunctionCall, assessmen
 		assessment.ComplexityScore += vectorizability.ComplexityScore
 	} else {
 		// Unknown function - assume not vectorizable
-		assessment.BlockingFactors = append(assessment.BlockingFactors, 
+		assessment.BlockingFactors = append(assessment.BlockingFactors,
 			fmt.Sprintf("unknown_function_%s", funcName))
 		assessment.IsVectorizable = false
 		assessment.ComplexityScore += va.complexityWeights[ExprTypeFunction]
 	}
-	
+
 	// Analyze function arguments
 	for _, arg := range fn.Args {
 		va.analyzeExpressionRecursive(arg, assessment)
@@ -377,25 +377,25 @@ func (va *VectorizationAnalyzer) analyzeFunctionCall(fn *FunctionCall, assessmen
 // analyzeAggregateExpr analyzes aggregate expressions
 func (va *VectorizationAnalyzer) analyzeAggregateExpr(agg *AggregateExpr, assessment *VectorizationAssessment) {
 	funcName := agg.Function.String()
-	
+
 	if vectorizability, exists := va.vectorizableFunctions[funcName]; exists {
 		if vectorizability.IsVectorizable {
 			// Aggregates can be vectorized but require special context
 			assessment.EstimatedSpeedup *= vectorizability.SpeedupFactor
 			assessment.BlockingFactors = append(assessment.BlockingFactors, "requires_aggregate_context")
 		} else {
-			assessment.BlockingFactors = append(assessment.BlockingFactors, 
+			assessment.BlockingFactors = append(assessment.BlockingFactors,
 				fmt.Sprintf("non_vectorizable_aggregate_%s", funcName))
 			assessment.IsVectorizable = false
 		}
 	} else {
-		assessment.BlockingFactors = append(assessment.BlockingFactors, 
+		assessment.BlockingFactors = append(assessment.BlockingFactors,
 			fmt.Sprintf("unknown_aggregate_%s", funcName))
 		assessment.IsVectorizable = false
 	}
-	
+
 	assessment.ComplexityScore += va.complexityWeights[ExprTypeAggregate]
-	
+
 	// Analyze aggregate arguments
 	for _, arg := range agg.Args {
 		va.analyzeExpressionRecursive(arg, assessment)
@@ -415,17 +415,17 @@ func (va *VectorizationAnalyzer) analyzeCaseExpr(caseExpr *CaseExpr, assessment 
 	// CASE expressions can be vectorized but with reduced efficiency
 	assessment.ComplexityScore += va.complexityWeights[ExprTypeCase]
 	assessment.EstimatedSpeedup *= 0.9 // Slight penalty for branching
-	
+
 	// Analyze all WHEN conditions and results
 	for _, when := range caseExpr.WhenList {
 		va.analyzeExpressionRecursive(when.Condition, assessment)
 		va.analyzeExpressionRecursive(when.Result, assessment)
 	}
-	
+
 	if caseExpr.Else != nil {
 		va.analyzeExpressionRecursive(caseExpr.Else, assessment)
 	}
-	
+
 	if caseExpr.Expr != nil {
 		va.analyzeExpressionRecursive(caseExpr.Expr, assessment)
 	}
@@ -436,10 +436,10 @@ func (va *VectorizationAnalyzer) analyzeColumnRef(col *ColumnRef, assessment *Ve
 	// Column references are highly vectorizable
 	assessment.ComplexityScore += va.complexityWeights[ExprTypeSimple]
 	assessment.EstimatedSpeedup *= 1.1
-	
+
 	// Check if column type is supported
 	if supported, exists := va.supportedTypes[col.ColumnType]; exists && !supported {
-		assessment.BlockingFactors = append(assessment.BlockingFactors, 
+		assessment.BlockingFactors = append(assessment.BlockingFactors,
 			"unsupported_column_type")
 		assessment.IsVectorizable = false
 	}
@@ -450,10 +450,10 @@ func (va *VectorizationAnalyzer) analyzeLiteral(lit *Literal, assessment *Vector
 	// Literals are highly vectorizable (broadcast to all rows)
 	assessment.ComplexityScore += va.complexityWeights[ExprTypeSimple]
 	assessment.EstimatedSpeedup *= 1.05
-	
+
 	// Check if literal type is supported
 	if supported, exists := va.supportedTypes[lit.Type]; exists && !supported {
-		assessment.BlockingFactors = append(assessment.BlockingFactors, 
+		assessment.BlockingFactors = append(assessment.BlockingFactors,
 			"unsupported_literal_type")
 		assessment.IsVectorizable = false
 	}
@@ -467,25 +467,25 @@ func (va *VectorizationAnalyzer) calculateFinalAssessment(
 	// Calculate memory requirement based on cardinality
 	baseMemoryPerRow := int64(64) // Estimated bytes per row for vectorized processing
 	assessment.MemoryRequirement += inputCardinality * baseMemoryPerRow
-	
+
 	// Adjust speedup based on complexity
 	if assessment.ComplexityScore > 10 {
 		assessment.EstimatedSpeedup *= 0.8 // High complexity penalty
 	} else if assessment.ComplexityScore > 5 {
 		assessment.EstimatedSpeedup *= 0.9 // Medium complexity penalty
 	}
-	
+
 	// Apply cardinality scaling factor
 	if inputCardinality > 10000 {
 		assessment.EstimatedSpeedup *= 1.1 // Bonus for large datasets
 	} else if inputCardinality < 1000 {
 		assessment.EstimatedSpeedup *= 0.9 // Penalty for small datasets
 	}
-	
+
 	// Determine final recommendation
 	if !assessment.IsVectorizable {
-		if len(assessment.BlockingFactors) == 1 && 
-		   strings.Contains(assessment.BlockingFactors[0], "requires_aggregate_context") {
+		if len(assessment.BlockingFactors) == 1 &&
+			strings.Contains(assessment.BlockingFactors[0], "requires_aggregate_context") {
 			assessment.RecommendedAction = RecommendFallback
 		} else {
 			assessment.RecommendedAction = RecommendScalar
@@ -508,7 +508,7 @@ func isArithmeticOp(op BinaryOperator) bool {
 
 func isComparisonOp(op BinaryOperator) bool {
 	return op == OpEqual || op == OpNotEqual || op == OpLess || op == OpLessEqual ||
-		   op == OpGreater || op == OpGreaterEqual
+		op == OpGreater || op == OpGreaterEqual
 }
 
 func isLogicalOp(op BinaryOperator) bool {

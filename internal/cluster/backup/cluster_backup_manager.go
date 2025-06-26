@@ -30,9 +30,9 @@ type ClusterBackupManager struct {
 	walManager         *wal.Manager
 
 	// Backup state
-	activeBackups   map[string]*BackupOperation
-	backupHistory   []*BackupMetadata
-	recoveryState   *RecoveryState
+	activeBackups map[string]*BackupOperation
+	backupHistory []*BackupMetadata
+	recoveryState *RecoveryState
 
 	// Storage
 	backupStorage BackupStorage
@@ -46,16 +46,16 @@ type ClusterBackupManager struct {
 // ClusterBackupConfig contains configuration for cluster backup operations
 type ClusterBackupConfig struct {
 	// Backup settings
-	BackupDirectory     string
-	CompressionEnabled  bool
-	EncryptionEnabled   bool
-	EncryptionKey       string
+	BackupDirectory      string
+	CompressionEnabled   bool
+	EncryptionEnabled    bool
+	EncryptionKey        string
 	MaxConcurrentBackups int
 
 	// Retention settings
-	RetentionDays       int
-	MaxBackupCount      int
-	AutoCleanupEnabled  bool
+	RetentionDays      int
+	MaxBackupCount     int
+	AutoCleanupEnabled bool
 
 	// Performance settings
 	BackupChunkSize     int64
@@ -63,10 +63,10 @@ type ClusterBackupConfig struct {
 	VerificationEnabled bool
 
 	// Storage settings
-	StorageType         BackupStorageType
-	S3Bucket           string
-	S3Region           string
-	LocalBackupPath    string
+	StorageType     BackupStorageType
+	S3Bucket        string
+	S3Region        string
+	LocalBackupPath string
 
 	// Schedule settings
 	AutoBackupEnabled  bool
@@ -87,26 +87,26 @@ const (
 
 // BackupOperation represents an ongoing backup operation
 type BackupOperation struct {
-	ID          string                 `json:"id"`
-	Type        BackupType            `json:"type"`
-	Status      BackupStatus          `json:"status"`
-	StartTime   time.Time             `json:"start_time"`
-	EndTime     *time.Time            `json:"end_time,omitempty"`
-	Progress    float64               `json:"progress"`
-	TotalSize   int64                 `json:"total_size"`
-	CompletedSize int64               `json:"completed_size"`
-	Error       string                `json:"error,omitempty"`
-	
+	ID            string       `json:"id"`
+	Type          BackupType   `json:"type"`
+	Status        BackupStatus `json:"status"`
+	StartTime     time.Time    `json:"start_time"`
+	EndTime       *time.Time   `json:"end_time,omitempty"`
+	Progress      float64      `json:"progress"`
+	TotalSize     int64        `json:"total_size"`
+	CompletedSize int64        `json:"completed_size"`
+	Error         string       `json:"error,omitempty"`
+
 	// Cluster coordination
-	CoordinatorNode string            `json:"coordinator_node"`
-	ParticipantNodes []string         `json:"participant_nodes"`
-	NodeStatuses    map[string]BackupNodeStatus `json:"node_statuses"`
-	
+	CoordinatorNode  string                      `json:"coordinator_node"`
+	ParticipantNodes []string                    `json:"participant_nodes"`
+	NodeStatuses     map[string]BackupNodeStatus `json:"node_statuses"`
+
 	// Backup details
-	BaseBackupID    string            `json:"base_backup_id,omitempty"`
-	WALStartLSN     wal.LSN          `json:"wal_start_lsn"`
-	WALEndLSN       wal.LSN          `json:"wal_end_lsn"`
-	Checksum        string           `json:"checksum"`
+	BaseBackupID string  `json:"base_backup_id,omitempty"`
+	WALStartLSN  wal.LSN `json:"wal_start_lsn"`
+	WALEndLSN    wal.LSN `json:"wal_end_lsn"`
+	Checksum     string  `json:"checksum"`
 }
 
 // BackupType defines the type of backup
@@ -143,73 +143,73 @@ type BackupNodeStatus struct {
 
 // BackupMetadata contains metadata about a completed backup
 type BackupMetadata struct {
-	ID              string                 `json:"id"`
-	Type            BackupType            `json:"type"`
-	StartTime       time.Time             `json:"start_time"`
-	EndTime         time.Time             `json:"end_time"`
-	Duration        time.Duration         `json:"duration"`
-	TotalSize       int64                 `json:"total_size"`
-	CompressedSize  int64                 `json:"compressed_size,omitempty"`
-	CompressionRatio float64              `json:"compression_ratio,omitempty"`
-	Checksum        string                `json:"checksum"`
-	
+	ID               string        `json:"id"`
+	Type             BackupType    `json:"type"`
+	StartTime        time.Time     `json:"start_time"`
+	EndTime          time.Time     `json:"end_time"`
+	Duration         time.Duration `json:"duration"`
+	TotalSize        int64         `json:"total_size"`
+	CompressedSize   int64         `json:"compressed_size,omitempty"`
+	CompressionRatio float64       `json:"compression_ratio,omitempty"`
+	Checksum         string        `json:"checksum"`
+
 	// Cluster state
-	ClusterNodes    []string              `json:"cluster_nodes"`
-	PrimaryNode     string                `json:"primary_node"`
-	ReplicationLag  map[string]time.Duration `json:"replication_lag"`
-	
+	ClusterNodes   []string                 `json:"cluster_nodes"`
+	PrimaryNode    string                   `json:"primary_node"`
+	ReplicationLag map[string]time.Duration `json:"replication_lag"`
+
 	// Recovery information
-	WALStartLSN     wal.LSN              `json:"wal_start_lsn"`
-	WALEndLSN       wal.LSN              `json:"wal_end_lsn"`
-	BaseBackupID    string               `json:"base_backup_id,omitempty"`
-	Dependencies    []string             `json:"dependencies,omitempty"`
-	
+	WALStartLSN  wal.LSN  `json:"wal_start_lsn"`
+	WALEndLSN    wal.LSN  `json:"wal_end_lsn"`
+	BaseBackupID string   `json:"base_backup_id,omitempty"`
+	Dependencies []string `json:"dependencies,omitempty"`
+
 	// Storage information
-	StorageLocation string               `json:"storage_location"`
-	StorageType     BackupStorageType    `json:"storage_type"`
-	Files           []BackupFileInfo     `json:"files"`
-	
+	StorageLocation string            `json:"storage_location"`
+	StorageType     BackupStorageType `json:"storage_type"`
+	Files           []BackupFileInfo  `json:"files"`
+
 	// Verification
-	Verified        bool                 `json:"verified"`
-	VerificationTime *time.Time          `json:"verification_time,omitempty"`
-	VerificationError string             `json:"verification_error,omitempty"`
+	Verified          bool       `json:"verified"`
+	VerificationTime  *time.Time `json:"verification_time,omitempty"`
+	VerificationError string     `json:"verification_error,omitempty"`
 }
 
 // BackupFileInfo contains information about individual backup files
 type BackupFileInfo struct {
-	Path        string    `json:"path"`
-	Size        int64     `json:"size"`
-	Checksum    string    `json:"checksum"`
-	Compressed  bool      `json:"compressed"`
-	Encrypted   bool      `json:"encrypted"`
-	NodeID      string    `json:"node_id"`
-	CreatedAt   time.Time `json:"created_at"`
+	Path       string    `json:"path"`
+	Size       int64     `json:"size"`
+	Checksum   string    `json:"checksum"`
+	Compressed bool      `json:"compressed"`
+	Encrypted  bool      `json:"encrypted"`
+	NodeID     string    `json:"node_id"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // RecoveryState tracks ongoing recovery operations
 type RecoveryState struct {
 	mu              sync.RWMutex
-	ActiveRecovery  *RecoveryOperation    `json:"active_recovery,omitempty"`
-	RecoveryHistory []*RecoveryOperation  `json:"recovery_history"`
+	ActiveRecovery  *RecoveryOperation   `json:"active_recovery,omitempty"`
+	RecoveryHistory []*RecoveryOperation `json:"recovery_history"`
 }
 
 // RecoveryOperation represents a point-in-time recovery operation
 type RecoveryOperation struct {
-	ID              string                    `json:"id"`
-	Type            RecoveryType             `json:"type"`
-	Status          BackupStatus             `json:"status"`
-	TargetTime      *time.Time               `json:"target_time,omitempty"`
-	TargetLSN       *wal.LSN                 `json:"target_lsn,omitempty"`
-	BaseBackupID    string                   `json:"base_backup_id"`
-	WALFiles        []string                 `json:"wal_files"`
-	StartTime       time.Time                `json:"start_time"`
-	EndTime         *time.Time               `json:"end_time,omitempty"`
-	Progress        float64                  `json:"progress"`
-	Error           string                   `json:"error,omitempty"`
-	
+	ID           string       `json:"id"`
+	Type         RecoveryType `json:"type"`
+	Status       BackupStatus `json:"status"`
+	TargetTime   *time.Time   `json:"target_time,omitempty"`
+	TargetLSN    *wal.LSN     `json:"target_lsn,omitempty"`
+	BaseBackupID string       `json:"base_backup_id"`
+	WALFiles     []string     `json:"wal_files"`
+	StartTime    time.Time    `json:"start_time"`
+	EndTime      *time.Time   `json:"end_time,omitempty"`
+	Progress     float64      `json:"progress"`
+	Error        string       `json:"error,omitempty"`
+
 	// Cluster coordination
-	CoordinatorNode string                   `json:"coordinator_node"`
-	NodeStatuses    map[string]BackupStatus  `json:"node_statuses"`
+	CoordinatorNode string                  `json:"coordinator_node"`
+	NodeStatuses    map[string]BackupStatus `json:"node_statuses"`
 }
 
 // RecoveryType defines the type of recovery operation
@@ -278,7 +278,7 @@ func NewClusterBackupManager(
 		walManager:         walManager,
 		activeBackups:      make(map[string]*BackupOperation),
 		backupHistory:      make([]*BackupMetadata, 0),
-		recoveryState:      &RecoveryState{
+		recoveryState: &RecoveryState{
 			RecoveryHistory: make([]*RecoveryOperation, 0),
 		},
 		stopCh: make(chan struct{}),
@@ -320,10 +320,10 @@ func (cbm *ClusterBackupManager) Start(ctx context.Context) error {
 func (cbm *ClusterBackupManager) Stop() error {
 	cbm.stopOnce.Do(func() {
 		close(cbm.stopCh)
-		
+
 		cbm.mu.Lock()
 		cbm.started = false
-		
+
 		// Cancel active backups
 		for _, backup := range cbm.activeBackups {
 			if backup.Status == BackupStatusRunning {
@@ -334,7 +334,7 @@ func (cbm *ClusterBackupManager) Stop() error {
 			}
 		}
 		cbm.mu.Unlock()
-		
+
 		cbm.logger.Info("Cluster backup manager stopped")
 	})
 	return nil
@@ -390,8 +390,8 @@ func (cbm *ClusterBackupManager) CreateFullBackup(ctx context.Context, reason st
 	// Start backup operation asynchronously
 	go cbm.executeFullBackup(ctx, backup)
 
-	cbm.logger.Info("Initiated full cluster backup", 
-		"backup_id", backupID, 
+	cbm.logger.Info("Initiated full cluster backup",
+		"backup_id", backupID,
 		"participant_nodes", len(participantNodes),
 		"reason", reason)
 
@@ -432,16 +432,16 @@ func (cbm *ClusterBackupManager) CreateIncrementalBackup(ctx context.Context, ba
 	// Create incremental backup operation
 	backupID := cbm.generateBackupID("incr")
 	backup := &BackupOperation{
-		ID:               backupID,
-		Type:             IncrementalBackup,
-		Status:           BackupStatusPending,
-		StartTime:        time.Now(),
-		Progress:         0.0,
-		CoordinatorNode:  string(replicationStatus.NodeID),
-		BaseBackupID:     baseBackupID,
-		WALStartLSN:      baseBackup.WALEndLSN,
-		WALEndLSN:        currentLSN,
-		NodeStatuses:     make(map[string]BackupNodeStatus),
+		ID:              backupID,
+		Type:            IncrementalBackup,
+		Status:          BackupStatusPending,
+		StartTime:       time.Now(),
+		Progress:        0.0,
+		CoordinatorNode: string(replicationStatus.NodeID),
+		BaseBackupID:    baseBackupID,
+		WALStartLSN:     baseBackup.WALEndLSN,
+		WALEndLSN:       currentLSN,
+		NodeStatuses:    make(map[string]BackupNodeStatus),
 	}
 
 	cbm.activeBackups[backupID] = backup
@@ -449,8 +449,8 @@ func (cbm *ClusterBackupManager) CreateIncrementalBackup(ctx context.Context, ba
 	// Start backup operation asynchronously
 	go cbm.executeIncrementalBackup(ctx, backup)
 
-	cbm.logger.Info("Initiated incremental backup", 
-		"backup_id", backupID, 
+	cbm.logger.Info("Initiated incremental backup",
+		"backup_id", backupID,
 		"base_backup_id", baseBackupID,
 		"wal_range", fmt.Sprintf("%d-%d", backup.WALStartLSN, backup.WALEndLSN))
 
@@ -503,8 +503,8 @@ func (cbm *ClusterBackupManager) RestoreFromBackup(ctx context.Context, backupID
 	// Start recovery operation asynchronously
 	go cbm.executeRecovery(ctx, recovery)
 
-	cbm.logger.Info("Initiated cluster recovery", 
-		"recovery_id", recoveryID, 
+	cbm.logger.Info("Initiated cluster recovery",
+		"recovery_id", recoveryID,
 		"backup_id", backupID,
 		"recovery_type", recoveryType)
 
@@ -636,8 +636,8 @@ func (cbm *ClusterBackupManager) executeIncrementalBackup(ctx context.Context, b
 
 	backup.Progress = 100.0
 
-	cbm.logger.Info("Incremental backup completed successfully", 
-		"backup_id", backup.ID, 
+	cbm.logger.Info("Incremental backup completed successfully",
+		"backup_id", backup.ID,
 		"wal_files", len(walFiles))
 }
 
@@ -691,14 +691,14 @@ func (cbm *ClusterBackupManager) coordinateBackupStart(ctx context.Context, back
 	// TODO: Implement coordination protocol
 	// This would involve sending backup start commands to all participant nodes
 	cbm.logger.Debug("Coordinating backup start", "backup_id", backup.ID)
-	
+
 	// Simulate coordination
 	for nodeID := range backup.NodeStatuses {
 		status := backup.NodeStatuses[nodeID]
 		status.Status = BackupStatusRunning
 		backup.NodeStatuses[nodeID] = status
 	}
-	
+
 	return nil
 }
 
@@ -707,7 +707,7 @@ func (cbm *ClusterBackupManager) createClusterSnapshot(ctx context.Context, back
 	// TODO: Implement consistent snapshot creation
 	// This would involve coordinating with all nodes to create a consistent point-in-time snapshot
 	cbm.logger.Debug("Creating cluster snapshot", "backup_id", backup.ID)
-	
+
 	backup.Progress = 20.0
 	return nil
 }
@@ -717,7 +717,7 @@ func (cbm *ClusterBackupManager) backupClusterData(ctx context.Context, backup *
 	// TODO: Implement actual data backup
 	// This would involve reading data files from each node and storing them
 	cbm.logger.Debug("Backing up cluster data", "backup_id", backup.ID)
-	
+
 	// Simulate data backup progress
 	totalNodes := len(backup.ParticipantNodes)
 	for i, nodeID := range backup.ParticipantNodes {
@@ -729,12 +729,12 @@ func (cbm *ClusterBackupManager) backupClusterData(ctx context.Context, backup *
 			status := backup.NodeStatuses[nodeID]
 			status.Progress = 100.0
 			backup.NodeStatuses[nodeID] = status
-			
+
 			// Update overall progress (20% to 70%)
 			backup.Progress = 20.0 + (float64(i+1)/float64(totalNodes))*50.0
 		}
 	}
-	
+
 	return nil
 }
 
@@ -742,7 +742,7 @@ func (cbm *ClusterBackupManager) backupClusterData(ctx context.Context, backup *
 func (cbm *ClusterBackupManager) backupWALFiles(ctx context.Context, backup *BackupOperation) error {
 	// TODO: Implement WAL file backup
 	cbm.logger.Debug("Backing up WAL files", "backup_id", backup.ID)
-	
+
 	backup.Progress = 80.0
 	return nil
 }
@@ -752,7 +752,7 @@ func (cbm *ClusterBackupManager) generateBackupMetadata(ctx context.Context, bac
 	// Calculate checksums and generate metadata
 	checksum := cbm.calculateBackupChecksum(backup)
 	backup.Checksum = checksum
-	
+
 	backup.Progress = 90.0
 	return nil
 }
@@ -761,7 +761,7 @@ func (cbm *ClusterBackupManager) generateBackupMetadata(ctx context.Context, bac
 func (cbm *ClusterBackupManager) verifyBackupIntegrity(ctx context.Context, backup *BackupOperation) error {
 	// TODO: Implement backup verification
 	cbm.logger.Debug("Verifying backup integrity", "backup_id", backup.ID)
-	
+
 	backup.Progress = 95.0
 	return nil
 }
@@ -816,7 +816,7 @@ func (cbm *ClusterBackupManager) addToBackupHistory(backup *BackupOperation) {
 
 	cbm.mu.Lock()
 	cbm.backupHistory = append(cbm.backupHistory, metadata)
-	
+
 	// Sort by start time (newest first)
 	sort.Slice(cbm.backupHistory, func(i, j int) bool {
 		return cbm.backupHistory[i].StartTime.After(cbm.backupHistory[j].StartTime)
@@ -928,16 +928,16 @@ func (cbm *ClusterBackupManager) cleanupOldBackups() {
 	for i := len(toDelete) - 1; i >= 0; i-- {
 		idx := toDelete[i]
 		backup := cbm.backupHistory[idx]
-		
+
 		// Delete backup files
 		if err := cbm.deleteBackupFiles(backup); err != nil {
 			cbm.logger.Error("Failed to delete backup files", "backup_id", backup.ID, "error", err)
 			continue
 		}
-		
+
 		// Remove from history
 		cbm.backupHistory = append(cbm.backupHistory[:idx], cbm.backupHistory[idx+1:]...)
-		
+
 		cbm.logger.Info("Cleaned up old backup", "backup_id", backup.ID, "age", time.Since(backup.StartTime))
 	}
 
@@ -949,11 +949,11 @@ func (cbm *ClusterBackupManager) cleanupOldBackups() {
 func (cbm *ClusterBackupManager) verifyOldBackups() {
 	cbm.mu.RLock()
 	backupsToVerify := make([]*BackupMetadata, 0)
-	
+
 	// Find unverified backups or backups that haven't been verified recently
 	for _, backup := range cbm.backupHistory {
-		if !backup.Verified || 
-		   (backup.VerificationTime != nil && time.Since(*backup.VerificationTime) > 30*24*time.Hour) {
+		if !backup.Verified ||
+			(backup.VerificationTime != nil && time.Since(*backup.VerificationTime) > 30*24*time.Hour) {
 			backupsToVerify = append(backupsToVerify, backup)
 		}
 	}
@@ -962,7 +962,7 @@ func (cbm *ClusterBackupManager) verifyOldBackups() {
 	// Verify backups
 	for _, backup := range backupsToVerify {
 		cbm.logger.Info("Verifying backup", "backup_id", backup.ID)
-		
+
 		// TODO: Implement actual verification
 		// For now, just mark as verified
 		cbm.mu.Lock()
@@ -970,7 +970,7 @@ func (cbm *ClusterBackupManager) verifyOldBackups() {
 		now := time.Now()
 		backup.VerificationTime = &now
 		cbm.mu.Unlock()
-		
+
 		cbm.logger.Info("Backup verification completed", "backup_id", backup.ID)
 	}
 
@@ -998,7 +998,7 @@ func (cbm *ClusterBackupManager) createStorageBackend() BackupStorage {
 // loadBackupHistory loads backup history from storage
 func (cbm *ClusterBackupManager) loadBackupHistory() error {
 	historyFile := filepath.Join(cbm.config.BackupDirectory, "backup_history.json")
-	
+
 	if _, err := os.Stat(historyFile); os.IsNotExist(err) {
 		return nil // No history file exists yet
 	}
@@ -1015,14 +1015,14 @@ func (cbm *ClusterBackupManager) loadBackupHistory() error {
 
 	cbm.backupHistory = history
 	cbm.logger.Info("Loaded backup history", "backup_count", len(history))
-	
+
 	return nil
 }
 
 // saveBackupHistory saves backup history to storage
 func (cbm *ClusterBackupManager) saveBackupHistory() error {
 	historyFile := filepath.Join(cbm.config.BackupDirectory, "backup_history.json")
-	
+
 	// Ensure directory exists
 	if err := os.MkdirAll(cbm.config.BackupDirectory, 0755); err != nil {
 		return fmt.Errorf("failed to create backup directory: %w", err)
@@ -1033,7 +1033,7 @@ func (cbm *ClusterBackupManager) saveBackupHistory() error {
 		return fmt.Errorf("failed to marshal backup history: %w", err)
 	}
 
-	if err := os.WriteFile(historyFile, data, 0644); err != nil {
+	if err := os.WriteFile(historyFile, data, 0600); err != nil {
 		return fmt.Errorf("failed to write backup history: %w", err)
 	}
 

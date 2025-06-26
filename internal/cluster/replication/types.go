@@ -95,9 +95,9 @@ func (mt WALStreamMessageType) String() string {
 // ReplicationConfig holds configuration for replication
 type ReplicationConfig struct {
 	// Node configuration
-	NodeID   NodeID
-	Address  string
-	DataDir  string
+	NodeID  NodeID
+	Address string
+	DataDir string
 
 	// Replication mode
 	Mode ReplicationMode
@@ -213,13 +213,13 @@ type ReplicationStatus struct {
 type WALStreamer interface {
 	// Start streaming WAL from the specified LSN to the replica
 	StartStream(replica ReplicaInfo, startLSN wal.LSN) error
-	
+
 	// Stop streaming to the specified replica
 	StopStream(nodeID NodeID) error
-	
+
 	// Send WAL data to replicas
 	StreamWALRecord(record *wal.LogRecord) error
-	
+
 	// Get streaming status for all replicas
 	GetStreamStatus() map[NodeID]*StreamStatus
 }
@@ -228,30 +228,30 @@ type WALStreamer interface {
 type WALReceiver interface {
 	// Start receiving WAL stream from primary
 	StartReceiving(primaryAddr string, startLSN wal.LSN) error
-	
+
 	// Stop receiving WAL stream
 	StopReceiving() error
-	
+
 	// Get the last applied LSN
 	GetLastAppliedLSN() wal.LSN
-	
+
 	// Get receiver status
 	GetStatus() *ReceiverStatus
-	
+
 	// Close stops the receiver and cleans up resources
 	Close() error
 }
 
 // StreamStatus represents the status of a WAL stream to a replica
 type StreamStatus struct {
-	NodeID        NodeID
-	Address       string
-	State         ReplicaState
-	LastSentLSN   wal.LSN
-	BytesSent     int64
-	RecordsSent   int64
-	StartTime     time.Time
-	LastActivity  time.Time
+	NodeID       NodeID
+	Address      string
+	State        ReplicaState
+	LastSentLSN  wal.LSN
+	BytesSent    int64
+	RecordsSent  int64
+	StartTime    time.Time
+	LastActivity time.Time
 }
 
 // ReceiverStatus represents the status of WAL receiving

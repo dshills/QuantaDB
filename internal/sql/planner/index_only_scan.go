@@ -46,12 +46,12 @@ func NewIndexOnlyScan(tableName, indexName string, index *catalog.Index, schema 
 func IsCoveringIndex(index *catalog.Index, requiredColumns []string) bool {
 	// Build a set of columns in the index (both key columns and include columns)
 	indexColumns := make(map[string]bool)
-	
+
 	// Add key columns
 	for _, col := range index.Columns {
 		indexColumns[col.Column.Name] = true
 	}
-	
+
 	// Add include columns (for covering indexes)
 	for _, col := range index.IncludeColumns {
 		indexColumns[col.Column.Name] = true

@@ -26,11 +26,11 @@ type ClusterMonitor struct {
 	partitionDetector  *failover.NetworkPartitionDetector
 
 	// Monitoring state
-	nodes          map[string]*NodeMetrics
-	clusterHealth  *ClusterHealth
-	alerts         []*Alert
-	metrics        *ClusterMetrics
-	
+	nodes         map[string]*NodeMetrics
+	clusterHealth *ClusterHealth
+	alerts        []*Alert
+	metrics       *ClusterMetrics
+
 	// Control
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -40,19 +40,19 @@ type ClusterMonitor struct {
 // ClusterMonitorConfig contains configuration for cluster monitoring
 type ClusterMonitorConfig struct {
 	// Collection intervals
-	MetricsInterval      time.Duration
-	HealthCheckInterval  time.Duration
-	AlertCheckInterval   time.Duration
+	MetricsInterval     time.Duration
+	HealthCheckInterval time.Duration
+	AlertCheckInterval  time.Duration
 
 	// Retention settings
-	MetricsRetention     time.Duration
-	AlertRetention       time.Duration
-	MaxStoredMetrics     int
+	MetricsRetention time.Duration
+	AlertRetention   time.Duration
+	MaxStoredMetrics int
 
 	// Thresholds for alerting
-	CPUThreshold         float64
-	MemoryThreshold      float64
-	DiskThreshold        float64
+	CPUThreshold            float64
+	MemoryThreshold         float64
+	DiskThreshold           float64
 	ReplicationLagThreshold time.Duration
 	QueryLatencyThreshold   time.Duration
 
@@ -69,44 +69,44 @@ type NodeMetrics struct {
 	Timestamp time.Time `json:"timestamp"`
 
 	// System metrics
-	CPUUsage     float64 `json:"cpu_usage"`
-	MemoryUsage  float64 `json:"memory_usage"`
-	DiskUsage    float64 `json:"disk_usage"`
-	NetworkIn    int64   `json:"network_in"`
-	NetworkOut   int64   `json:"network_out"`
+	CPUUsage    float64 `json:"cpu_usage"`
+	MemoryUsage float64 `json:"memory_usage"`
+	DiskUsage   float64 `json:"disk_usage"`
+	NetworkIn   int64   `json:"network_in"`
+	NetworkOut  int64   `json:"network_out"`
 
 	// Database metrics
-	ActiveConnections  int32         `json:"active_connections"`
-	TotalQueries       int64         `json:"total_queries"`
-	QueriesPerSecond   float64       `json:"queries_per_second"`
-	AverageLatency     time.Duration `json:"average_latency"`
-	ReplicationLag     time.Duration `json:"replication_lag"`
+	ActiveConnections int32         `json:"active_connections"`
+	TotalQueries      int64         `json:"total_queries"`
+	QueriesPerSecond  float64       `json:"queries_per_second"`
+	AverageLatency    time.Duration `json:"average_latency"`
+	ReplicationLag    time.Duration `json:"replication_lag"`
 
 	// Storage metrics
-	TableCount         int32 `json:"table_count"`
-	IndexCount         int32 `json:"index_count"`
-	DatabaseSize       int64 `json:"database_size"`
-	WALSize           int64 `json:"wal_size"`
-	BufferHitRatio    float64 `json:"buffer_hit_ratio"`
+	TableCount     int32   `json:"table_count"`
+	IndexCount     int32   `json:"index_count"`
+	DatabaseSize   int64   `json:"database_size"`
+	WALSize        int64   `json:"wal_size"`
+	BufferHitRatio float64 `json:"buffer_hit_ratio"`
 
 	// Health status
-	IsHealthy         bool      `json:"is_healthy"`
-	LastSeen          time.Time `json:"last_seen"`
-	UptimeSeconds     int64     `json:"uptime_seconds"`
-	Role              string    `json:"role"`
+	IsHealthy     bool      `json:"is_healthy"`
+	LastSeen      time.Time `json:"last_seen"`
+	UptimeSeconds int64     `json:"uptime_seconds"`
+	Role          string    `json:"role"`
 }
 
 // ClusterHealth represents the overall health of the cluster
 type ClusterHealth struct {
-	Status            HealthStatus `json:"status"`
-	TotalNodes        int          `json:"total_nodes"`
-	HealthyNodes      int          `json:"healthy_nodes"`
-	UnhealthyNodes    int          `json:"unhealthy_nodes"`
-	PrimaryNode       string       `json:"primary_node"`
-	ReplicaNodes      []string     `json:"replica_nodes"`
-	PartitionStatus   string       `json:"partition_status"`
-	HasQuorum         bool         `json:"has_quorum"`
-	LastUpdated       time.Time    `json:"last_updated"`
+	Status          HealthStatus `json:"status"`
+	TotalNodes      int          `json:"total_nodes"`
+	HealthyNodes    int          `json:"healthy_nodes"`
+	UnhealthyNodes  int          `json:"unhealthy_nodes"`
+	PrimaryNode     string       `json:"primary_node"`
+	ReplicaNodes    []string     `json:"replica_nodes"`
+	PartitionStatus string       `json:"partition_status"`
+	HasQuorum       bool         `json:"has_quorum"`
+	LastUpdated     time.Time    `json:"last_updated"`
 }
 
 // HealthStatus represents the overall cluster health status
@@ -124,38 +124,38 @@ type ClusterMetrics struct {
 	Timestamp time.Time `json:"timestamp"`
 
 	// Aggregate performance
-	TotalQPS             float64       `json:"total_qps"`
-	AverageLatency       time.Duration `json:"average_latency"`
-	TotalConnections     int32         `json:"total_connections"`
-	TotalDatabaseSize    int64         `json:"total_database_size"`
+	TotalQPS          float64       `json:"total_qps"`
+	AverageLatency    time.Duration `json:"average_latency"`
+	TotalConnections  int32         `json:"total_connections"`
+	TotalDatabaseSize int64         `json:"total_database_size"`
 
 	// Replication metrics
-	MaxReplicationLag    time.Duration `json:"max_replication_lag"`
+	MaxReplicationLag     time.Duration `json:"max_replication_lag"`
 	AverageReplicationLag time.Duration `json:"average_replication_lag"`
-	ReplicationHealth    float64       `json:"replication_health"`
+	ReplicationHealth     float64       `json:"replication_health"`
 
 	// Resource utilization
-	AverageCPU           float64 `json:"average_cpu"`
-	AverageMemory        float64 `json:"average_memory"`
-	AverageDisk          float64 `json:"average_disk"`
+	AverageCPU    float64 `json:"average_cpu"`
+	AverageMemory float64 `json:"average_memory"`
+	AverageDisk   float64 `json:"average_disk"`
 
 	// Failure metrics
-	FailedNodes          int   `json:"failed_nodes"`
-	FailoverCount        int64 `json:"failover_count"`
-	AlertCount           int   `json:"alert_count"`
+	FailedNodes   int   `json:"failed_nodes"`
+	FailoverCount int64 `json:"failover_count"`
+	AlertCount    int   `json:"alert_count"`
 }
 
 // Alert represents a cluster alert
 type Alert struct {
-	ID          string       `json:"id"`
-	Severity    AlertSeverity `json:"severity"`
-	Type        AlertType    `json:"type"`
-	NodeID      string       `json:"node_id,omitempty"`
-	Message     string       `json:"message"`
-	Details     interface{}  `json:"details,omitempty"`
-	Timestamp   time.Time    `json:"timestamp"`
-	Resolved    bool         `json:"resolved"`
-	ResolvedAt  *time.Time   `json:"resolved_at,omitempty"`
+	ID         string        `json:"id"`
+	Severity   AlertSeverity `json:"severity"`
+	Type       AlertType     `json:"type"`
+	NodeID     string        `json:"node_id,omitempty"`
+	Message    string        `json:"message"`
+	Details    interface{}   `json:"details,omitempty"`
+	Timestamp  time.Time     `json:"timestamp"`
+	Resolved   bool          `json:"resolved"`
+	ResolvedAt *time.Time    `json:"resolved_at,omitempty"`
 }
 
 // AlertSeverity defines the severity level of an alert
@@ -261,11 +261,11 @@ func (cm *ClusterMonitor) Start(ctx context.Context) error {
 func (cm *ClusterMonitor) Stop() error {
 	cm.stopOnce.Do(func() {
 		close(cm.stopCh)
-		
+
 		cm.mu.Lock()
 		cm.started = false
 		cm.mu.Unlock()
-		
+
 		cm.logger.Info("Cluster monitor stopped")
 	})
 	return nil
@@ -379,38 +379,38 @@ func (cm *ClusterMonitor) collectNodeMetrics(nodeID string) *NodeMetrics {
 	// - Querying system metrics (CPU, memory, disk, network)
 	// - Querying database metrics (connections, queries, latency)
 	// - Querying storage metrics (table count, size, WAL size)
-	
+
 	// For now, simulate metrics collection
 	now := time.Now()
-	
+
 	// Simulate some realistic metrics with variation
 	baseTime := now.Unix()
-	
+
 	return &NodeMetrics{
 		NodeID:    nodeID,
 		Timestamp: now,
-		
+
 		// System metrics (simulated)
-		CPUUsage:    float64((baseTime%100) + 10), // 10-110% variation
-		MemoryUsage: float64((baseTime%50) + 30),  // 30-80% variation
-		DiskUsage:   float64((baseTime%30) + 40),  // 40-70% variation
-		NetworkIn:   (baseTime % 1000) * 1024,     // Variable network usage
+		CPUUsage:    float64((baseTime % 100) + 10), // 10-110% variation
+		MemoryUsage: float64((baseTime % 50) + 30),  // 30-80% variation
+		DiskUsage:   float64((baseTime % 30) + 40),  // 40-70% variation
+		NetworkIn:   (baseTime % 1000) * 1024,       // Variable network usage
 		NetworkOut:  (baseTime % 800) * 1024,
-		
+
 		// Database metrics (simulated)
-		ActiveConnections: int32((baseTime % 50) + 5), // 5-55 connections
-		TotalQueries:      baseTime * 10,              // Increasing query count
+		ActiveConnections: int32((baseTime % 50) + 5),     // 5-55 connections
+		TotalQueries:      baseTime * 10,                  // Increasing query count
 		QueriesPerSecond:  float64((baseTime % 100) + 10), // 10-110 QPS
 		AverageLatency:    time.Duration((baseTime%50)+5) * time.Millisecond,
-		ReplicationLag:    time.Duration((baseTime%1000)) * time.Millisecond,
-		
-		// Storage metrics (simulated)
+		ReplicationLag:    time.Duration((baseTime % 1000)) * time.Millisecond,
+
+		// Storage metrics (simulated)  
 		TableCount:     int32((baseTime % 20) + 10), // 10-30 tables
 		IndexCount:     int32((baseTime % 50) + 20), // 20-70 indexes
 		DatabaseSize:   (baseTime % 10000) * 1024 * 1024, // Variable DB size
-		WALSize:        (baseTime % 1000) * 1024,          // Variable WAL size
-		BufferHitRatio: 0.95 + float64((baseTime%5))/100,  // 95-99% hit ratio
-		
+		WALSize:        (baseTime % 1000) * 1024,         // Variable WAL size
+		BufferHitRatio: 0.95 + float64((baseTime%5))/100, // 95-99% hit ratio
+
 		// Health status
 		IsHealthy:     true, // Assume healthy for simulation
 		LastSeen:      now,
@@ -451,24 +451,24 @@ func (cm *ClusterMonitor) updateClusterMetrics() {
 	}
 
 	var (
-		totalQPS      float64
-		totalLatency  time.Duration
-		totalCPU      float64
-		totalMemory   float64
-		totalDisk     float64
-		maxLag        time.Duration
-		totalLag      time.Duration
-		healthyNodes  int
-		totalConns    int32
-		totalDBSize   int64
-		nodeCount     int
+		totalQPS     float64
+		totalLatency time.Duration
+		totalCPU     float64
+		totalMemory  float64
+		totalDisk    float64
+		maxLag       time.Duration
+		totalLag     time.Duration
+		healthyNodes int
+		totalConns   int32
+		totalDBSize  int64
+		nodeCount    int
 	)
 
 	for _, node := range cm.nodes {
 		if node.IsHealthy {
 			healthyNodes++
 		}
-		
+
 		totalQPS += node.QueriesPerSecond
 		totalLatency += node.AverageLatency
 		totalCPU += node.CPUUsage
@@ -477,11 +477,11 @@ func (cm *ClusterMonitor) updateClusterMetrics() {
 		totalConns += node.ActiveConnections
 		totalDBSize += node.DatabaseSize
 		totalLag += node.ReplicationLag
-		
+
 		if node.ReplicationLag > maxLag {
 			maxLag = node.ReplicationLag
 		}
-		
+
 		nodeCount++
 	}
 
@@ -618,7 +618,7 @@ func (cm *ClusterMonitor) checkNodeAlerts(node *NodeMetrics) {
 	// Check node health
 	if !node.IsHealthy {
 		cm.createAlert(AlertTypeNodeDown, AlertSeverityCritical, node.NodeID,
-			fmt.Sprintf("Node is unhealthy"), nil)
+			"Node is unhealthy", nil)
 	}
 }
 
@@ -627,10 +627,10 @@ func (cm *ClusterMonitor) checkClusterAlerts() {
 	// Check for network partition
 	if cm.partitionDetector != nil && cm.partitionDetector.IsPartitioned() {
 		cm.createAlert(AlertTypeNetworkPartition, AlertSeverityEmergency, "",
-			"Network partition detected", 
+			"Network partition detected",
 			map[string]interface{}{
 				"partition_state": cm.partitionDetector.GetPartitionState(),
-				"has_quorum": cm.partitionDetector.HasQuorum(),
+				"has_quorum":      cm.partitionDetector.HasQuorum(),
 			})
 	}
 }
@@ -658,7 +658,7 @@ func (cm *ClusterMonitor) createAlert(alertType AlertType, severity AlertSeverit
 
 	cm.alerts = append(cm.alerts, alert)
 
-	cm.logger.Warn("Created alert", 
+	cm.logger.Warn("Created alert",
 		"alert_id", alert.ID,
 		"severity", alert.Severity,
 		"type", alert.Type,
@@ -709,11 +709,11 @@ func (cm *ClusterMonitor) jsonExportLoop(ctx context.Context) {
 func (cm *ClusterMonitor) exportJSON() {
 	cm.mu.RLock()
 	data := map[string]interface{}{
-		"cluster_health": cm.clusterHealth,
+		"cluster_health":  cm.clusterHealth,
 		"cluster_metrics": cm.metrics,
-		"nodes": cm.nodes,
-		"alerts": cm.alerts,
-		"timestamp": time.Now(),
+		"nodes":           cm.nodes,
+		"alerts":          cm.alerts,
+		"timestamp":       time.Now(),
 	}
 	cm.mu.RUnlock()
 
@@ -725,8 +725,8 @@ func (cm *ClusterMonitor) exportJSON() {
 
 	// TODO: Write to actual file
 	// For now, just log that we would export
-	cm.logger.Debug("Would export JSON metrics", 
-		"path", cm.config.JSONExportPath, 
+	cm.logger.Debug("Would export JSON metrics",
+		"path", cm.config.JSONExportPath,
 		"size", len(jsonData))
 }
 
@@ -739,7 +739,7 @@ func (cm *ClusterMonitor) GetClusterHealth() *ClusterHealth {
 	health := *cm.clusterHealth
 	health.ReplicaNodes = make([]string, len(cm.clusterHealth.ReplicaNodes))
 	copy(health.ReplicaNodes, cm.clusterHealth.ReplicaNodes)
-	
+
 	return &health
 }
 
@@ -822,7 +822,7 @@ func (cm *ClusterMonitor) ResolveAlert(alertID string) error {
 			alert.Resolved = true
 			now := time.Now()
 			alert.ResolvedAt = &now
-			
+
 			cm.logger.Info("Resolved alert", "alert_id", alertID)
 			return nil
 		}
@@ -844,10 +844,10 @@ func (cm *ClusterMonitor) GetStatus() map[string]interface{} {
 		"alert_count":     len(cm.alerts),
 		"active_alerts":   len(cm.GetActiveAlerts()),
 		"config": map[string]interface{}{
-			"metrics_interval":    cm.config.MetricsInterval,
+			"metrics_interval":      cm.config.MetricsInterval,
 			"health_check_interval": cm.config.HealthCheckInterval,
-			"prometheus_enabled":  cm.config.EnablePrometheusExport,
-			"json_export_enabled": cm.config.EnableJSONExport,
+			"prometheus_enabled":    cm.config.EnablePrometheusExport,
+			"json_export_enabled":   cm.config.EnableJSONExport,
 		},
 	}
 }

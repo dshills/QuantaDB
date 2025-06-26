@@ -67,7 +67,7 @@ func NewCreateIndexOperator(
 // Open initializes the CREATE INDEX operation.
 func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 	c.ctx = ctx
-	
+
 	// Check if table exists
 	table, err := c.catalog.GetTable(c.schemaName, c.tableName)
 	if err != nil {
@@ -313,7 +313,7 @@ func NewDropIndexOperator(
 // Open initializes the DROP INDEX operation
 func (d *DropIndexOperator) Open(ctx *ExecContext) error {
 	d.ctx = ctx
-	
+
 	// If table name is not specified, search all tables
 	if d.tableName == "" {
 		// Search for index in all tables

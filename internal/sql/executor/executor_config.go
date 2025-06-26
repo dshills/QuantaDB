@@ -18,12 +18,12 @@ type ConfigurableExecutor struct {
 	catalog    catalog.Catalog
 	txnManager *txn.Manager
 	config     *ExecutorRuntimeConfig
-	
+
 	// Runtime statistics
 	stats struct {
-		mu                    sync.RWMutex
-		vectorizedQueries     int64
-		fallbackQueries       int64
+		mu                   sync.RWMutex
+		vectorizedQueries    int64
+		fallbackQueries      int64
 		cacheHits            int64
 		cacheMisses          int64
 		totalMemoryUsed      int64
@@ -31,13 +31,13 @@ type ConfigurableExecutor struct {
 		queriesExecuted      int64
 		averageExecutionTime time.Duration
 	}
-	
+
 	// Result cache (if enabled)
 	resultCache *ResultCache
-	
+
 	// Memory tracking
 	memoryTracker *MemoryTracker
-	
+
 	// Feature flags (cached for performance)
 	enableVectorized atomic.Bool
 	enableCaching    atomic.Bool
@@ -52,11 +52,11 @@ func NewConfigurableExecutor(engine engine.Engine, catalog catalog.Catalog, txnM
 		config:        cfg,
 		memoryTracker: NewMemoryTracker(cfg.QueryMemoryLimit),
 	}
-	
+
 	// Initialize feature flags
 	exec.enableVectorized.Store(cfg.IsVectorizedEnabled())
 	exec.enableCaching.Store(cfg.IsCachingEnabled())
-	
+
 	// Initialize result cache if enabled
 	if cfg.IsCachingEnabled() {
 		cacheConfig := &ResultCacheConfig{
@@ -67,7 +67,7 @@ func NewConfigurableExecutor(engine engine.Engine, catalog catalog.Catalog, txnM
 		}
 		exec.resultCache = NewResultCache(cacheConfig)
 	}
-	
+
 	return exec
 }
 
@@ -77,7 +77,7 @@ func (ce *ConfigurableExecutor) Execute(ctx *ExecContext, plan planner.Plan, tx 
 	defer func() {
 		ce.updateStats(time.Since(startTime))
 	}()
-	
+
 	// Check if caching is enabled and query is cacheable
 	if ce.enableCaching.Load() && ce.resultCache != nil {
 		if cached, ok := ce.checkCache(plan); ok {
@@ -86,32 +86,32 @@ func (ce *ConfigurableExecutor) Execute(ctx *ExecContext, plan planner.Plan, tx 
 		}
 		atomic.AddInt64(&ce.stats.cacheMisses, 1)
 	}
-	
+
 	// Create operator tree with configuration
 	rootOp, err := ce.createOperator(plan, ctx)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Wrap with memory tracking
 	rootOp = ce.wrapWithMemoryTracking(rootOp)
-	
+
 	// Execute the operator tree
 	if err := rootOp.Open(ctx); err != nil {
 		return nil, err
 	}
-	
+
 	// Create result set
 	result := &operatorResult{
 		operator: rootOp,
 		schema:   rootOp.Schema(),
 	}
-	
+
 	// Cache result if applicable
 	if ce.enableCaching.Load() && ce.resultCache != nil && ce.isCacheable(plan) {
 		return ce.wrapWithCaching(result, plan), nil
 	}
-	
+
 	atomic.AddInt64(&ce.stats.queriesExecuted, 1)
 	return result, nil
 }
@@ -125,7 +125,7 @@ func (ce *ConfigurableExecutor) createOperator(plan planner.Plan, ctx *ExecConte
 			return ce.createVectorizedScan(p, ctx)
 		}
 		return ce.createRegularScan(p, ctx)
-		
+
 	case *planner.LogicalFilter:
 		if len(p.Children()) == 0 {
 			return nil, fmt.Errorf("filter has no child")
@@ -134,21 +134,21 @@ func (ce *ConfigurableExecutor) createOperator(plan planner.Plan, ctx *ExecConte
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if ce.shouldUseVectorized(p) && ce.supportsVectorizedExpression(p.Predicate) {
 			return NewVectorizedFilterOperatorWithFallback(
 				child.(VectorizedOperator),
 				p.Predicate,
 			), nil
 		}
-		
+
 		// Build expression evaluator from planner expression
 		evaluator, err := buildExprEvaluator(p.Predicate)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build filter evaluator: %w", err)
 		}
 		return NewFilterOperator(child, evaluator), nil
-		
+
 	// Add other operator types...
 	default:
 		// Fallback to regular operator creation
@@ -161,7 +161,7 @@ func (ce *ConfigurableExecutor) shouldUseVectorized(plan planner.Plan) bool {
 	if !ce.enableVectorized.Load() {
 		return false
 	}
-	
+
 	// For now, enable vectorized execution for all supported plan types
 	// In the future, this can use cost-based decisions
 	switch plan.(type) {
@@ -184,7 +184,7 @@ func (ce *ConfigurableExecutor) createVectorizedScan(scan *planner.LogicalScan, 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Build schema from table
 	schema := &Schema{
 		Columns: make([]Column, len(table.Columns)),
@@ -195,10 +195,10 @@ func (ce *ConfigurableExecutor) createVectorizedScan(scan *planner.LogicalScan, 
 			Type: col.DataType,
 		}
 	}
-	
+
 	// For now, use table ID as a simple identifier
 	// In a real implementation, we'd need proper table access
-	return NewVectorizedScanOperator(schema, int64(table.ID)), nil
+	return NewVectorizedScanOperator(schema, table.ID), nil
 }
 
 // createRegularScan creates a regular scan operator
@@ -207,7 +207,7 @@ func (ce *ConfigurableExecutor) createRegularScan(scan *planner.LogicalScan, ctx
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return NewScanOperator(table, ctx), nil
 }
 
@@ -224,13 +224,13 @@ func (ce *ConfigurableExecutor) checkCache(plan planner.Plan) (Result, bool) {
 	if ce.resultCache == nil {
 		return nil, false
 	}
-	
+
 	key := ce.generateCacheKey(plan)
 	cached, ok := ce.resultCache.Get(key)
 	if !ok {
 		return nil, false
 	}
-	
+
 	// Convert cached result to Result interface
 	return &cachedResultWrapper{
 		cached: cached,
@@ -245,12 +245,12 @@ func (ce *ConfigurableExecutor) isCacheable(plan planner.Plan) bool {
 	case *planner.LogicalInsert, *planner.LogicalUpdate, *planner.LogicalDelete:
 		return false
 	}
-	
+
 	// Don't cache queries with non-deterministic functions
 	if ce.hasNonDeterministicFunctions(plan) {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -258,7 +258,7 @@ func (ce *ConfigurableExecutor) isCacheable(plan planner.Plan) bool {
 func (ce *ConfigurableExecutor) wrapWithCaching(result Result, plan planner.Plan) Result {
 	key := ce.generateCacheKey(plan)
 	tables := ce.extractTableDependencies(plan)
-	
+
 	return &cachingResultWrapper{
 		Result: result,
 		cache:  ce.resultCache,
@@ -289,7 +289,7 @@ func (ce *ConfigurableExecutor) hasNonDeterministicFunctions(plan planner.Plan) 
 func (ce *ConfigurableExecutor) updateStats(duration time.Duration) {
 	ce.stats.mu.Lock()
 	defer ce.stats.mu.Unlock()
-	
+
 	// Update average execution time
 	totalQueries := ce.stats.queriesExecuted
 	if totalQueries > 0 {
@@ -299,7 +299,7 @@ func (ce *ConfigurableExecutor) updateStats(duration time.Duration) {
 	} else {
 		ce.stats.averageExecutionTime = duration
 	}
-	
+
 	// Update memory stats
 	currentMem := ce.memoryTracker.CurrentUsage()
 	ce.stats.totalMemoryUsed = currentMem
@@ -312,10 +312,10 @@ func (ce *ConfigurableExecutor) updateStats(duration time.Duration) {
 func (ce *ConfigurableExecutor) GetStatistics() ExecutorStatistics {
 	ce.stats.mu.RLock()
 	defer ce.stats.mu.RUnlock()
-	
+
 	return ExecutorStatistics{
-		VectorizedQueries:     ce.stats.vectorizedQueries,
-		FallbackQueries:       ce.stats.fallbackQueries,
+		VectorizedQueries:    ce.stats.vectorizedQueries,
+		FallbackQueries:      ce.stats.fallbackQueries,
 		CacheHits:            ce.stats.cacheHits,
 		CacheMisses:          ce.stats.cacheMisses,
 		TotalMemoryUsed:      ce.stats.totalMemoryUsed,
@@ -332,10 +332,10 @@ func (ce *ConfigurableExecutor) UpdateConfig(cfg *ExecutorRuntimeConfig) {
 	ce.config = cfg
 	ce.enableVectorized.Store(cfg.IsVectorizedEnabled())
 	ce.enableCaching.Store(cfg.IsCachingEnabled())
-	
+
 	// Update memory limits
 	ce.memoryTracker.SetLimit(cfg.QueryMemoryLimit)
-	
+
 	// Recreate cache if settings changed
 	if cfg.IsCachingEnabled() && ce.resultCache == nil {
 		cacheConfig := &ResultCacheConfig{
@@ -353,8 +353,8 @@ func (ce *ConfigurableExecutor) UpdateConfig(cfg *ExecutorRuntimeConfig) {
 
 // ExecutorStatistics holds executor runtime statistics
 type ExecutorStatistics struct {
-	VectorizedQueries     int64
-	FallbackQueries       int64
+	VectorizedQueries    int64
+	FallbackQueries      int64
 	CacheHits            int64
 	CacheMisses          int64
 	TotalMemoryUsed      int64
@@ -375,7 +375,7 @@ func (cr *cachedResultWrapper) Next() (*Row, error) {
 	if cr.index >= len(cr.cached.Rows) {
 		return nil, nil
 	}
-	
+
 	row := &Row{
 		Values: cr.cached.Rows[cr.index].Values,
 	}
@@ -397,5 +397,4 @@ type cachingResultWrapper struct {
 	cache  *ResultCache
 	key    string
 	tables []string
-	rows   []CachedRow
 }

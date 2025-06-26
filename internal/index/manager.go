@@ -177,12 +177,12 @@ func (m *Manager) InsertIntoIndexes(schemaName, tableName string, row map[string
 					includeData[includeCol.Column.Name] = val
 				}
 			}
-			
+
 			coveringValue := &CoveringIndexValue{
 				RowID:       rowID,
 				IncludeData: includeData,
 			}
-			
+
 			value, err = coveringValue.Encode()
 			if err != nil {
 				return fmt.Errorf("failed to encode covering index value for %s: %w", indexName, err)

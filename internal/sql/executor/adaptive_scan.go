@@ -309,6 +309,15 @@ func (as *AdaptiveScanOperator) shouldSwitchScanMethod(stats *RuntimeStats) (boo
 			if as.adaptiveCtx.ExecCtx != nil {
 				return true, ParallelScanMethod, fmt.Sprintf("Low throughput (%.0f rows/s, target %.0f)", as.currentThroughput, as.targetThroughput)
 			}
+		case IndexScanMethod:
+			// If index scan is slow, try sequential scan (might be better for low selectivity)
+			return true, SequentialScanMethod, fmt.Sprintf("Low index scan throughput (%.0f rows/s)", as.currentThroughput)
+		case ParallelScanMethod:
+			// If parallel scan is slow, might be due to overhead, try sequential
+			return true, SequentialScanMethod, fmt.Sprintf("Low parallel scan throughput (%.0f rows/s)", as.currentThroughput)
+		case AutoScanMethod:
+			// Should not happen as we don't execute with AutoScanMethod
+			return false, as.currentMethod, ""
 		}
 	}
 

@@ -39,7 +39,7 @@ type WALReceiverImpl struct {
 // NewWALReceiver creates a new WAL receiver
 func NewWALReceiver(config *ReplicationConfig, walMgr *wal.Manager, logger log.Logger) *WALReceiverImpl {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &WALReceiverImpl{
 		config: config,
 		walMgr: walMgr,
@@ -149,7 +149,7 @@ func (r *WALReceiverImpl) receiveLoop(startLSN wal.LSN) {
 		if err := r.connectToPrimary(); err != nil {
 			r.logger.Error("Failed to connect to primary", "error", err)
 			reconnectCount++
-			
+
 			if reconnectCount >= r.config.MaxReconnectTries {
 				r.logger.Error("Max reconnection attempts reached")
 				return
@@ -210,7 +210,7 @@ func (r *WALReceiverImpl) disconnectFromPrimary() {
 		r.conn.Close() //nolint:errcheck // Best effort cleanup
 		r.conn = nil
 	}
-	
+
 	r.stats.State = "DISCONNECTED"
 }
 
@@ -220,7 +220,7 @@ func (r *WALReceiverImpl) requestWALStream(startLSN wal.LSN) error {
 
 	// Send handshake message
 	handshake := &HandshakeMessage{
-		NodeID:      NodeID(r.config.NodeID),
+		NodeID:      r.config.NodeID,
 		StartLSN:    startLSN,
 		DatabaseID:  "quantadb",
 		ClusterName: "default",
@@ -279,7 +279,7 @@ func (r *WALReceiverImpl) receiveWALStream() error {
 	}
 
 	reader := bufio.NewReader(conn)
-	
+
 	// Set read timeout
 	heartbeatDeadline := time.Now().Add(r.config.HeartbeatTimeout)
 
@@ -342,8 +342,8 @@ func (r *WALReceiverImpl) processWALData(protocolMsg *ProtocolMessage) error {
 		return fmt.Errorf("failed to unmarshal WAL data: %w", err)
 	}
 
-	r.logger.Debug("Processing WAL data", 
-		"startLSN", walData.StartLSN, 
+	r.logger.Debug("Processing WAL data",
+		"startLSN", walData.StartLSN,
 		"endLSN", walData.EndLSN,
 		"recordCount", len(walData.Records),
 		"dataSize", len(protocolMsg.Payload))
@@ -397,25 +397,5 @@ func (r *WALReceiverImpl) applyWALRecord(record *wal.LogRecord) error {
 		return fmt.Errorf("failed to append WAL record: %w", err)
 	}
 
-	return nil
-}
-
-// sendStatusUpdate sends status update to primary (if needed)
-func (r *WALReceiverImpl) sendStatusUpdate() error {
-	r.mu.RLock()
-	conn := r.conn
-	r.mu.RUnlock()
-
-	if conn == nil {
-		return fmt.Errorf("no connection to primary")
-	}
-
-	// TODO: Implement status message protocol
-	// Send information about:
-	// - Last applied LSN
-	// - Current lag
-	// - Any errors
-
-	r.logger.Debug("Sent status update to primary")
 	return nil
 }

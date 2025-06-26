@@ -60,7 +60,7 @@ func TestReplicationDemo(t *testing.T) {
 	// Create WAL streamer for primary
 	streamerImpl := NewWALStreamer(primaryConfig, primaryWALMgr.Manager, logger)
 	defer streamerImpl.Close()
-	
+
 	var streamer WALStreamer = streamerImpl
 
 	// Create streaming coordinator
@@ -91,7 +91,7 @@ func TestReplicationDemo(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		insertLSN, err := primaryWALMgr.LogInsert(
 			txnID,
-			1, // tableID
+			1,         // tableID
 			uint32(i), // pageID
 			uint16(i), // slotID
 			[]byte(fmt.Sprintf("test data %d", i)),
@@ -123,9 +123,9 @@ func TestReplicationDemo(t *testing.T) {
 	primaryStatus := primaryRM.GetStatus()
 	replicaStatus := replicaRM.GetStatus()
 
-	t.Logf("Primary status: Mode=%s, State=%s, LastLSN=%d", 
+	t.Logf("Primary status: Mode=%s, State=%s, LastLSN=%d",
 		primaryStatus.Mode, primaryStatus.State, primaryStatus.LastLSN)
-	t.Logf("Replica status: Mode=%s, State=%s, LastLSN=%d", 
+	t.Logf("Replica status: Mode=%s, State=%s, LastLSN=%d",
 		replicaStatus.Mode, replicaStatus.State, replicaStatus.LastLSN)
 
 	// Verify that primary has processed more WAL records

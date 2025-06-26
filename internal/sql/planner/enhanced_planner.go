@@ -39,7 +39,7 @@ func DefaultEnhancedPlannerConfig() *EnhancedPlannerConfig {
 		EnableAdaptivePlanning:   true,
 		PhysicalPlannerConfig:    DefaultPhysicalPlannerConfig(),
 		CollectPlanningStats:     true,
-		MaxPlanningTimeMs:        200, // 200ms max planning time
+		MaxPlanningTimeMs:        200,                // 200ms max planning time
 		MemoryAvailable:          1024 * 1024 * 1024, // 1GB
 		DefaultVectorizationMode: VectorizationModeAdaptive,
 	}
@@ -68,14 +68,14 @@ func NewPlanningStatsCollector() *PlanningStatsCollector {
 // NewEnhancedPlanner creates a new enhanced planner
 func NewEnhancedPlanner(catalog catalog.Catalog) *EnhancedPlanner {
 	basicPlanner := NewBasicPlannerWithCatalog(catalog)
-	
+
 	// Create cost estimator and vectorized cost model
 	costEstimator := NewCostEstimator(catalog)
 	vectorizedModel := NewVectorizedCostModel(true, 1024, 1024*1024*1024, 1000)
-	
+
 	// Create physical planner
 	physicalPlanner := NewPhysicalPlanner(costEstimator, vectorizedModel, catalog)
-	
+
 	return &EnhancedPlanner{
 		BasicPlanner:          basicPlanner,
 		physicalPlanner:       physicalPlanner,
@@ -101,7 +101,7 @@ func (ep *EnhancedPlanner) Plan(stmt parser.Statement) (Plan, error) {
 			ep.updatePlanningStats(time.Since(planStart))
 		}
 	}()
-	
+
 	// Phase 1: Build logical plan
 	logicalStart := time.Now()
 	logical, err := ep.buildLogicalPlan(stmt)
@@ -110,10 +110,10 @@ func (ep *EnhancedPlanner) Plan(stmt parser.Statement) (Plan, error) {
 		return nil, fmt.Errorf("failed to build logical plan: %w", err)
 	}
 	logicalTime := time.Since(logicalStart)
-	
+
 	// Phase 2: Apply logical optimizations
 	optimized := ep.optimize(logical)
-	
+
 	// Phase 3: Physical planning (if enabled)
 	if ep.config.EnablePhysicalPlanning {
 		physicalStart := time.Now()
@@ -124,21 +124,21 @@ func (ep *EnhancedPlanner) Plan(stmt parser.Statement) (Plan, error) {
 			return optimized, nil
 		}
 		physicalTime := time.Since(physicalStart)
-		
+
 		if ep.config.CollectPlanningStats {
 			ep.statsCollector.PhysicalPlans++
-			ep.statsCollector.AvgPhysicalPlanningTime = 
+			ep.statsCollector.AvgPhysicalPlanningTime =
 				ep.updateAverage(ep.statsCollector.AvgPhysicalPlanningTime, physicalTime, ep.statsCollector.PhysicalPlans)
 		}
-		
+
 		return physical, nil
 	}
-	
+
 	if ep.config.CollectPlanningStats {
-		ep.statsCollector.AvgLogicalPlanningTime = 
+		ep.statsCollector.AvgLogicalPlanningTime =
 			ep.updateAverage(ep.statsCollector.AvgLogicalPlanningTime, logicalTime, ep.statsCollector.TotalPlans)
 	}
-	
+
 	return optimized, nil
 }
 
@@ -149,18 +149,18 @@ func (ep *EnhancedPlanner) generatePhysicalPlan(
 ) (PhysicalPlan, error) {
 	// Create physical planning context
 	context := ep.createPhysicalPlanContext(stmt)
-	
+
 	// Generate physical plan
 	physical, err := ep.physicalPlanner.GeneratePhysicalPlan(logical, context)
 	if err != nil {
 		return nil, fmt.Errorf("physical planning failed: %w", err)
 	}
-	
+
 	// Collect statistics
 	if ep.config.CollectPlanningStats {
 		ep.collectPhysicalPlanStats(physical)
 	}
-	
+
 	return physical, nil
 }
 
@@ -176,15 +176,15 @@ func (ep *EnhancedPlanner) createPhysicalPlanContext(stmt parser.Statement) *Phy
 		BatchSize:         ep.config.PhysicalPlannerConfig.DefaultBatchSize,
 		EnableCaching:     ep.config.EnableResultCaching,
 	}
-	
+
 	// Override vectorization mode if disabled
 	if !ep.config.EnableVectorization {
 		context.VectorizationMode = VectorizationModeDisabled
 	}
-	
+
 	// Collect table and index statistics
 	ep.populateStatistics(context, stmt)
-	
+
 	return context
 }
 
@@ -192,13 +192,13 @@ func (ep *EnhancedPlanner) createPhysicalPlanContext(stmt parser.Statement) *Phy
 func (ep *EnhancedPlanner) populateStatistics(context *PhysicalPlanContext, stmt parser.Statement) {
 	// Extract table names from the statement
 	tableNames := ep.extractTableNames(stmt)
-	
+
 	for _, tableName := range tableNames {
 		if table, err := ep.catalog.GetTable("public", tableName); err == nil {
 			if table.Stats != nil {
 				context.TableStats[tableName] = table.Stats
 			}
-			
+
 			// Collect index statistics
 			for _, index := range table.Indexes {
 				if index.Stats != nil {
@@ -213,7 +213,7 @@ func (ep *EnhancedPlanner) populateStatistics(context *PhysicalPlanContext, stmt
 // extractTableNames extracts table names from a statement
 func (ep *EnhancedPlanner) extractTableNames(stmt parser.Statement) []string {
 	var tableNames []string
-	
+
 	switch s := stmt.(type) {
 	case *parser.SelectStmt:
 		tableNames = append(tableNames, ep.extractTableNamesFromSelect(s)...)
@@ -224,14 +224,14 @@ func (ep *EnhancedPlanner) extractTableNames(stmt parser.Statement) []string {
 	case *parser.DeleteStmt:
 		tableNames = append(tableNames, s.TableName)
 	}
-	
+
 	return tableNames
 }
 
 // extractTableNamesFromSelect extracts table names from SELECT statement
 func (ep *EnhancedPlanner) extractTableNamesFromSelect(stmt *parser.SelectStmt) []string {
 	var tableNames []string
-	
+
 	// Extract from FROM clause
 	if stmt.From != nil {
 		switch f := stmt.From.(type) {
@@ -241,34 +241,34 @@ func (ep *EnhancedPlanner) extractTableNamesFromSelect(stmt *parser.SelectStmt) 
 			tableNames = append(tableNames, ep.extractTableNamesFromJoin(f)...)
 		}
 	}
-	
+
 	return tableNames
 }
 
 // extractTableNamesFromJoin extracts table names from JOIN expressions
 func (ep *EnhancedPlanner) extractTableNamesFromJoin(join *parser.JoinExpr) []string {
 	var tableNames []string
-	
+
 	if leftTable, ok := join.Left.(*parser.TableRef); ok {
 		tableNames = append(tableNames, leftTable.TableName)
 	}
-	
+
 	if rightTable, ok := join.Right.(*parser.TableRef); ok {
 		tableNames = append(tableNames, rightTable.TableName)
 	}
-	
+
 	return tableNames
 }
 
 // collectPhysicalPlanStats collects statistics from the generated physical plan
 func (ep *EnhancedPlanner) collectPhysicalPlanStats(plan PhysicalPlan) {
 	ep.statsCollector.PhysicalPlans++
-	
+
 	// Count vectorized operators
 	if ep.countVectorizedOperators(plan) > 0 {
 		ep.statsCollector.VectorizedPlans++
 	}
-	
+
 	// Check for caching opportunities
 	if ep.hasCachingOpportunities(plan) {
 		ep.statsCollector.CachedPlans++
@@ -278,15 +278,15 @@ func (ep *EnhancedPlanner) collectPhysicalPlanStats(plan PhysicalPlan) {
 // countVectorizedOperators recursively counts vectorized operators in the plan
 func (ep *EnhancedPlanner) countVectorizedOperators(plan PhysicalPlan) int {
 	count := 0
-	
+
 	if plan.RequiresVectorization() {
 		count++
 	}
-	
+
 	for _, input := range plan.GetInputs() {
 		count += ep.countVectorizedOperators(input)
 	}
-	
+
 	return count
 }
 
@@ -310,7 +310,7 @@ func (ep *EnhancedPlanner) hasCachingOpportunities(plan PhysicalPlan) bool {
 // updatePlanningStats updates overall planning statistics
 func (ep *EnhancedPlanner) updatePlanningStats(planningTime time.Duration) {
 	ep.statsCollector.TotalPlans++
-	ep.statsCollector.AvgPlanningTime = 
+	ep.statsCollector.AvgPlanningTime =
 		ep.updateAverage(ep.statsCollector.AvgPlanningTime, planningTime, ep.statsCollector.TotalPlans)
 }
 
@@ -319,9 +319,9 @@ func (ep *EnhancedPlanner) updateAverage(currentAvg time.Duration, newValue time
 	if count <= 1 {
 		return newValue
 	}
-	
+
 	// Calculate new average: ((old_avg * (count-1)) + new_value) / count
-	totalNanos := int64(currentAvg) * (count - 1) + int64(newValue)
+	totalNanos := int64(currentAvg)*(count-1) + int64(newValue)
 	return time.Duration(totalNanos / count)
 }
 
@@ -372,7 +372,7 @@ func (ep *EnhancedPlanner) EstimatePlanCost(plan Plan) (*Cost, error) {
 		context := ep.createPhysicalPlanContext(nil) // No statement context needed for estimation
 		return physicalPlan.EstimateCost(context), nil
 	}
-	
+
 	// For logical plans, use basic estimation
 	return &Cost{TotalCost: 1000.0}, nil
 }
@@ -384,13 +384,13 @@ func (ep *EnhancedPlanner) CreateExplainPlan(stmt parser.Statement, analyze bool
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// If it's a physical plan, we can provide detailed cost information
 	if physicalPlan, ok := plan.(PhysicalPlan); ok {
 		// Create enhanced explain plan with cost and cardinality information
 		return ep.createDetailedExplainPlan(physicalPlan, analyze)
 	}
-	
+
 	return plan, nil
 }
 
@@ -407,14 +407,14 @@ func (ep *EnhancedPlanner) ValidateConfiguration() error {
 	if ep.config.MaxPlanningTimeMs <= 0 {
 		return fmt.Errorf("invalid max planning time: %d", ep.config.MaxPlanningTimeMs)
 	}
-	
+
 	if ep.config.MemoryAvailable <= 0 {
 		return fmt.Errorf("invalid memory limit: %d", ep.config.MemoryAvailable)
 	}
-	
+
 	if ep.config.PhysicalPlannerConfig.DefaultBatchSize <= 0 {
 		return fmt.Errorf("invalid batch size: %d", ep.config.PhysicalPlannerConfig.DefaultBatchSize)
 	}
-	
+
 	return nil
 }

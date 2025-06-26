@@ -357,11 +357,10 @@ func countBitmapIndexScans(plan Plan) int {
 	if _, ok := plan.(*BitmapIndexScan); ok {
 		count = 1
 	}
-	
+
 	for _, child := range plan.Children() {
 		count += countBitmapIndexScans(child)
 	}
-	
+
 	return count
 }
-

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"cmp"
 	"fmt"
 
 	"github.com/dshills/QuantaDB/internal/sql/planner"
@@ -118,99 +119,21 @@ func (vb *VectorizedBinaryOpEvaluator) evalComparisonInt64(left, right []int64, 
 
 // evalComparisonInt32 performs vectorized comparison on int32 values
 func (vb *VectorizedBinaryOpEvaluator) evalComparisonInt32(left, right []int32, result []bool, leftNull, rightNull, resultNull []uint64, length int) error {
-	switch vb.operator {
-	case planner.OpEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] == right[i]
-		}
-	case planner.OpNotEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] != right[i]
-		}
-	case planner.OpLess:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] < right[i]
-		}
-	case planner.OpLessEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] <= right[i]
-		}
-	case planner.OpGreater:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] > right[i]
-		}
-	case planner.OpGreaterEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] >= right[i]
-		}
-	}
-
+	evalComparisonGeneric(left, right, result, length, vb.operator)
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
 
 // evalComparisonFloat64 performs vectorized comparison on float64 values
 func (vb *VectorizedBinaryOpEvaluator) evalComparisonFloat64(left, right []float64, result []bool, leftNull, rightNull, resultNull []uint64, length int) error {
-	switch vb.operator {
-	case planner.OpEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] == right[i]
-		}
-	case planner.OpNotEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] != right[i]
-		}
-	case planner.OpLess:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] < right[i]
-		}
-	case planner.OpLessEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] <= right[i]
-		}
-	case planner.OpGreater:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] > right[i]
-		}
-	case planner.OpGreaterEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] >= right[i]
-		}
-	}
-
+	evalComparisonGeneric(left, right, result, length, vb.operator)
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
 
 // evalComparisonFloat32 performs vectorized comparison on float32 values
 func (vb *VectorizedBinaryOpEvaluator) evalComparisonFloat32(left, right []float32, result []bool, leftNull, rightNull, resultNull []uint64, length int) error {
-	switch vb.operator {
-	case planner.OpEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] == right[i]
-		}
-	case planner.OpNotEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] != right[i]
-		}
-	case planner.OpLess:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] < right[i]
-		}
-	case planner.OpLessEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] <= right[i]
-		}
-	case planner.OpGreater:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] > right[i]
-		}
-	case planner.OpGreaterEqual:
-		for i := 0; i < length; i++ {
-			result[i] = left[i] >= right[i]
-		}
-	}
-
+	evalComparisonGeneric(left, right, result, length, vb.operator)
 	vb.propagateNulls(leftNull, rightNull, resultNull, length)
 	return nil
 }
@@ -465,4 +388,34 @@ func (vl *VectorizedLiteralEvaluator) EvalVector(batch *VectorizedBatch) (*Vecto
 	}
 
 	return result, nil
+}
+
+// evalComparisonGeneric is a generic function for vectorized comparisons using ordered types
+func evalComparisonGeneric[T cmp.Ordered](left, right []T, result []bool, length int, operator planner.BinaryOperator) {
+	switch operator {
+	case planner.OpEqual:
+		for i := 0; i < length; i++ {
+			result[i] = left[i] == right[i]
+		}
+	case planner.OpNotEqual:
+		for i := 0; i < length; i++ {
+			result[i] = left[i] != right[i]
+		}
+	case planner.OpLess:
+		for i := 0; i < length; i++ {
+			result[i] = left[i] < right[i]
+		}
+	case planner.OpLessEqual:
+		for i := 0; i < length; i++ {
+			result[i] = left[i] <= right[i]
+		}
+	case planner.OpGreater:
+		for i := 0; i < length; i++ {
+			result[i] = left[i] > right[i]
+		}
+	case planner.OpGreaterEqual:
+		for i := 0; i < length; i++ {
+			result[i] = left[i] >= right[i]
+		}
+	}
 }

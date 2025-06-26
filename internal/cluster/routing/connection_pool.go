@@ -8,11 +8,11 @@ import (
 
 // PooledConnection represents a connection in the pool
 type PooledConnection struct {
-	id        string
-	nodeID    string
-	isActive  bool
-	created   time.Time
-	lastUsed  time.Time
+	id         string
+	nodeID     string
+	isActive   bool
+	created    time.Time
+	lastUsed   time.Time
 	queryCount int64
 }
 
@@ -22,14 +22,14 @@ type ConnectionPool struct {
 	address     string
 	maxConns    int
 	idleTimeout time.Duration
-	
-	mu          sync.RWMutex
-	connections []*PooledConnection
-	activeCount int
+
+	mu           sync.RWMutex
+	connections  []*PooledConnection
+	activeCount  int
 	totalCreated int64
 	totalReused  int64
-	created     time.Time
-	lastCleanup time.Time
+	created      time.Time
+	lastCleanup  time.Time
 }
 
 // NewConnectionPool creates a new connection pool
@@ -59,10 +59,10 @@ func (cp *ConnectionPool) GetConnection() (*PooledConnection, error) {
 			conn.queryCount++
 			cp.activeCount++
 			cp.totalReused++
-			
+
 			// Remove from idle pool
 			cp.connections = append(cp.connections[:i], cp.connections[i+1:]...)
-			
+
 			return conn, nil
 		}
 	}
@@ -77,10 +77,10 @@ func (cp *ConnectionPool) GetConnection() (*PooledConnection, error) {
 			lastUsed:   time.Now(),
 			queryCount: 1,
 		}
-		
+
 		cp.activeCount++
 		cp.totalCreated++
-		
+
 		return conn, nil
 	}
 
@@ -100,7 +100,7 @@ func (cp *ConnectionPool) ReturnConnection(conn *PooledConnection) {
 		conn.isActive = false
 		conn.lastUsed = time.Now()
 		cp.activeCount--
-		
+
 		// Add back to idle pool if under limit
 		if len(cp.connections) < cp.maxConns {
 			cp.connections = append(cp.connections, conn)
@@ -134,9 +134,8 @@ func (cp *ConnectionPool) CleanupIdleConnections() {
 	cp.connections = newConnections
 	cp.lastCleanup = now
 
-	if cleanedCount > 0 {
-		// Note: In a real implementation, we would properly close the actual connections here
-	}
+	// Note: In a real implementation, we would properly close the actual connections here
+	_ = cleanedCount // Track cleaned connections for future use
 }
 
 // Close closes the connection pool and all connections
@@ -155,15 +154,15 @@ func (cp *ConnectionPool) GetStats() map[string]interface{} {
 	defer cp.mu.RUnlock()
 
 	return map[string]interface{}{
-		"node_id":        cp.nodeID,
-		"address":        cp.address,
-		"max_connections": cp.maxConns,
+		"node_id":            cp.nodeID,
+		"address":            cp.address,
+		"max_connections":    cp.maxConns,
 		"active_connections": cp.activeCount,
-		"idle_connections": len(cp.connections),
-		"total_created":  cp.totalCreated,
-		"total_reused":   cp.totalReused,
-		"created":        cp.created,
-		"last_cleanup":   cp.lastCleanup,
-		"idle_timeout":   cp.idleTimeout,
+		"idle_connections":   len(cp.connections),
+		"total_created":      cp.totalCreated,
+		"total_reused":       cp.totalReused,
+		"created":            cp.created,
+		"last_cleanup":       cp.lastCleanup,
+		"idle_timeout":       cp.idleTimeout,
 	}
 }

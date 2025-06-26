@@ -189,31 +189,31 @@ func TestVectorizedOperators(t *testing.T) {
 func TestVectorizedFallback(t *testing.T) {
 	// This is a simple test for the fallback mechanism
 	// In a real implementation, we'd test more complex expressions
-	
+
 	t.Run("FallbackForUnsupportedExpression", func(t *testing.T) {
 		// Create a simple literal expression (which is supported)
 		lit := &VectorizedLiteralEvaluator{
 			value:    types.NewValue(int32(42)),
 			dataType: types.Integer,
 		}
-		
+
 		// Create a batch
 		schema := &Schema{
 			Columns: []Column{{Name: "col1", Type: types.Integer}},
 		}
 		batch := NewVectorizedBatch(schema, 4)
 		batch.RowCount = 4
-		
+
 		// Evaluate
 		result, err := lit.EvalVector(batch)
 		if err != nil {
 			t.Fatalf("Failed to evaluate: %v", err)
 		}
-		
+
 		if result.Length != 4 {
 			t.Errorf("Expected length 4, got %d", result.Length)
 		}
-		
+
 		// All values should be 42
 		for i := 0; i < 4; i++ {
 			if result.Int32Data[i] != 42 {

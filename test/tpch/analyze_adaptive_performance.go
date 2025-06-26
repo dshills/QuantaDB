@@ -21,21 +21,21 @@ type QueryBenchmark struct {
 
 // BenchmarkResult holds the results of running a query
 type BenchmarkResult struct {
-	QueryName      string
-	Configuration  string
-	ExecutionTime  time.Duration
-	RowsReturned   int
-	Success        bool
-	Error          string
+	QueryName     string
+	Configuration string
+	ExecutionTime time.Duration
+	RowsReturned  int
+	Success       bool
+	Error         string
 }
 
 // PerformanceComparison holds comparison data
 type PerformanceComparison struct {
-	QueryName       string
-	BaselineTime    time.Duration
-	AdaptiveTime    time.Duration
-	Improvement     float64
-	SpeedupFactor   float64
+	QueryName     string
+	BaselineTime  time.Duration
+	AdaptiveTime  time.Duration
+	Improvement   float64
+	SpeedupFactor float64
 }
 
 var tpchQueries = []QueryBenchmark{
@@ -226,7 +226,7 @@ func main() {
 
 func runBenchmarks(name string, dsn string) map[string]*BenchmarkResult {
 	fmt.Printf("Running %s benchmarks...\n", name)
-	
+
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		log.Fatalf("Failed to connect to %s database: %v", name, err)
@@ -242,7 +242,7 @@ func runBenchmarks(name string, dsn string) map[string]*BenchmarkResult {
 
 	for _, query := range tpchQueries {
 		fmt.Printf("  Running %s (%s)...", query.Name, query.Description)
-		
+
 		result := &BenchmarkResult{
 			QueryName:     query.Name,
 			Configuration: name,
@@ -378,12 +378,12 @@ func printSummary(comparisons []PerformanceComparison) {
 
 	for _, comp := range comparisons {
 		totalImprovement += comp.Improvement
-		
+
 		if comp.Improvement > bestImprovement {
 			bestImprovement = comp.Improvement
 			bestQuery = comp.QueryName
 		}
-		
+
 		if comp.Improvement < worstImprovement {
 			worstImprovement = comp.Improvement
 			worstQuery = comp.QueryName

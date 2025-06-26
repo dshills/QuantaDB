@@ -14,22 +14,22 @@ func TestIndexAdvisorEndToEnd(t *testing.T) {
 	cat := createEcommerceTestCatalog()
 	costEstimator := NewCostEstimator(cat)
 	advisor := NewIndexAdvisor(cat, costEstimator)
-	
+
 	// Simulate a workload with various query patterns
 	patterns := createEcommerceQueryPatterns()
-	
+
 	err := advisor.AnalyzeQueries(patterns)
 	if err != nil {
 		t.Fatalf("Failed to analyze queries: %v", err)
 	}
-	
+
 	recommendations := advisor.GetRecommendations()
-	
+
 	// Verify we get meaningful recommendations
 	if len(recommendations) == 0 {
 		t.Fatal("Expected recommendations for realistic workload")
 	}
-	
+
 	// Print recommendations for manual inspection
 	t.Logf("Generated %d index recommendations:", len(recommendations))
 	for i, rec := range recommendations {
@@ -38,12 +38,12 @@ func TestIndexAdvisorEndToEnd(t *testing.T) {
 		t.Logf("   Affects %d queries, Priority: %s", rec.QueryCount, rec.Priority.String())
 		t.Logf("")
 	}
-	
+
 	// Verify recommendation types
 	hasComposite := false
 	hasCovering := false
 	hasSingle := false
-	
+
 	for _, rec := range recommendations {
 		switch rec.IndexType {
 		case IndexTypeComposite:
@@ -52,43 +52,45 @@ func TestIndexAdvisorEndToEnd(t *testing.T) {
 			hasCovering = true
 		case IndexTypeSingle:
 			hasSingle = true
+		case IndexTypePartial:
+			// Partial indexes are not relevant for this test
 		}
 	}
-	
+
 	// Should have a mix of recommendation types for a realistic workload
 	if !hasComposite && !hasCovering && !hasSingle {
 		t.Error("Expected at least one type of index recommendation")
 	}
-	
+
 	// Test priority ordering
 	for i := 1; i < len(recommendations); i++ {
 		prev := recommendations[i-1]
 		curr := recommendations[i]
-		
+
 		// Should be sorted by priority (high to low) then by benefit
 		if prev.Priority < curr.Priority {
 			t.Errorf("Recommendations not properly sorted by priority at position %d", i)
 		}
 	}
-	
+
 	// Test getting top recommendations
 	topRecs := advisor.GetTopRecommendations(3)
 	if len(topRecs) > 3 {
 		t.Errorf("Expected at most 3 top recommendations, got %d", len(topRecs))
 	}
-	
+
 	// Verify cost-benefit analysis makes sense
 	for _, rec := range recommendations {
 		if rec.EstimatedBenefit <= 1.0 {
 			t.Errorf("Recommendation should have positive benefit, got %.2f", rec.EstimatedBenefit)
 		}
-		
+
 		if rec.CostReduction <= 0 {
 			t.Errorf("Recommendation should reduce cost, got %.2f", rec.CostReduction)
 		}
-		
+
 		if rec.QueryCount < advisor.config.MinQueryCount {
-			t.Errorf("Recommendation query count %d below threshold %d", 
+			t.Errorf("Recommendation query count %d below threshold %d",
 				rec.QueryCount, advisor.config.MinQueryCount)
 		}
 	}
@@ -99,7 +101,7 @@ func TestIndexAdvisorRealisticScenarios(t *testing.T) {
 	cat := createEcommerceTestCatalog()
 	costEstimator := NewCostEstimator(cat)
 	advisor := NewIndexAdvisor(cat, costEstimator)
-	
+
 	t.Run("CustomerLookupPattern", func(t *testing.T) {
 		// Frequent customer lookup by email pattern
 		patterns := []QueryPattern{
@@ -109,7 +111,7 @@ func TestIndexAdvisorRealisticScenarios(t *testing.T) {
 				PrimaryTable:    "customers",
 				FilterColumns:   []string{"email"},
 				ProjectColumns:  []string{"customer_id", "name", "email", "status"},
-				ExecutionCount:  500, // Very frequent
+				ExecutionCount:  500,                    // Very frequent
 				AverageDuration: 150 * time.Millisecond, // Slow without index
 				ActualCost:      300.0,
 				LastSeen:        time.Now(),
@@ -118,25 +120,25 @@ func TestIndexAdvisorRealisticScenarios(t *testing.T) {
 				},
 			},
 		}
-		
+
 		err := advisor.AnalyzeQueries(patterns)
 		if err != nil {
 			t.Fatalf("Failed to analyze customer lookup pattern: %v", err)
 		}
-		
+
 		recommendations := advisor.GetRecommendations()
-		
+
 		// Should recommend covering index for customer email lookups
 		found := false
 		for _, rec := range recommendations {
 			if rec.TableName == "customers" && contains(rec.Columns, "email") {
 				found = true
-				
+
 				// Should be high priority due to frequency
 				if rec.Priority != PriorityHigh && rec.Priority != PriorityCritical {
 					t.Errorf("Expected high priority for frequent customer lookups, got %s", rec.Priority.String())
 				}
-				
+
 				// Should be covering index type
 				if rec.IndexType != IndexTypeCovering {
 					t.Errorf("Expected covering index for customer lookup, got %s", rec.IndexType.String())
@@ -144,12 +146,12 @@ func TestIndexAdvisorRealisticScenarios(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Error("Expected recommendation for customer email lookup pattern")
 		}
 	})
-	
+
 	t.Run("OrderHistoryPattern", func(t *testing.T) {
 		// Customer order history queries
 		patterns := []QueryPattern{
@@ -175,35 +177,35 @@ func TestIndexAdvisorRealisticScenarios(t *testing.T) {
 				},
 			},
 		}
-		
+
 		err := advisor.AnalyzeQueries(patterns)
 		if err != nil {
 			t.Fatalf("Failed to analyze order history pattern: %v", err)
 		}
-		
+
 		recommendations := advisor.GetRecommendations()
-		
+
 		// Should recommend composite index on (customer_id, order_date)
 		found := false
 		for _, rec := range recommendations {
-			if rec.TableName == "orders" && 
-			   len(rec.Columns) >= 2 &&
-			   contains(rec.Columns, "customer_id") && 
-			   contains(rec.Columns, "order_date") {
+			if rec.TableName == "orders" &&
+				len(rec.Columns) >= 2 &&
+				contains(rec.Columns, "customer_id") &&
+				contains(rec.Columns, "order_date") {
 				found = true
-				
+
 				if rec.IndexType != IndexTypeComposite && rec.IndexType != IndexTypeCovering {
 					t.Errorf("Expected composite or covering index for order history, got %s", rec.IndexType.String())
 				}
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Error("Expected recommendation for order history pattern")
 		}
 	})
-	
+
 	t.Run("ProductSearchPattern", func(t *testing.T) {
 		// Product search by category and price range
 		patterns := []QueryPattern{
@@ -231,24 +233,24 @@ func TestIndexAdvisorRealisticScenarios(t *testing.T) {
 				},
 			},
 		}
-		
+
 		err := advisor.AnalyzeQueries(patterns)
 		if err != nil {
 			t.Fatalf("Failed to analyze product search pattern: %v", err)
 		}
-		
+
 		recommendations := advisor.GetRecommendations()
-		
+
 		// Should recommend index involving category and price
 		found := false
 		for _, rec := range recommendations {
-			if rec.TableName == "products" && 
-			   (contains(rec.Columns, "category") || contains(rec.Columns, "price")) {
+			if rec.TableName == "products" &&
+				(contains(rec.Columns, "category") || contains(rec.Columns, "price")) {
 				found = true
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Error("Expected recommendation for product search pattern")
 		}
@@ -314,7 +316,7 @@ func createEcommerceQueryPatterns() []QueryPattern {
 			ActualCost:      200.0,
 			LastSeen:        time.Now(),
 		},
-		
+
 		// Order history queries
 		{
 			Fingerprint:     "customer_orders",
@@ -327,7 +329,7 @@ func createEcommerceQueryPatterns() []QueryPattern {
 			ActualCost:      300.0,
 			LastSeen:        time.Now(),
 		},
-		
+
 		// Product category browsing
 		{
 			Fingerprint:     "category_products",
@@ -340,7 +342,7 @@ func createEcommerceQueryPatterns() []QueryPattern {
 			ActualCost:      150.0,
 			LastSeen:        time.Now(),
 		},
-		
+
 		// Price range searches
 		{
 			Fingerprint:     "price_range_search",
@@ -353,7 +355,7 @@ func createEcommerceQueryPatterns() []QueryPattern {
 			ActualCost:      400.0,
 			LastSeen:        time.Now(),
 		},
-		
+
 		// Order status updates (write workload)
 		{
 			Fingerprint:     "order_status_update",

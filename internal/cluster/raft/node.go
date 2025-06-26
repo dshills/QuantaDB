@@ -16,45 +16,45 @@ type RaftNodeImpl struct {
 	// Configuration
 	config *RaftConfig
 	logger log.Logger
-	
+
 	// Node identity and networking
-	nodeID    NodeID
-	transport RaftTransport
-	storage   Storage
+	nodeID       NodeID
+	transport    RaftTransport
+	storage      Storage
 	stateMachine StateMachine
-	
+
 	// State management
 	mu    sync.RWMutex
 	state NodeState
-	
+
 	// Persistent state (protected by mu)
 	currentTerm Term
 	votedFor    *NodeID
 	log         []LogEntry
-	
+
 	// Volatile state (protected by mu)
 	commitIndex LogIndex
 	lastApplied LogIndex
-	
+
 	// Leader state (only valid when state == StateLeader)
 	nextIndex  map[NodeID]LogIndex
 	matchIndex map[NodeID]LogIndex
-	
+
 	// Cluster membership
 	peers map[NodeID]string // nodeID -> address
-	
+
 	// Timing and control
-	electionTimer  *time.Timer
+	electionTimer   *time.Timer
 	heartbeatTicker *time.Ticker
-	
+
 	// Lifecycle
 	ctx       context.Context
 	cancel    context.CancelFunc
 	closeOnce sync.Once
-	
+
 	// Event notification
 	eventCh chan ClusterEvent
-	
+
 	// Leader tracking
 	currentLeader atomic.Value // *NodeID
 }
@@ -67,9 +67,8 @@ func NewRaftNode(
 	stateMachine StateMachine,
 	logger log.Logger,
 ) (*RaftNodeImpl, error) {
-	
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	node := &RaftNodeImpl{
 		config:       config,
 		logger:       logger,
@@ -86,7 +85,7 @@ func NewRaftNode(
 		cancel:       cancel,
 		eventCh:      make(chan ClusterEvent, 100),
 	}
-	
+
 	// Initialize peer list
 	for _, peerID := range config.Peers {
 		if peerID != config.NodeID {
@@ -98,16 +97,16 @@ func NewRaftNode(
 			}
 		}
 	}
-	
+
 	// Load persistent state
 	if err := node.loadState(); err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to load persistent state: %w", err)
 	}
-	
+
 	// Set transport handler
 	transport.SetRaftNode(node)
-	
+
 	return node, nil
 }
 
@@ -115,21 +114,21 @@ func NewRaftNode(
 func (n *RaftNodeImpl) Start() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	n.logger.Info("Starting Raft node", "nodeID", n.nodeID, "term", n.currentTerm)
-	
+
 	// Start transport
 	if err := n.transport.Start(n.config.Address); err != nil {
 		return fmt.Errorf("failed to start transport: %w", err)
 	}
-	
+
 	// Start as follower
 	n.becomeFollower(n.currentTerm, nil)
-	
+
 	// Start background routines
 	go n.eventProcessor()
 	go n.logApplier()
-	
+
 	n.logger.Info("Raft node started", "nodeID", n.nodeID)
 	return nil
 }
@@ -138,9 +137,9 @@ func (n *RaftNodeImpl) Start() error {
 func (n *RaftNodeImpl) Stop() error {
 	n.closeOnce.Do(func() {
 		n.logger.Info("Stopping Raft node", "nodeID", n.nodeID)
-		
+
 		n.cancel()
-		
+
 		n.mu.Lock()
 		if n.electionTimer != nil {
 			n.electionTimer.Stop()
@@ -149,20 +148,20 @@ func (n *RaftNodeImpl) Stop() error {
 			n.heartbeatTicker.Stop()
 		}
 		n.mu.Unlock()
-		
+
 		// Stop transport
 		n.transport.Stop()
-		
+
 		// Close storage
 		if n.storage != nil {
 			n.storage.Close()
 		}
-		
+
 		close(n.eventCh)
-		
+
 		n.logger.Info("Raft node stopped", "nodeID", n.nodeID)
 	})
-	
+
 	return nil
 }
 
@@ -170,7 +169,7 @@ func (n *RaftNodeImpl) Stop() error {
 func (n *RaftNodeImpl) GetState() (Term, NodeState, *NodeID) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	leader := n.getCurrentLeader()
 	return n.currentTerm, n.state, leader
 }
@@ -179,7 +178,7 @@ func (n *RaftNodeImpl) GetState() (Term, NodeState, *NodeID) {
 func (n *RaftNodeImpl) IsLeader() bool {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	return n.state == StateLeader
 }
 
@@ -192,7 +191,7 @@ func (n *RaftNodeImpl) GetLeader() *NodeID {
 func (n *RaftNodeImpl) GetTerm() Term {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	return n.currentTerm
 }
 
@@ -200,11 +199,11 @@ func (n *RaftNodeImpl) GetTerm() Term {
 func (n *RaftNodeImpl) AppendCommand(data []byte) (LogIndex, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	if n.state != StateLeader {
 		return 0, fmt.Errorf("not the leader")
 	}
-	
+
 	// Create new log entry
 	entry := LogEntry{
 		Index:     n.getLastLogIndex() + 1,
@@ -213,30 +212,30 @@ func (n *RaftNodeImpl) AppendCommand(data []byte) (LogIndex, error) {
 		Data:      data,
 		Timestamp: time.Now(),
 	}
-	
+
 	// Append to local log
 	n.log = append(n.log, entry)
-	
+
 	// Persist the entry
 	if err := n.storage.AppendEntries([]LogEntry{entry}); err != nil {
 		// Remove from memory if persistence failed
 		n.log = n.log[:len(n.log)-1]
 		return 0, fmt.Errorf("failed to persist log entry: %w", err)
 	}
-	
-	n.logger.Debug("Command appended to log", 
-		"index", entry.Index, 
+
+	n.logger.Debug("Command appended to log",
+		"index", entry.Index,
 		"term", entry.Term,
 		"dataSize", len(data))
-	
+
 	// Replicate to followers (async)
 	go n.replicateToFollowers()
-	
+
 	// For single-node clusters, immediately update commit index
 	if len(n.peers) == 0 {
 		n.updateCommitIndex()
 	}
-	
+
 	return entry.Index, nil
 }
 
@@ -244,7 +243,7 @@ func (n *RaftNodeImpl) AppendCommand(data []byte) (LogIndex, error) {
 func (n *RaftNodeImpl) GetCommittedIndex() LogIndex {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	return n.commitIndex
 }
 
@@ -252,31 +251,31 @@ func (n *RaftNodeImpl) GetCommittedIndex() LogIndex {
 func (n *RaftNodeImpl) GetClusterConfiguration() *ClusterConfiguration {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	members := make(map[NodeID]*ClusterMember)
-	
+
 	// Add self
 	members[n.nodeID] = &ClusterMember{
-		NodeID:  n.nodeID,
-		Address: "", // Self address
-		State:   n.state,
-		IsOnline: true,
+		NodeID:        n.nodeID,
+		Address:       "", // Self address
+		State:         n.state,
+		IsOnline:      true,
 		LastHeartbeat: time.Now(),
 	}
-	
+
 	// Add peers
 	for peerID, address := range n.peers {
 		members[peerID] = &ClusterMember{
-			NodeID:   peerID,
-			Address:  address,
-			State:    StateFollower, // Assume followers unless we know otherwise
-			IsOnline: true, // Simplified - would need proper health checking
-			LastHeartbeat: time.Now(), // Simplified
+			NodeID:        peerID,
+			Address:       address,
+			State:         StateFollower, // Assume followers unless we know otherwise
+			IsOnline:      true,          // Simplified - would need proper health checking
+			LastHeartbeat: time.Now(),    // Simplified
 		}
 	}
-	
+
 	leader := n.getCurrentLeader()
-	
+
 	return &ClusterConfiguration{
 		Members:   members,
 		Leader:    leader,
@@ -289,14 +288,14 @@ func (n *RaftNodeImpl) GetClusterConfiguration() *ClusterConfiguration {
 func (n *RaftNodeImpl) AddNode(nodeID NodeID, address string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	if n.state != StateLeader {
 		return fmt.Errorf("only leader can add nodes")
 	}
-	
+
 	// Add to peers
 	n.peers[nodeID] = address
-	
+
 	// Initialize leader state for new node
 	if n.nextIndex == nil {
 		n.nextIndex = make(map[NodeID]LogIndex)
@@ -304,9 +303,9 @@ func (n *RaftNodeImpl) AddNode(nodeID NodeID, address string) error {
 	}
 	n.nextIndex[nodeID] = n.getLastLogIndex() + 1
 	n.matchIndex[nodeID] = 0
-	
+
 	n.logger.Info("Added node to cluster", "nodeID", nodeID, "address", address)
-	
+
 	// Notify about cluster change
 	n.sendEvent(ClusterEvent{
 		Type:      EventNodeJoined,
@@ -314,7 +313,7 @@ func (n *RaftNodeImpl) AddNode(nodeID NodeID, address string) error {
 		Term:      n.currentTerm,
 		Timestamp: time.Now(),
 	})
-	
+
 	return nil
 }
 
@@ -322,22 +321,22 @@ func (n *RaftNodeImpl) AddNode(nodeID NodeID, address string) error {
 func (n *RaftNodeImpl) RemoveNode(nodeID NodeID) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	if n.state != StateLeader {
 		return fmt.Errorf("only leader can remove nodes")
 	}
-	
+
 	// Remove from peers
 	delete(n.peers, nodeID)
-	
+
 	// Remove from leader state
 	if n.nextIndex != nil {
 		delete(n.nextIndex, nodeID)
 		delete(n.matchIndex, nodeID)
 	}
-	
+
 	n.logger.Info("Removed node from cluster", "nodeID", nodeID)
-	
+
 	// Notify about cluster change
 	n.sendEvent(ClusterEvent{
 		Type:      EventNodeLeft,
@@ -345,28 +344,28 @@ func (n *RaftNodeImpl) RemoveNode(nodeID NodeID) error {
 		Term:      n.currentTerm,
 		Timestamp: time.Now(),
 	})
-	
+
 	return nil
 }
 
 // becomeFollower transitions to follower state
 func (n *RaftNodeImpl) becomeFollower(term Term, leader *NodeID) {
 	n.state = StateFollower
-	
+
 	if term > n.currentTerm {
 		n.currentTerm = term
 		n.votedFor = nil
 		n.saveState() // Persist state change
 	}
-	
+
 	n.setCurrentLeader(leader)
 	n.resetElectionTimer()
-	
+
 	if n.heartbeatTicker != nil {
 		n.heartbeatTicker.Stop()
 		n.heartbeatTicker = nil
 	}
-	
+
 	n.logger.Info("Became follower", "term", n.currentTerm, "leader", leader)
 }
 
@@ -376,12 +375,12 @@ func (n *RaftNodeImpl) becomeCandidate() {
 	n.currentTerm++
 	n.votedFor = &n.nodeID
 	n.setCurrentLeader(nil)
-	
+
 	n.saveState() // Persist state change
 	n.resetElectionTimer()
-	
+
 	n.logger.Info("Became candidate", "term", n.currentTerm)
-	
+
 	// Start election
 	go n.startElection()
 }
@@ -390,30 +389,30 @@ func (n *RaftNodeImpl) becomeCandidate() {
 func (n *RaftNodeImpl) becomeLeader() {
 	n.state = StateLeader
 	n.setCurrentLeader(&n.nodeID)
-	
+
 	// Initialize leader state
 	n.nextIndex = make(map[NodeID]LogIndex)
 	n.matchIndex = make(map[NodeID]LogIndex)
-	
+
 	lastLogIndex := n.getLastLogIndex()
 	for peerID := range n.peers {
 		n.nextIndex[peerID] = lastLogIndex + 1
 		n.matchIndex[peerID] = 0
 	}
-	
+
 	// Stop election timer, start heartbeat timer
 	if n.electionTimer != nil {
 		n.electionTimer.Stop()
 		n.electionTimer = nil
 	}
-	
+
 	n.startHeartbeatTimer()
-	
+
 	n.logger.Info("Became leader", "term", n.currentTerm)
-	
+
 	// Send initial heartbeat
 	go n.sendHeartbeat()
-	
+
 	// Notify about leadership
 	n.sendEvent(ClusterEvent{
 		Type:      EventLeaderElected,
@@ -460,11 +459,11 @@ func (n *RaftNodeImpl) loadState() error {
 		n.log = []LogEntry{}
 		return nil
 	}
-	
+
 	n.currentTerm = state.CurrentTerm
 	n.votedFor = state.VotedFor
 	n.log = state.Log
-	
+
 	return nil
 }
 
@@ -474,7 +473,7 @@ func (n *RaftNodeImpl) saveState() {
 		VotedFor:    n.votedFor,
 		Log:         n.log,
 	}
-	
+
 	if err := n.storage.SaveState(state); err != nil {
 		n.logger.Error("Failed to save persistent state", "error", err)
 	}
@@ -493,14 +492,15 @@ func (n *RaftNodeImpl) resetElectionTimer() {
 	if n.electionTimer != nil {
 		n.electionTimer.Stop()
 	}
-	
+
 	// Randomize election timeout to avoid split votes
-	timeout := n.config.ElectionTimeout + time.Duration(rand.Intn(150))*time.Millisecond
-	
+	// Using math/rand is appropriate here as this is not security-sensitive
+	timeout := n.config.ElectionTimeout + time.Duration(rand.Intn(150))*time.Millisecond //nolint:gosec
+
 	n.electionTimer = time.AfterFunc(timeout, func() {
 		n.mu.Lock()
 		defer n.mu.Unlock()
-		
+
 		if n.state == StateFollower || n.state == StateCandidate {
 			n.becomeCandidate()
 		}
@@ -511,9 +511,9 @@ func (n *RaftNodeImpl) startHeartbeatTimer() {
 	if n.heartbeatTicker != nil {
 		n.heartbeatTicker.Stop()
 	}
-	
+
 	n.heartbeatTicker = time.NewTicker(n.config.HeartbeatInterval)
-	
+
 	go func() {
 		for {
 			select {
@@ -521,13 +521,13 @@ func (n *RaftNodeImpl) startHeartbeatTimer() {
 				n.mu.RLock()
 				isLeader := n.state == StateLeader
 				n.mu.RUnlock()
-				
+
 				if isLeader {
 					go n.sendHeartbeat()
 				} else {
 					return
 				}
-				
+
 			case <-n.ctx.Done():
 				return
 			}
@@ -542,14 +542,14 @@ func (n *RaftNodeImpl) eventProcessor() {
 	for {
 		select {
 		case event := <-n.eventCh:
-			n.logger.Debug("Processing cluster event", 
-				"type", event.Type, 
+			n.logger.Debug("Processing cluster event",
+				"type", event.Type,
 				"nodeID", event.NodeID,
 				"term", event.Term)
-			
+
 			// Application can listen to these events for notifications
 			// For now, we just log them
-			
+
 		case <-n.ctx.Done():
 			return
 		}
@@ -562,7 +562,7 @@ func (n *RaftNodeImpl) logApplier() {
 		select {
 		case <-time.After(10 * time.Millisecond):
 			n.applyCommittedEntries()
-			
+
 		case <-n.ctx.Done():
 			return
 		}
@@ -573,33 +573,33 @@ func (n *RaftNodeImpl) logApplier() {
 func (n *RaftNodeImpl) applyCommittedEntries() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	// Apply entries from lastApplied+1 to commitIndex
 	for index := n.lastApplied + 1; index <= n.commitIndex; index++ {
 		if index > LogIndex(len(n.log)) {
 			// Should not happen, but handle gracefully
-			n.logger.Warn("Commit index beyond log length", 
+			n.logger.Warn("Commit index beyond log length",
 				"commitIndex", n.commitIndex,
 				"logLength", len(n.log))
 			break
 		}
-		
+
 		entry := &n.log[index-1] // Convert to 0-based indexing
-		
+
 		// Apply to state machine
 		if n.stateMachine != nil {
 			if err := n.stateMachine.Apply(entry); err != nil {
-				n.logger.Error("Failed to apply log entry to state machine", 
-					"index", index, 
+				n.logger.Error("Failed to apply log entry to state machine",
+					"index", index,
 					"error", err)
 				// Continue applying other entries
 			}
 		}
-		
+
 		n.lastApplied = index
-		
-		n.logger.Debug("Applied log entry", 
-			"index", index, 
+
+		n.logger.Debug("Applied log entry",
+			"index", index,
 			"term", entry.Term,
 			"type", entry.Type)
 	}

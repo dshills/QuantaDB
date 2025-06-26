@@ -130,7 +130,7 @@ func TestHandshakeAckMessage_MarshalUnmarshal(t *testing.T) {
 	if restored.ErrorMessage != original.ErrorMessage {
 		t.Errorf("ErrorMessage = %v, want %v", restored.ErrorMessage, original.ErrorMessage)
 	}
-	
+
 	// Timestamp comparison (within reasonable tolerance)
 	if restored.ServerTimeStamp.Sub(original.ServerTimeStamp).Abs() > time.Millisecond {
 		t.Errorf("ServerTimeStamp = %v, want %v", restored.ServerTimeStamp, original.ServerTimeStamp)
@@ -231,7 +231,7 @@ func TestHeartbeatMessage_MarshalUnmarshal(t *testing.T) {
 	if restored.LastLSN != original.LastLSN {
 		t.Errorf("LastLSN = %v, want %v", restored.LastLSN, original.LastLSN)
 	}
-	
+
 	// Timestamp comparison (within reasonable tolerance)
 	if restored.Timestamp.Sub(original.Timestamp).Abs() > time.Millisecond {
 		t.Errorf("Timestamp = %v, want %v", restored.Timestamp, original.Timestamp)

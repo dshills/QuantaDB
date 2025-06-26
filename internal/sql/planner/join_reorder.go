@@ -200,11 +200,7 @@ func (dp *DynamicProgrammingEnumerator) findTableIndex(graph *JoinGraph, table *
 func (dp *DynamicProgrammingEnumerator) calculateJoinCost(_ *CostEstimator, left, right *DPEntry, joinCondition *JoinEdge) Cost {
 	// Simplified cost calculation
 	// In practice, this would consider different join algorithms
-
-	combinedRows := left.Cost.EstimateRows() * right.Cost.EstimateRows() * float64(joinCondition.Selectivity)
-	if combinedRows == 0 {
-		combinedRows = left.Cost.EstimateRows() * right.Cost.EstimateRows() * 0.1 // Default selectivity
-	}
+	// TODO: Use joinCondition.Selectivity to estimate result size
 
 	// Hash join cost estimation
 	buildCost := right.Cost.TotalCost // Build phase

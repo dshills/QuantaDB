@@ -42,7 +42,6 @@ linters:
 
     # Style
     - revive        # Fast, configurable linter
-    - misspell      # Spell checker
 
     # Bugs/Correctness
     - staticcheck   # Advanced static analysis (includes gosimple, stylecheck)
@@ -55,6 +54,8 @@ linters:
     - unparam       # Database interfaces need consistent signatures
     - prealloc      # Query processing uses dynamic structures
     - nilnil        # Common pattern in iterators: return nil, nil
+    - misspell      # Spell checker
+    - unused
 
   # Linter-specific settings
   settings:

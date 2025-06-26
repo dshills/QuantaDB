@@ -17,36 +17,36 @@ type RuntimeFeedbackCollector struct {
 
 // PerformanceMetrics tracks actual vs predicted performance
 type PerformanceMetrics struct {
-	ActualExecutionTime  time.Duration
-	PredictedTime        time.Duration
-	MemoryUsed           int64
-	PredictedMemory      int64
-	RowsProcessed        int64
-	PredictedRows        int64
-	VectorizationRatio   float64
-	CacheHitRate         float64
-	LastUpdated          time.Time
-	SampleCount          int64
+	ActualExecutionTime time.Duration
+	PredictedTime       time.Duration
+	MemoryUsed          int64
+	PredictedMemory     int64
+	RowsProcessed       int64
+	PredictedRows       int64
+	VectorizationRatio  float64
+	CacheHitRate        float64
+	LastUpdated         time.Time
+	SampleCount         int64
 }
 
 // QuerySignature uniquely identifies a query pattern
 type QuerySignature struct {
-	QueryHash       string
-	MainOperator    OperatorType
-	JoinCount       int
-	PredicateCount  int
-	AggregateCount  int
+	QueryHash      string
+	MainOperator   OperatorType
+	JoinCount      int
+	PredicateCount int
+	AggregateCount int
 }
 
 // MemoryProfile tracks memory usage patterns
 type MemoryProfile struct {
-	PeakMemoryUsage     int64
-	AvgMemoryUsage      int64
-	MemorySpikes        int
-	GCPressureEvents    int
-	LastOOM             time.Time
-	SuccessfulRuns      int64
-	FailedRuns          int64
+	PeakMemoryUsage  int64
+	AvgMemoryUsage   int64
+	MemorySpikes     int
+	GCPressureEvents int
+	LastOOM          time.Time
+	SuccessfulRuns   int64
+	FailedRuns       int64
 }
 
 // CacheKey identifies a cached result
@@ -58,33 +58,33 @@ type CacheKey struct {
 
 // CachePerformance tracks cache effectiveness
 type CachePerformance struct {
-	HitCount          int64
-	MissCount         int64
-	EvictionCount     int64
-	AvgHitLatency     time.Duration
-	AvgMissLatency    time.Duration
-	MemorySaved       int64
-	ComputeSaved      time.Duration
-	LastAccess        time.Time
+	HitCount       int64
+	MissCount      int64
+	EvictionCount  int64
+	AvgHitLatency  time.Duration
+	AvgMissLatency time.Duration
+	MemorySaved    int64
+	ComputeSaved   time.Duration
+	LastAccess     time.Time
 }
 
 // QueryHistoryTracker maintains query execution history
 type QueryHistoryTracker struct {
-	mu          sync.RWMutex
-	history     []QueryExecution
-	maxHistory  int
-	currentIdx  int
+	mu         sync.RWMutex
+	history    []QueryExecution
+	maxHistory int
+	currentIdx int
 }
 
 // QueryExecution represents a single query execution
 type QueryExecution struct {
-	Signature      QuerySignature
-	ExecutionTime  time.Duration
-	MemoryUsed     int64
-	RowsProduced   int64
-	PlanType       ExecutionMode
-	Success        bool
-	Timestamp      time.Time
+	Signature     QuerySignature
+	ExecutionTime time.Duration
+	MemoryUsed    int64
+	RowsProduced  int64
+	PlanType      ExecutionMode
+	Success       bool
+	Timestamp     time.Time
 }
 
 // CostModelCalibrationData stores data for cost model calibration
@@ -134,7 +134,7 @@ func (rfc *RuntimeFeedbackCollector) RecordOperatorMetrics(
 ) {
 	rfc.mu.Lock()
 	defer rfc.mu.Unlock()
-	
+
 	existing, exists := rfc.operatorPerformance[signature]
 	if !exists {
 		rfc.operatorPerformance[signature] = metrics
@@ -143,17 +143,17 @@ func (rfc *RuntimeFeedbackCollector) RecordOperatorMetrics(
 	} else {
 		// Update with exponential moving average
 		alpha := 0.3 // Weight for new sample
-		
+
 		existing.ActualExecutionTime = time.Duration(
 			(1-alpha)*float64(existing.ActualExecutionTime) + alpha*float64(metrics.ActualExecutionTime))
 		existing.MemoryUsed = int64(
 			(1-alpha)*float64(existing.MemoryUsed) + alpha*float64(metrics.MemoryUsed))
 		existing.RowsProcessed = int64(
 			(1-alpha)*float64(existing.RowsProcessed) + alpha*float64(metrics.RowsProcessed))
-		
+
 		existing.VectorizationRatio = (1-alpha)*existing.VectorizationRatio + alpha*metrics.VectorizationRatio
 		existing.CacheHitRate = (1-alpha)*existing.CacheHitRate + alpha*metrics.CacheHitRate
-		
+
 		existing.SampleCount++
 		existing.LastUpdated = time.Now()
 	}
@@ -178,10 +178,10 @@ func (rfc *RuntimeFeedbackCollector) RecordQueryExecution(
 		Success:       success,
 		Timestamp:     time.Now(),
 	})
-	
+
 	// Update memory profile
 	rfc.updateMemoryProfile(signature, memoryUsed, success)
-	
+
 	// Update calibration data if vectorized
 	if planType == ExecutionModeVectorized {
 		rfc.updateCalibrationData(executionTime, memoryUsed, rowsProduced)
@@ -197,24 +197,24 @@ func (rfc *RuntimeFeedbackCollector) RecordCacheAccess(
 ) {
 	rfc.mu.Lock()
 	defer rfc.mu.Unlock()
-	
+
 	perf, exists := rfc.cacheEffectiveness[key]
 	if !exists {
 		perf = &CachePerformance{}
 		rfc.cacheEffectiveness[key] = perf
 	}
-	
+
 	if hit {
 		perf.HitCount++
-		perf.AvgHitLatency = (perf.AvgHitLatency*time.Duration(perf.HitCount-1) + latency) / 
+		perf.AvgHitLatency = (perf.AvgHitLatency*time.Duration(perf.HitCount-1) + latency) /
 			time.Duration(perf.HitCount)
 		perf.MemorySaved += memorySaved
 	} else {
 		perf.MissCount++
-		perf.AvgMissLatency = (perf.AvgMissLatency*time.Duration(perf.MissCount-1) + latency) / 
+		perf.AvgMissLatency = (perf.AvgMissLatency*time.Duration(perf.MissCount-1) + latency) /
 			time.Duration(perf.MissCount)
 	}
-	
+
 	perf.LastAccess = time.Now()
 }
 
@@ -224,12 +224,12 @@ func (rfc *RuntimeFeedbackCollector) GetOperatorPerformance(
 ) (*PerformanceMetrics, bool) {
 	rfc.mu.RLock()
 	defer rfc.mu.RUnlock()
-	
+
 	metrics, exists := rfc.operatorPerformance[signature]
 	if !exists {
 		return nil, false
 	}
-	
+
 	// Return a copy to avoid race conditions
 	copy := *metrics
 	return &copy, true
@@ -241,12 +241,12 @@ func (rfc *RuntimeFeedbackCollector) GetMemoryProfile(
 ) (*MemoryProfile, bool) {
 	rfc.mu.RLock()
 	defer rfc.mu.RUnlock()
-	
+
 	profile, exists := rfc.memoryUsagePatterns[signature]
 	if !exists {
 		return nil, false
 	}
-	
+
 	copy := *profile
 	return &copy, true
 }
@@ -257,12 +257,12 @@ func (rfc *RuntimeFeedbackCollector) GetCacheEffectiveness(
 ) (*CachePerformance, bool) {
 	rfc.mu.RLock()
 	defer rfc.mu.RUnlock()
-	
+
 	perf, exists := rfc.cacheEffectiveness[key]
 	if !exists {
 		return nil, false
 	}
-	
+
 	copy := *perf
 	return &copy, true
 }
@@ -273,20 +273,20 @@ func (rfc *RuntimeFeedbackCollector) UpdateCostModel(
 ) error {
 	rfc.mu.RLock()
 	defer rfc.mu.RUnlock()
-	
+
 	// Calculate adjustment factors based on prediction accuracy
 	scalarAdjustment := rfc.calculateScalarCostAdjustment()
 	vectorizedAdjustment := rfc.calculateVectorizedCostAdjustment()
-	
+
 	// Apply adjustments with damping factor to avoid oscillation
 	dampingFactor := 0.1
-	
+
 	model.scalarRowCost *= (1.0 + scalarAdjustment*dampingFactor)
 	model.vectorizedRowCost *= (1.0 + vectorizedAdjustment*dampingFactor)
-	
+
 	// Update thresholds based on success rates
 	rfc.updateVectorizationThresholds(model)
-	
+
 	return nil
 }
 
@@ -299,13 +299,13 @@ func (rfc *RuntimeFeedbackCollector) GetQueryHistory(limit int) []QueryExecution
 func (rfc *RuntimeFeedbackCollector) GetCalibrationStats() map[string]interface{} {
 	rfc.calibrationData.mu.RLock()
 	defer rfc.calibrationData.mu.RUnlock()
-	
+
 	stats := make(map[string]interface{})
 	stats["calibration_count"] = rfc.calibrationData.calibrationCount
 	stats["last_calibration"] = rfc.calibrationData.lastCalibration
 	stats["scalar_samples"] = len(rfc.calibrationData.scalarRowCostSamples)
 	stats["vectorized_samples"] = len(rfc.calibrationData.vectorizedCostSamples)
-	
+
 	return stats
 }
 
@@ -318,17 +318,17 @@ func (rfc *RuntimeFeedbackCollector) updateMemoryProfile(
 ) {
 	rfc.mu.Lock()
 	defer rfc.mu.Unlock()
-	
+
 	profile, exists := rfc.memoryUsagePatterns[signature]
 	if !exists {
 		profile = &MemoryProfile{}
 		rfc.memoryUsagePatterns[signature] = profile
 	}
-	
+
 	if memoryUsed > profile.PeakMemoryUsage {
 		profile.PeakMemoryUsage = memoryUsed
 	}
-	
+
 	// Update average
 	totalRuns := profile.SuccessfulRuns + profile.FailedRuns
 	if totalRuns > 0 {
@@ -336,7 +336,7 @@ func (rfc *RuntimeFeedbackCollector) updateMemoryProfile(
 	} else {
 		profile.AvgMemoryUsage = memoryUsed
 	}
-	
+
 	if success {
 		profile.SuccessfulRuns++
 	} else {
@@ -352,19 +352,19 @@ func (rfc *RuntimeFeedbackCollector) updateCalibrationData(
 ) {
 	rfc.calibrationData.mu.Lock()
 	defer rfc.calibrationData.mu.Unlock()
-	
+
 	if rowsProcessed > 0 {
 		costPerRow := float64(executionTime.Nanoseconds()) / float64(rowsProcessed)
 		rfc.calibrationData.vectorizedCostSamples = append(
 			rfc.calibrationData.vectorizedCostSamples, costPerRow)
-		
+
 		// Keep only recent samples
 		if len(rfc.calibrationData.vectorizedCostSamples) > 1000 {
-			rfc.calibrationData.vectorizedCostSamples = 
+			rfc.calibrationData.vectorizedCostSamples =
 				rfc.calibrationData.vectorizedCostSamples[100:]
 		}
 	}
-	
+
 	rfc.calibrationData.calibrationCount++
 }
 
@@ -372,20 +372,20 @@ func (rfc *RuntimeFeedbackCollector) calculateScalarCostAdjustment() float64 {
 	// Calculate adjustment based on prediction accuracy
 	totalError := 0.0
 	count := 0
-	
+
 	for _, metrics := range rfc.operatorPerformance {
 		if metrics.PredictedTime > 0 && metrics.SampleCount > 5 {
-			error := (float64(metrics.ActualExecutionTime) - float64(metrics.PredictedTime)) / 
+			error := (float64(metrics.ActualExecutionTime) - float64(metrics.PredictedTime)) /
 				float64(metrics.PredictedTime)
 			totalError += error
 			count++
 		}
 	}
-	
+
 	if count == 0 {
 		return 0.0
 	}
-	
+
 	return totalError / float64(count)
 }
 
@@ -393,21 +393,21 @@ func (rfc *RuntimeFeedbackCollector) calculateVectorizedCostAdjustment() float64
 	// Similar to scalar but for vectorized operations
 	totalError := 0.0
 	count := 0
-	
+
 	for sig, metrics := range rfc.operatorPerformance {
-		if sig.ExecutionMode == ExecutionModeVectorized && 
-		   metrics.PredictedTime > 0 && metrics.SampleCount > 5 {
-			error := (float64(metrics.ActualExecutionTime) - float64(metrics.PredictedTime)) / 
+		if sig.ExecutionMode == ExecutionModeVectorized &&
+			metrics.PredictedTime > 0 && metrics.SampleCount > 5 {
+			error := (float64(metrics.ActualExecutionTime) - float64(metrics.PredictedTime)) /
 				float64(metrics.PredictedTime)
 			totalError += error
 			count++
 		}
 	}
-	
+
 	if count == 0 {
 		return 0.0
 	}
-	
+
 	return totalError / float64(count)
 }
 
@@ -424,7 +424,7 @@ func (rfc *RuntimeFeedbackCollector) updateVectorizationThresholds(
 func (qht *QueryHistoryTracker) AddExecution(exec QueryExecution) {
 	qht.mu.Lock()
 	defer qht.mu.Unlock()
-	
+
 	qht.history[qht.currentIdx] = exec
 	qht.currentIdx = (qht.currentIdx + 1) % qht.maxHistory
 }
@@ -432,13 +432,13 @@ func (qht *QueryHistoryTracker) AddExecution(exec QueryExecution) {
 func (qht *QueryHistoryTracker) GetRecent(limit int) []QueryExecution {
 	qht.mu.RLock()
 	defer qht.mu.RUnlock()
-	
+
 	if limit > qht.maxHistory {
 		limit = qht.maxHistory
 	}
-	
+
 	result := make([]QueryExecution, 0, limit)
-	
+
 	// Start from most recent and work backwards
 	for i := 0; i < limit; i++ {
 		idx := (qht.currentIdx - i - 1 + qht.maxHistory) % qht.maxHistory
@@ -447,6 +447,6 @@ func (qht *QueryHistoryTracker) GetRecent(limit int) []QueryExecution {
 		}
 		result = append(result, qht.history[idx])
 	}
-	
+
 	return result
 }

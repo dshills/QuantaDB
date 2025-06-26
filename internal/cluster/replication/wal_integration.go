@@ -59,9 +59,9 @@ func (h *WALReplicationHook) OnRecordAppended(record *wal.LogRecord) error {
 
 	// Stream the record to all replicas
 	if err := streamer.StreamWALRecord(record); err != nil {
-		h.logger.Warn("Failed to stream WAL record", 
-			"lsn", record.LSN, 
-			"type", record.Type, 
+		h.logger.Warn("Failed to stream WAL record",
+			"lsn", record.LSN,
+			"type", record.Type,
 			"error", err)
 		// Don't return error to avoid breaking the main WAL append operation
 	}
@@ -172,9 +172,9 @@ func (rm *ReplicationAwareWALManager) DisableReplication() {
 
 // RealtimeWALReader reads WAL records from disk for historical streaming
 type RealtimeWALReader struct {
-	walMgr  *wal.Manager
-	logger  log.Logger
-	segDir  string
+	walMgr *wal.Manager
+	logger log.Logger
+	segDir string
 }
 
 // NewRealtimeWALReader creates a new realtime WAL reader
@@ -196,8 +196,8 @@ func (r *RealtimeWALReader) ReadRecordsFromLSN(startLSN wal.LSN, maxRecords int)
 	// 4. Handling segment boundaries
 	// 5. Returning up to maxRecords
 
-	r.logger.Debug("Reading WAL records from disk", 
-		"startLSN", startLSN, 
+	r.logger.Debug("Reading WAL records from disk",
+		"startLSN", startLSN,
 		"maxRecords", maxRecords)
 
 	// For now, return empty slice
@@ -207,14 +207,14 @@ func (r *RealtimeWALReader) ReadRecordsFromLSN(startLSN wal.LSN, maxRecords int)
 
 // StreamHistoricalRecords streams historical WAL records to a replica
 func (r *RealtimeWALReader) StreamHistoricalRecords(
-	streamer WALStreamer, 
-	replica ReplicaInfo, 
+	streamer WALStreamer,
+	replica ReplicaInfo,
 	startLSN wal.LSN,
 	currentLSN wal.LSN,
 ) error {
 	const batchSize = 100
-	
-	r.logger.Info("Streaming historical records", 
+
+	r.logger.Info("Streaming historical records",
 		"replica", replica.NodeID,
 		"startLSN", startLSN,
 		"currentLSN", currentLSN)
@@ -249,7 +249,7 @@ func (r *RealtimeWALReader) StreamHistoricalRecords(
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r.logger.Info("Finished streaming historical records", 
+	r.logger.Info("Finished streaming historical records",
 		"replica", replica.NodeID,
 		"endLSN", readLSN)
 
@@ -284,10 +284,10 @@ func NewWALStreamingCoordinator(
 func (c *WALStreamingCoordinator) Start() error {
 	// Set the streamer in the WAL manager
 	c.walMgr.SetStreamer(c.streamer)
-	
+
 	// Enable replication
 	c.walMgr.EnableReplication()
-	
+
 	c.logger.Info("WAL streaming coordination started")
 	return nil
 }
@@ -296,7 +296,7 @@ func (c *WALStreamingCoordinator) Start() error {
 func (c *WALStreamingCoordinator) Stop() error {
 	// Disable replication
 	c.walMgr.DisableReplication()
-	
+
 	c.logger.Info("WAL streaming coordination stopped")
 	return nil
 }
@@ -304,13 +304,13 @@ func (c *WALStreamingCoordinator) Stop() error {
 // HandleNewReplica handles a new replica that needs historical data
 func (c *WALStreamingCoordinator) HandleNewReplica(replica ReplicaInfo, startLSN wal.LSN) error {
 	currentLSN := c.walMgr.GetCurrentLSN()
-	
+
 	// If the replica is behind, stream historical records
 	if startLSN < currentLSN {
 		go func() {
 			if err := c.reader.StreamHistoricalRecords(c.streamer, replica, startLSN, currentLSN); err != nil {
-				c.logger.Error("Failed to stream historical records", 
-					"replica", replica.NodeID, 
+				c.logger.Error("Failed to stream historical records",
+					"replica", replica.NodeID,
 					"error", err)
 			}
 		}()

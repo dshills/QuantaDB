@@ -1,7 +1,6 @@
 package planner
 
 import (
-	"strings"
 	"time"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
@@ -337,15 +336,4 @@ func (cp *CachingPlanner) GetCacheSize() int {
 // GetCatalog returns the catalog used by this planner
 func (cp *CachingPlanner) GetCatalog() catalog.Catalog {
 	return cp.catalog
-}
-
-// normalizeStatementSQL normalizes SQL for consistent caching
-// This is a simple implementation - could be enhanced with proper SQL normalization
-func normalizeStatementSQL(sql string) string {
-	// Convert to lowercase and normalize whitespace
-	normalized := strings.TrimSpace(strings.ToLower(sql))
-
-	// Replace multiple spaces with single space
-	parts := strings.Fields(normalized)
-	return strings.Join(parts, " ")
 }

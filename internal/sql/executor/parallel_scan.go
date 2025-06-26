@@ -30,13 +30,21 @@ type ScanResult struct {
 	Err error
 }
 
+// GetRow implements ParallelResult interface
+func (sr *ScanResult) GetRow() *Row {
+	return sr.Row
+}
+
+// GetError implements ParallelResult interface
+func (sr *ScanResult) GetError() error {
+	return sr.Err
+}
+
 // ParallelScanWorker represents a single scan worker
 type ParallelScanWorker struct {
 	id       int
 	table    *catalog.Table
 	storage  StorageBackend
-	startKey []byte
-	endKey   []byte
 	ctx      context.Context
 	resultCh chan<- *ScanResult
 }
@@ -163,7 +171,7 @@ func (ps *ParallelScanOperator) runWorker(worker *ParallelScanWorker) {
 	defer ps.workerWG.Done()
 
 	// Create iterator for this worker's partition
-	iterator, err := worker.storage.ScanTable(int64(worker.table.ID), ps.ctx.SnapshotTS)
+	iterator, err := worker.storage.ScanTable(worker.table.ID, ps.ctx.SnapshotTS)
 	if err != nil {
 		select {
 		case ps.errorChan <- fmt.Errorf("worker %d failed to create iterator: %w", worker.id, err):
@@ -215,50 +223,11 @@ func (ps *ParallelScanOperator) coordinator() {
 
 // Next returns the next row from parallel scanning
 func (ps *ParallelScanOperator) Next() (*Row, error) {
-	// Check for errors in parallel context
-	if err := ps.parallelCtx.GetError(); err != nil {
-		return nil, err
-	}
-
-	// Check for specific scan errors
-	select {
-	case err := <-ps.errorChan:
-		return nil, err
-	default:
-	}
-
-	// Get next result
-	select {
-	case result, ok := <-ps.resultChan:
-		if !ok {
-			// Channel closed - finalize statistics
-			ps.finishStats()
-			if ps.ctx != nil && ps.ctx.StatsCollector != nil && ps.stats != nil {
-				ps.ctx.StatsCollector(ps, ps.stats)
-			}
-			return nil, nil // EOF
-		}
-
-		if result.Err != nil {
-			return nil, result.Err
-		}
-
-		// Update statistics
+	return handleParallelNext(ps.parallelCtx, ps.errorChan, ps.resultChan, func() {
 		if ps.ctx.Stats != nil {
 			ps.ctx.Stats.RowsRead++
 		}
-
-		// Record row for performance stats
-		ps.recordRow()
-
-		return result.Row, nil
-
-	case err := <-ps.errorChan:
-		return nil, err
-
-	case <-ps.parallelCtx.Ctx.Done():
-		return nil, ps.parallelCtx.Ctx.Err()
-	}
+	})
 }
 
 // Close cleans up the parallel scan

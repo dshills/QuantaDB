@@ -41,9 +41,7 @@ type AdaptiveHashJoinOperator struct {
 
 	// Execution state
 	buildComplete bool
-	probeIndex    int
 	spillIndex    int
-	currentBucket *SpillBucket
 
 	// Performance tracking
 	spillCount int64

@@ -22,30 +22,30 @@ type LoadBalancerImpl struct {
 	strategy LoadBalancingStrategy
 	logger   log.Logger
 	mu       sync.RWMutex
-	
+
 	// Round robin state
 	rrIndex int
-	
+
 	// Weighted round robin state
 	wrrWeights map[string]int
 	wrrCurrent map[string]int
-	
+
 	// Node statistics for decision making
 	nodeStats map[string]*NodeStats
-	
+
 	// Random source
 	rand *rand.Rand
 }
 
 // NodeStats contains statistics used for load balancing decisions
 type NodeStats struct {
-	NodeID          string
-	ResponseTime    time.Duration
-	ActiveConns     int
-	TotalQueries    int64
-	SuccessRate     float64
-	LastUpdated     time.Time
-	HealthScore     float64
+	NodeID       string
+	ResponseTime time.Duration
+	ActiveConns  int
+	TotalQueries int64
+	SuccessRate  float64
+	LastUpdated  time.Time
+	HealthScore  float64
 }
 
 // NewLoadBalancer creates a new load balancer
@@ -94,10 +94,10 @@ func (lb *LoadBalancerImpl) selectRoundRobin(nodes []*NodeInfo) *NodeInfo {
 
 	selected := nodes[lb.rrIndex%len(nodes)]
 	lb.rrIndex++
-	
-	lb.logger.Debug("Round robin selection", 
+
+	lb.logger.Debug("Round robin selection",
 		"selected_node", selected.ID, "index", lb.rrIndex-1)
-	
+
 	return selected
 }
 
@@ -117,9 +117,9 @@ func (lb *LoadBalancerImpl) selectLeastConnections(nodes []*NodeInfo) *NodeInfo 
 		}
 	}
 
-	lb.logger.Debug("Least connections selection", 
+	lb.logger.Debug("Least connections selection",
 		"selected_node", selected.ID, "connections", selected.ActiveConns)
-	
+
 	return selected
 }
 
@@ -160,7 +160,7 @@ func (lb *LoadBalancerImpl) selectWeightedRoundRobin(nodes []*NodeInfo) *NodeInf
 		}
 		lb.wrrCurrent[selected.ID] -= totalWeight
 
-		lb.logger.Debug("Weighted round robin selection", 
+		lb.logger.Debug("Weighted round robin selection",
 			"selected_node", selected.ID, "weight", selected.Weight)
 	}
 
@@ -188,7 +188,7 @@ func (lb *LoadBalancerImpl) selectResponseTimeWeighted(nodes []*NodeInfo) *NodeI
 		if responseMs == 0 {
 			responseMs = 1 // Avoid division by zero
 		}
-		
+
 		weight := 1000.0 / responseMs // Scale up for better precision
 		weights = append(weights, nodeWeight{node: node, weight: weight})
 		totalWeight += weight
@@ -205,7 +205,7 @@ func (lb *LoadBalancerImpl) selectResponseTimeWeighted(nodes []*NodeInfo) *NodeI
 	for _, nw := range weights {
 		current += nw.weight
 		if current >= target {
-			lb.logger.Debug("Response time weighted selection", 
+			lb.logger.Debug("Response time weighted selection",
 				"selected_node", nw.node.ID, "response_time", nw.node.ResponseTime)
 			return nw.node
 		}
@@ -262,7 +262,7 @@ func (lb *LoadBalancerImpl) selectHealthAware(nodes []*NodeInfo) *NodeInfo {
 		current += scores[i].score
 		if current >= target {
 			selected := scores[i].node
-			lb.logger.Debug("Health-aware selection", 
+			lb.logger.Debug("Health-aware selection",
 				"selected_node", selected.ID, "score", scores[i].score)
 			return selected
 		}
@@ -331,7 +331,7 @@ func (lb *LoadBalancerImpl) UpdateNodeStats(nodeID string, stats *NodeStats) {
 	stats.HealthScore = lb.calculateHealthScoreFromStats(stats)
 	lb.nodeStats[nodeID] = stats
 
-	lb.logger.Debug("Updated node stats", 
+	lb.logger.Debug("Updated node stats",
 		"node_id", nodeID, "health_score", stats.HealthScore)
 }
 
@@ -381,7 +381,7 @@ func (lb *LoadBalancerImpl) SetStrategy(strategy LoadBalancingStrategy) {
 	lb.rrIndex = 0
 	lb.wrrCurrent = make(map[string]int)
 
-	lb.logger.Info("Load balancing strategy changed", 
+	lb.logger.Info("Load balancing strategy changed",
 		"old_strategy", oldStrategy, "new_strategy", strategy)
 }
 
@@ -393,19 +393,19 @@ func (lb *LoadBalancerImpl) GetStats() map[string]interface{} {
 	nodeStats := make(map[string]interface{})
 	for nodeID, stats := range lb.nodeStats {
 		nodeStats[nodeID] = map[string]interface{}{
-			"response_time":  stats.ResponseTime,
-			"active_conns":   stats.ActiveConns,
-			"total_queries":  stats.TotalQueries,
-			"success_rate":   stats.SuccessRate,
-			"health_score":   stats.HealthScore,
-			"last_updated":   stats.LastUpdated,
+			"response_time": stats.ResponseTime,
+			"active_conns":  stats.ActiveConns,
+			"total_queries": stats.TotalQueries,
+			"success_rate":  stats.SuccessRate,
+			"health_score":  stats.HealthScore,
+			"last_updated":  stats.LastUpdated,
 		}
 	}
 
 	return map[string]interface{}{
-		"strategy":        lb.strategy,
+		"strategy":          lb.strategy,
 		"round_robin_index": lb.rrIndex,
-		"node_stats":      nodeStats,
-		"wrr_weights":     lb.wrrWeights,
+		"node_stats":        nodeStats,
+		"wrr_weights":       lb.wrrWeights,
 	}
 }

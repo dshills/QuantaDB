@@ -31,6 +31,16 @@ type JoinResult struct {
 	Err error
 }
 
+// GetRow implements ParallelResult interface
+func (jr *JoinResult) GetRow() *Row {
+	return jr.Row
+}
+
+// GetError implements ParallelResult interface
+func (jr *JoinResult) GetError() error {
+	return jr.Err
+}
+
 // HashPartition represents a partition of the hash table
 type HashPartition struct {
 	id        int
@@ -193,11 +203,8 @@ func (phj *ParallelHashJoinOperator) probePhase() error {
 	go func() {
 		defer func() {
 			// Signal workers to finish
-			for _, partition := range phj.partitions {
-				partition.mutex.Lock()
-				// Mark partition as complete (could use a flag)
-				partition.mutex.Unlock()
-			}
+			// In a full implementation, we would set a completion flag here
+			// For now, workers will detect completion when channels close
 		}()
 
 		for {
@@ -345,50 +352,11 @@ func (phj *ParallelHashJoinOperator) coordinator() {
 
 // Next returns the next joined row
 func (phj *ParallelHashJoinOperator) Next() (*Row, error) {
-	// Check for errors in parallel context
-	if err := phj.parallelCtx.GetError(); err != nil {
-		return nil, err
-	}
-
-	// Check for specific join errors
-	select {
-	case err := <-phj.errorChan:
-		return nil, err
-	default:
-	}
-
-	// Get next result
-	select {
-	case result, ok := <-phj.resultChan:
-		if !ok {
-			// Channel closed - finalize statistics
-			phj.finishStats()
-			if phj.ctx != nil && phj.ctx.StatsCollector != nil && phj.stats != nil {
-				phj.ctx.StatsCollector(phj, phj.stats)
-			}
-			return nil, nil // EOF
-		}
-
-		if result.Err != nil {
-			return nil, result.Err
-		}
-
-		// Update statistics
+	return handleParallelNext(phj.parallelCtx, phj.errorChan, phj.resultChan, func() {
 		if phj.ctx.Stats != nil {
 			phj.ctx.Stats.RowsReturned++
 		}
-
-		// Record row for performance stats
-		phj.recordRow()
-
-		return result.Row, nil
-
-	case err := <-phj.errorChan:
-		return nil, err
-
-	case <-phj.parallelCtx.Ctx.Done():
-		return nil, phj.parallelCtx.Ctx.Err()
-	}
+	})
 }
 
 // Close cleans up the parallel hash join

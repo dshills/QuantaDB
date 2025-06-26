@@ -47,7 +47,7 @@ type Server struct {
 	nextConnID  uint32
 	shutdown    chan struct{}
 	wg          sync.WaitGroup
-	
+
 	// Cluster support
 	clusterCoordinator interface{} // *cluster.Coordinator
 }

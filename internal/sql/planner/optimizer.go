@@ -701,7 +701,7 @@ func (is *IndexSelection) tryCoveringIndexScan(scan *LogicalScan, filter *Logica
 		if IsCoveringIndex(idx, requiredColumns) {
 			// Estimate cost for this covering index
 			cost := is.estimateCoveringIndexCost(table, idx, filter, len(requiredColumns))
-			
+
 			if bestIndex == nil || cost < bestCost {
 				bestIndex = idx
 				bestCost = cost
@@ -732,12 +732,12 @@ func (is *IndexSelection) tryCoveringIndexScan(scan *LogicalScan, filter *Logica
 // extractRequiredColumns determines which columns are needed by the query
 func (is *IndexSelection) extractRequiredColumns(scan *LogicalScan, filter *LogicalFilter) []string {
 	columnsSet := make(map[string]bool)
-	
+
 	// Add columns from the filter predicate
 	if filter != nil && filter.Predicate != nil {
 		is.extractColumnsFromExpression(filter.Predicate, columnsSet)
 	}
-	
+
 	// For now, if we can't determine specific columns, assume we need all table columns
 	// In a more sophisticated implementation, we would walk up the plan tree to find projections
 	if len(columnsSet) == 0 {
@@ -748,13 +748,13 @@ func (is *IndexSelection) extractRequiredColumns(scan *LogicalScan, filter *Logi
 			}
 		}
 	}
-	
+
 	// Convert to slice
 	var columns []string
 	for col := range columnsSet {
 		columns = append(columns, col)
 	}
-	
+
 	return columns
 }
 
@@ -772,7 +772,7 @@ func (is *IndexSelection) extractColumnsFromExpression(expr Expression, columns 
 		for _, arg := range e.Args {
 			is.extractColumnsFromExpression(arg, columns)
 		}
-	// Add more expression types as needed
+		// Add more expression types as needed
 	}
 }
 
@@ -781,17 +781,17 @@ func (is *IndexSelection) estimateCoveringIndexCost(table *catalog.Table, index 
 	if is.costEstimator != nil {
 		// Use the cost estimator if available
 		baseIndexCost := is.costEstimator.EstimateIndexScanCost(table, index, 0.5) // Assume 50% selectivity
-		
+
 		// Index-only scans are cheaper than index scans with heap lookups
 		// Reduce cost by 30-50% since we avoid heap access
 		coveringBonus := 0.6
-		
+
 		// Wider indexes (more columns) have slightly higher cost
 		columnPenalty := float64(numColumns) * 0.05
-		
+
 		return baseIndexCost.TotalCost * coveringBonus * (1.0 + columnPenalty)
 	}
-	
+
 	// Simple heuristic: base cost + column penalty
 	baseCost := 100.0
 	columnCost := float64(numColumns) * 10.0
@@ -908,7 +908,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 						if stats != nil {
 							estimatedRows = stats.RowCount
 						}
-						
+
 						// Check if vectorized filter should be used
 						memoryAvailable := int64(64 * 1024 * 1024) // 64MB default
 						choice := is.costEstimator.GetVectorizedExecutionChoice(
@@ -918,7 +918,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 							p.Predicate,
 							memoryAvailable,
 						)
-						
+
 						if choice.UseVectorized {
 							// Create vectorized scan + filter combination
 							vectorizedScan := NewVectorizedLogicalScan(scan.TableName, scan.Alias, scan.Schema(), is.vectorizedBatchSize)
@@ -927,7 +927,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 						}
 					}
 				}
-				
+
 				// Try covering index scan first - most efficient since it avoids heap access
 				if coveringIndexScan := is.tryCoveringIndexScan(scan, p); coveringIndexScan != nil {
 					return coveringIndexScan, true
@@ -989,7 +989,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 				if stats != nil {
 					estimatedRows = stats.RowCount
 				}
-				
+
 				// Check if vectorized scan should be used
 				memoryAvailable := int64(64 * 1024 * 1024) // 64MB default
 				choice := is.costEstimator.GetVectorizedExecutionChoice(
@@ -999,7 +999,7 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 					nil, // No predicate
 					memoryAvailable,
 				)
-				
+
 				if choice.UseVectorized {
 					// Create vectorized scan
 					return NewVectorizedLogicalScan(p.TableName, p.Alias, p.Schema(), is.vectorizedBatchSize), true

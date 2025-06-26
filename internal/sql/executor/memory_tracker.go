@@ -5,15 +5,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	
+
 	"github.com/dshills/QuantaDB/internal/sql/types"
 )
 
 // MemoryTracker tracks memory usage for query execution
 type MemoryTracker struct {
-	limit       int64 // Memory limit in bytes
-	current     int64 // Current memory usage
-	peak        int64 // Peak memory usage
+	limit       int64    // Memory limit in bytes
+	current     int64    // Current memory usage
+	peak        int64    // Peak memory usage
 	allocations sync.Map // Track individual allocations
 }
 
@@ -33,10 +33,10 @@ func (mt *MemoryTracker) Allocate(size int64, id string) error {
 		atomic.AddInt64(&mt.current, -size)
 		return fmt.Errorf("memory limit exceeded: requested %d bytes, limit %d bytes", size, mt.limit)
 	}
-	
+
 	// Track allocation
 	mt.allocations.Store(id, size)
-	
+
 	// Update peak usage
 	for {
 		peak := atomic.LoadInt64(&mt.peak)
@@ -44,7 +44,7 @@ func (mt *MemoryTracker) Allocate(size int64, id string) error {
 			break
 		}
 	}
-	
+
 	return nil
 }
 
@@ -98,11 +98,11 @@ func (mto *memoryTrackingOperator) Open(ctx *ExecContext) error {
 	// Estimate memory usage based on schema
 	estimatedSize := estimateOperatorMemory(mto.child)
 	mto.id = fmt.Sprintf("op_%p", mto)
-	
+
 	if err := mto.tracker.Allocate(estimatedSize, mto.id); err != nil {
 		return err
 	}
-	
+
 	return mto.child.Open(ctx)
 }
 
@@ -135,11 +135,11 @@ func (vmt *VectorizedMemoryTracker) AllocateBatch(batchSize int, schema *Schema)
 	// Calculate batch memory requirements
 	size := calculateBatchMemory(batchSize, schema)
 	batchID := fmt.Sprintf("batch_%d", time.Now().UnixNano())
-	
+
 	if err := vmt.Allocate(size, batchID); err != nil {
 		return "", err
 	}
-	
+
 	vmt.batchAllocations.Store(batchID, size)
 	return batchID, nil
 }
@@ -155,28 +155,28 @@ func (vmt *VectorizedMemoryTracker) ReleaseBatch(batchID string) {
 // calculateBatchMemory estimates memory for a vectorized batch
 func calculateBatchMemory(batchSize int, schema *Schema) int64 {
 	var totalSize int64
-	
+
 	for _, col := range schema.Columns {
 		// Base type size
 		typeSize := getTypeSize(col.Type)
 		columnSize := int64(batchSize) * typeSize
-		
+
 		// Add overhead for null bitmap
 		nullBitmapSize := int64((batchSize + 63) / 64 * 8) // 1 bit per value, rounded to 8 bytes
-		
+
 		// Add overhead for variable-length types
 		if isVariableLength(col.Type) {
 			// Estimate average size for strings/bytes
 			columnSize = int64(batchSize) * 64 // Assume 64 bytes average
 		}
-		
+
 		totalSize += columnSize + nullBitmapSize
 	}
-	
+
 	// Add overhead for selection vector and metadata
 	totalSize += int64(batchSize) * 4 // Selection vector (int32)
-	totalSize += 1024                  // Metadata overhead
-	
+	totalSize += 1024                 // Metadata overhead
+
 	return totalSize
 }
 
@@ -218,7 +218,7 @@ func estimateOperatorMemory(op Operator) int64 {
 	if schema == nil {
 		return 1024 * 1024 // Default 1MB
 	}
-	
+
 	// Estimate row size
 	var rowSize int64
 	for _, col := range schema.Columns {
@@ -228,7 +228,7 @@ func estimateOperatorMemory(op Operator) int64 {
 			rowSize += 64 // Estimate for variable types
 		}
 	}
-	
+
 	// Estimate based on operator type
 	switch op.(type) {
 	case *ScanOperator, *VectorizedScanOperator:

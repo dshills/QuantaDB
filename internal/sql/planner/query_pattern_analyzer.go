@@ -25,44 +25,44 @@ func NewQueryPatternAnalyzer() *QueryPatternAnalyzer {
 // QueryPattern represents a normalized query pattern with execution statistics.
 type QueryPattern struct {
 	// Query identification
-	Fingerprint     string    // Normalized query hash
-	QueryType       QueryType // SELECT, INSERT, UPDATE, DELETE
-	NormalizedSQL   string    // SQL with parameters normalized
-	
+	Fingerprint   string    // Normalized query hash
+	QueryType     QueryType // SELECT, INSERT, UPDATE, DELETE
+	NormalizedSQL string    // SQL with parameters normalized
+
 	// Table and column access
-	PrimaryTable    string             // Main table being queried
-	JoinedTables    []string           // Additional tables in joins
-	AccessedColumns []string           // All columns referenced
-	FilterColumns   []string           // Columns used in WHERE clauses
-	OrderByColumns  []string           // Columns used in ORDER BY
-	GroupByColumns  []string           // Columns used in GROUP BY
-	ProjectColumns  []string           // Columns in SELECT list
-	
+	PrimaryTable    string   // Main table being queried
+	JoinedTables    []string // Additional tables in joins
+	AccessedColumns []string // All columns referenced
+	FilterColumns   []string // Columns used in WHERE clauses
+	OrderByColumns  []string // Columns used in ORDER BY
+	GroupByColumns  []string // Columns used in GROUP BY
+	ProjectColumns  []string // Columns in SELECT list
+
 	// Predicate analysis
 	EqualityFilters map[string][]types.Value // column -> values for = predicates
 	RangeFilters    map[string]RangeFilter   // column -> range conditions
 	LikeFilters     []string                 // columns with LIKE predicates
 	InFilters       map[string]int           // column -> number of values in IN clauses
-	
+
 	// Execution statistics
 	ExecutionCount  int           // Number of times this pattern was executed
 	TotalDuration   time.Duration // Total execution time
 	AverageDuration time.Duration // Average execution time
 	MinDuration     time.Duration // Fastest execution
 	MaxDuration     time.Duration // Slowest execution
-	
+
 	// Access patterns
-	RowsExamined    int64   // Average rows examined
-	RowsReturned    int64   // Average rows returned
-	Selectivity     float64 // RowsReturned / RowsExamined
-	
+	RowsExamined int64   // Average rows examined
+	RowsReturned int64   // Average rows returned
+	Selectivity  float64 // RowsReturned / RowsExamined
+
 	// Temporal data
-	FirstSeen       time.Time // When this pattern was first observed
-	LastSeen        time.Time // Most recent execution
-	
+	FirstSeen time.Time // When this pattern was first observed
+	LastSeen  time.Time // Most recent execution
+
 	// Cost analysis
-	EstimatedCost   float64   // Current estimated execution cost
-	ActualCost      float64   // Measured execution cost
+	EstimatedCost float64 // Current estimated execution cost
+	ActualCost    float64 // Measured execution cost
 }
 
 // QueryType represents the type of SQL query.
@@ -111,7 +111,7 @@ func (analyzer *QueryPatternAnalyzer) RecordQuery(
 	// Normalize the query to create a fingerprint
 	normalized := analyzer.normalizeQuery(sql)
 	fingerprint := analyzer.createFingerprint(normalized)
-	
+
 	// Get or create pattern
 	pattern, exists := analyzer.patterns[fingerprint]
 	if !exists {
@@ -125,31 +125,31 @@ func (analyzer *QueryPatternAnalyzer) RecordQuery(
 			QueryType:       analyzer.detectQueryType(sql),
 		}
 		analyzer.patterns[fingerprint] = pattern
-		
+
 		// Analyze the plan to extract access patterns
 		analyzer.analyzePlan(plan, pattern)
 	}
-	
+
 	// Update execution statistics
 	pattern.ExecutionCount++
 	pattern.TotalDuration += executionTime
 	pattern.AverageDuration = pattern.TotalDuration / time.Duration(pattern.ExecutionCount)
 	pattern.LastSeen = time.Now()
-	
+
 	if pattern.ExecutionCount == 1 || executionTime < pattern.MinDuration {
 		pattern.MinDuration = executionTime
 	}
 	if pattern.ExecutionCount == 1 || executionTime > pattern.MaxDuration {
 		pattern.MaxDuration = executionTime
 	}
-	
+
 	// Update access statistics
 	pattern.RowsExamined = rowsExamined
 	pattern.RowsReturned = rowsReturned
 	if rowsExamined > 0 {
 		pattern.Selectivity = float64(rowsReturned) / float64(rowsExamined)
 	}
-	
+
 	return nil
 }
 
@@ -159,12 +159,12 @@ func (analyzer *QueryPatternAnalyzer) GetPatterns() []QueryPattern {
 	for _, pattern := range analyzer.patterns {
 		patterns = append(patterns, *pattern)
 	}
-	
+
 	// Sort by execution count (most frequent first)
 	sort.Slice(patterns, func(i, j int) bool {
 		return patterns[i].ExecutionCount > patterns[j].ExecutionCount
 	})
-	
+
 	return patterns
 }
 
@@ -172,13 +172,13 @@ func (analyzer *QueryPatternAnalyzer) GetPatterns() []QueryPattern {
 func (analyzer *QueryPatternAnalyzer) GetFrequentPatterns(minExecutions int) []QueryPattern {
 	patterns := analyzer.GetPatterns()
 	filtered := make([]QueryPattern, 0)
-	
+
 	for _, pattern := range patterns {
 		if pattern.ExecutionCount >= minExecutions {
 			filtered = append(filtered, pattern)
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -186,18 +186,18 @@ func (analyzer *QueryPatternAnalyzer) GetFrequentPatterns(minExecutions int) []Q
 func (analyzer *QueryPatternAnalyzer) GetSlowPatterns(threshold time.Duration) []QueryPattern {
 	patterns := analyzer.GetPatterns()
 	filtered := make([]QueryPattern, 0)
-	
+
 	for _, pattern := range patterns {
 		if pattern.AverageDuration > threshold {
 			filtered = append(filtered, pattern)
 		}
 	}
-	
+
 	// Sort by average duration (slowest first)
 	sort.Slice(filtered, func(i, j int) bool {
 		return filtered[i].AverageDuration > filtered[j].AverageDuration
 	})
-	
+
 	return filtered
 }
 
@@ -205,7 +205,7 @@ func (analyzer *QueryPatternAnalyzer) GetSlowPatterns(threshold time.Duration) [
 func (analyzer *QueryPatternAnalyzer) normalizeQuery(sql string) string {
 	// Simple normalization - in practice, this would be more sophisticated
 	normalized := strings.ToUpper(sql)
-	
+
 	// Replace common patterns with placeholders
 	// Numbers
 	normalized = replacePattern(normalized, `\b\d+\b`, "?")
@@ -213,7 +213,7 @@ func (analyzer *QueryPatternAnalyzer) normalizeQuery(sql string) string {
 	normalized = replacePattern(normalized, `'[^']*'`, "?")
 	// Multiple whitespace with single space
 	normalized = replacePattern(normalized, `\s+`, " ")
-	
+
 	return strings.TrimSpace(normalized)
 }
 
@@ -226,7 +226,7 @@ func (analyzer *QueryPatternAnalyzer) createFingerprint(normalized string) strin
 // detectQueryType determines the type of SQL query.
 func (analyzer *QueryPatternAnalyzer) detectQueryType(sql string) QueryType {
 	upper := strings.ToUpper(strings.TrimSpace(sql))
-	
+
 	if strings.HasPrefix(upper, "SELECT") {
 		return QueryTypeSelect
 	} else if strings.HasPrefix(upper, "INSERT") {
@@ -236,7 +236,7 @@ func (analyzer *QueryPatternAnalyzer) detectQueryType(sql string) QueryType {
 	} else if strings.HasPrefix(upper, "DELETE") {
 		return QueryTypeDelete
 	}
-	
+
 	return QueryTypeUnknown
 }
 
@@ -245,35 +245,35 @@ func (analyzer *QueryPatternAnalyzer) analyzePlan(plan LogicalPlan, pattern *Que
 	if plan == nil {
 		return
 	}
-	
+
 	switch p := plan.(type) {
 	case *LogicalScan:
 		if pattern.PrimaryTable == "" {
 			pattern.PrimaryTable = p.TableName
 		}
-		
+
 	case *LogicalFilter:
 		// Extract filter columns and conditions
 		analyzer.analyzeFilterExpression(p.Predicate, pattern)
-		
+
 	case *LogicalProject:
 		// Extract projected columns
 		for _, proj := range p.Projections {
 			analyzer.extractColumnsFromExpression(proj, &pattern.ProjectColumns)
 		}
-		
+
 	case *LogicalSort:
 		// Extract ORDER BY columns
 		for _, orderBy := range p.OrderBy {
 			analyzer.extractColumnsFromExpression(orderBy.Expr, &pattern.OrderByColumns)
 		}
-		
+
 	case *LogicalJoin:
 		// Extract join condition columns
 		if p.Condition != nil {
 			analyzer.extractColumnsFromExpression(p.Condition, &pattern.AccessedColumns)
 		}
-		
+
 		// Track joined tables from children
 		for _, child := range p.Children() {
 			if scan, ok := child.(*LogicalScan); ok {
@@ -283,7 +283,7 @@ func (analyzer *QueryPatternAnalyzer) analyzePlan(plan LogicalPlan, pattern *Que
 			}
 		}
 	}
-	
+
 	// Recursively analyze children
 	for _, child := range plan.Children() {
 		if logicalChild, ok := child.(LogicalPlan); ok {
@@ -306,16 +306,16 @@ func (analyzer *QueryPatternAnalyzer) analyzeFilterExpression(expr Expression, p
 						pattern.EqualityFilters[col.ColumnName], lit.Value)
 				}
 			}
-			
+
 		case OpLess, OpLessEqual, OpGreater, OpGreaterEqual:
 			// Extract range filters
 			if col, ok := e.Left.(*ColumnRef); ok {
 				if lit, ok := e.Right.(*Literal); ok {
 					pattern.FilterColumns = appendUnique(pattern.FilterColumns, col.ColumnName)
-					
+
 					rangeFilter := pattern.RangeFilters[col.ColumnName]
 					rangeFilter.Operator = e.Operator.String()
-					
+
 					if e.Operator == OpLess || e.Operator == OpLessEqual {
 						rangeFilter.HasUpperBound = true
 						rangeFilter.UpperBound = lit.Value
@@ -323,24 +323,24 @@ func (analyzer *QueryPatternAnalyzer) analyzeFilterExpression(expr Expression, p
 						rangeFilter.HasLowerBound = true
 						rangeFilter.LowerBound = lit.Value
 					}
-					
+
 					pattern.RangeFilters[col.ColumnName] = rangeFilter
 				}
 			}
-			
+
 		case OpLike:
 			// Extract LIKE filters
 			if col, ok := e.Left.(*ColumnRef); ok {
 				pattern.LikeFilters = appendUnique(pattern.LikeFilters, col.ColumnName)
 				pattern.FilterColumns = appendUnique(pattern.FilterColumns, col.ColumnName)
 			}
-			
+
 		case OpAnd, OpOr:
 			// Recursively analyze compound conditions
 			analyzer.analyzeFilterExpression(e.Left, pattern)
 			analyzer.analyzeFilterExpression(e.Right, pattern)
 		}
-		
+
 	case *FunctionCall:
 		// Handle IN clauses and other functions
 		if strings.ToUpper(e.Name) == "IN" && len(e.Args) > 0 {
@@ -357,11 +357,11 @@ func (analyzer *QueryPatternAnalyzer) extractColumnsFromExpression(expr Expressi
 	switch e := expr.(type) {
 	case *ColumnRef:
 		*columns = appendUnique(*columns, e.ColumnName)
-		
+
 	case *BinaryOp:
 		analyzer.extractColumnsFromExpression(e.Left, columns)
 		analyzer.extractColumnsFromExpression(e.Right, columns)
-		
+
 	case *FunctionCall:
 		for _, arg := range e.Args {
 			analyzer.extractColumnsFromExpression(arg, columns)

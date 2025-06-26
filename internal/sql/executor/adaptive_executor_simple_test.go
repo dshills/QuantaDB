@@ -14,29 +14,29 @@ func TestAdaptiveExecutorSimple(t *testing.T) {
 	cat := catalog.NewMemoryCatalog()
 	eng := engine.NewMemoryEngine()
 	defer eng.Close()
-	
+
 	txnMgr := txn.NewManager(eng, nil)
-	
+
 	// Create adaptive planner
 	adaptivePlanner := planner.NewAdaptivePhysicalPlanner(cat, 1024*1024*512) // 512MB limit
-	
+
 	// Create adaptive executor configuration
 	execConfig := &ExecutorRuntimeConfig{
 		QueryMemoryLimit: 512 * 1024 * 1024,
 		EnableStatistics: true,
 	}
-	
+
 	// Test that we can create the adaptive executor
 	adaptiveExec := NewAdaptiveExecutor(eng, cat, txnMgr, adaptivePlanner, execConfig)
 	if adaptiveExec == nil {
 		t.Fatal("Failed to create adaptive executor")
 	}
-	
+
 	// Try to get statistics
 	if stats := adaptiveExec.GetStatistics(); stats.QueriesExecuted < 0 {
 		t.Error("Expected non-negative queries executed count")
 	}
-	
+
 	t.Log("Adaptive executor creation test completed successfully")
 }
 
@@ -97,7 +97,7 @@ func (m *mockPhysicalPlan) EstimateMemory() int64 {
 
 func TestExecutionMonitorSimple(t *testing.T) {
 	monitor := NewExecutionMonitor()
-	
+
 	// Record some metrics
 	metrics := &OperatorMetrics{
 		OperatorID:    "test_op",
@@ -106,19 +106,19 @@ func TestExecutionMonitorSimple(t *testing.T) {
 		MemoryUsed:    1024,
 		ExecutionMode: planner.ExecutionModeScalar,
 	}
-	
+
 	monitor.RecordOperatorMetrics(metrics)
-	
+
 	// Get aggregated metrics
 	agg := monitor.GetMetrics()
-	
+
 	if agg.TotalRows != 100 {
 		t.Errorf("Expected 100 total rows, got %d", agg.TotalRows)
 	}
-	
+
 	if agg.TotalMemory != 1024 {
 		t.Errorf("Expected 1024 total memory, got %d", agg.TotalMemory)
 	}
-	
+
 	t.Log("Execution monitor test completed successfully")
 }

@@ -312,10 +312,10 @@ func NewLogicalWithClause(ctes []LogicalCTE, main LogicalPlan, schema *Schema) *
 // VectorizedLogicalScan represents a vectorized table scan operation
 type VectorizedLogicalScan struct {
 	basePlan
-	TableName   string
-	Alias       string
-	BatchSize   int
-	Vectorized  bool
+	TableName  string
+	Alias      string
+	BatchSize  int
+	Vectorized bool
 }
 
 func (vs *VectorizedLogicalScan) logicalNode() {}

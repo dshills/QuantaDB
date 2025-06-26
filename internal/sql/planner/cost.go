@@ -343,7 +343,7 @@ func (ce *CostEstimator) ShouldUseVectorizedScan(table *catalog.Table, rowCount 
 	if ce.vectorizedModel == nil {
 		return false
 	}
-	
+
 	return ce.vectorizedModel.ShouldUseVectorizedScan(rowCount, memoryAvailable)
 }
 
@@ -352,7 +352,7 @@ func (ce *CostEstimator) ShouldUseVectorizedFilter(inputRows int64, selectivity 
 	if ce.vectorizedModel == nil {
 		return false
 	}
-	
+
 	expressionComplexity := ce.vectorizedModel.GetExpressionComplexity(predicate)
 	return ce.vectorizedModel.ShouldUseVectorizedFilter(inputRows, selectivity, expressionComplexity, memoryAvailable)
 }
@@ -371,12 +371,12 @@ func (ce *CostEstimator) GetVectorizedExecutionChoice(
 			Reason:        "Vectorized cost model not available",
 		}
 	}
-	
+
 	expressionComplexity := 1
 	if predicate != nil {
 		expressionComplexity = ce.vectorizedModel.GetExpressionComplexity(predicate)
 	}
-	
+
 	return ce.vectorizedModel.ChooseExecutionMode(
 		operationType,
 		rowCount,

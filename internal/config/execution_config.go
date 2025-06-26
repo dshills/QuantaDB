@@ -10,27 +10,27 @@ import (
 type ExecutionConfig struct {
 	// Vectorized execution settings
 	EnableVectorizedExecution   bool  `json:"enable_vectorized_execution"`
-	VectorizedBatchSize        int   `json:"vectorized_batch_size"`
-	VectorizedMemoryLimit      int64 `json:"vectorized_memory_limit"`
-	VectorizedFallbackThreshold int  `json:"vectorized_fallback_threshold"`
+	VectorizedBatchSize         int   `json:"vectorized_batch_size"`
+	VectorizedMemoryLimit       int64 `json:"vectorized_memory_limit"`
+	VectorizedFallbackThreshold int   `json:"vectorized_fallback_threshold"`
 
 	// Result caching settings
-	EnableResultCaching    bool          `json:"enable_result_caching"`
-	ResultCacheMaxSize     int           `json:"result_cache_max_size"`
-	ResultCacheMaxMemory   int64         `json:"result_cache_max_memory"`
-	ResultCacheTTL         time.Duration `json:"result_cache_ttl"`
+	EnableResultCaching  bool          `json:"enable_result_caching"`
+	ResultCacheMaxSize   int           `json:"result_cache_max_size"`
+	ResultCacheMaxMemory int64         `json:"result_cache_max_memory"`
+	ResultCacheTTL       time.Duration `json:"result_cache_ttl"`
 
 	// Parallel execution settings
 	EnableParallelExecution bool `json:"enable_parallel_execution"`
-	MaxWorkerThreads       int  `json:"max_worker_threads"`
-	ParallelThresholdRows  int  `json:"parallel_threshold_rows"`
+	MaxWorkerThreads        int  `json:"max_worker_threads"`
+	ParallelThresholdRows   int  `json:"parallel_threshold_rows"`
 
 	// Adaptive execution settings
-	EnableAdaptiveExecution bool `json:"enable_adaptive_execution"`
+	EnableAdaptiveExecution bool  `json:"enable_adaptive_execution"`
 	AdaptiveMemoryLimit     int64 `json:"adaptive_memory_limit"`
 
 	// Performance monitoring
-	EnablePerformanceStats bool `json:"enable_performance_stats"`
+	EnablePerformanceStats  bool          `json:"enable_performance_stats"`
 	StatsCollectionInterval time.Duration `json:"stats_collection_interval"`
 }
 
@@ -39,9 +39,9 @@ func DefaultExecutionConfig() *ExecutionConfig {
 	return &ExecutionConfig{
 		// Vectorized execution (enabled by default for performance)
 		EnableVectorizedExecution:   true,
-		VectorizedBatchSize:        1024,
-		VectorizedMemoryLimit:      64 * 1024 * 1024, // 64MB
-		VectorizedFallbackThreshold: 100, // Fall back to scalar if batch < 100 rows
+		VectorizedBatchSize:         1024,
+		VectorizedMemoryLimit:       64 * 1024 * 1024, // 64MB
+		VectorizedFallbackThreshold: 100,              // Fall back to scalar if batch < 100 rows
 
 		// Result caching (enabled by default)
 		EnableResultCaching:  true,
@@ -51,8 +51,8 @@ func DefaultExecutionConfig() *ExecutionConfig {
 
 		// Parallel execution (enabled for larger datasets)
 		EnableParallelExecution: true,
-		MaxWorkerThreads:       4,
-		ParallelThresholdRows:  10000,
+		MaxWorkerThreads:        4,
+		ParallelThresholdRows:   10000,
 
 		// Adaptive execution (enabled)
 		EnableAdaptiveExecution: true,

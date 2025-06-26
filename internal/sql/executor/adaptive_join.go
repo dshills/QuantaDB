@@ -63,7 +63,6 @@ type AdaptiveJoinOperator struct {
 	// Execution state
 	phase            JoinPhase
 	leftMaterialized []*Row // Materialized left side for switching
-	rightIndex       int    // Position in right side
 	switchPoint      int64  // Row count where we switched
 	hasSwitched      bool
 }
@@ -295,6 +294,12 @@ func (aj *AdaptiveJoinOperator) shouldSwitchJoinMethod(stats *RuntimeStats) (boo
 		case NestedLoopJoinMethod:
 			// If nested loop is slower than expected, try hash join
 			return true, HashJoinMethod, fmt.Sprintf("Poor cardinality estimate (%.1fx error)", cardinalityError)
+		case MergeJoinMethod:
+			// Merge join typically handles cardinality errors well, try hash join as alternative
+			return true, HashJoinMethod, fmt.Sprintf("Poor cardinality estimate (%.1fx error)", cardinalityError)
+		case AutoJoinMethod:
+			// Should not happen as we don't execute with AutoJoinMethod
+			return false, aj.currentMethod, ""
 		}
 	}
 

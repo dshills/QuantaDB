@@ -17,7 +17,7 @@ type adaptiveOperatorWrapper struct {
 	currentOp    Operator
 	metrics      *OperatorMetrics
 	monitor      *ExecutionMonitor
-	
+
 	// Runtime statistics
 	rowsProcessed    atomic.Int64
 	executionStart   time.Time
@@ -29,7 +29,7 @@ type adaptiveOperatorWrapper struct {
 // Open opens the operator
 func (aow *adaptiveOperatorWrapper) Open(ctx *ExecContext) error {
 	aow.executionStart = time.Now()
-	
+
 	// Choose initial operator based on mode
 	switch aow.currentMode {
 	case planner.ExecutionModeVectorized:
@@ -40,10 +40,10 @@ func (aow *adaptiveOperatorWrapper) Open(ctx *ExecContext) error {
 			aow.currentMode = planner.ExecutionModeScalar
 			aow.currentOp = aow.scalarOp
 		}
-		
+
 	case planner.ExecutionModeScalar:
 		aow.currentOp = aow.scalarOp
-		
+
 	case planner.ExecutionModeAdaptive, planner.ExecutionModeHybrid:
 		// Start with vectorized if available
 		if aow.vectorizedOp != nil {
@@ -54,27 +54,27 @@ func (aow *adaptiveOperatorWrapper) Open(ctx *ExecContext) error {
 			aow.currentMode = planner.ExecutionModeScalar
 		}
 	}
-	
+
 	if aow.currentOp == nil {
 		return fmt.Errorf("no operator available for mode %s", aow.currentMode)
 	}
-	
+
 	return aow.currentOp.Open(ctx)
 }
 
 // Next returns the next row
 func (aow *adaptiveOperatorWrapper) Next() (*Row, error) {
 	row, err := aow.currentOp.Next()
-	
+
 	// Track metrics
 	if row != nil {
 		aow.rowsProcessed.Add(1)
 	}
-	
+
 	// Handle vectorized errors
 	if err != nil && aow.currentMode == planner.ExecutionModeVectorized {
 		aow.vectorizedErrors++
-		
+
 		// Consider falling back to scalar after multiple errors
 		if aow.vectorizedErrors > 3 && aow.scalarOp != nil {
 			if switchErr := aow.SwitchMode(planner.ExecutionModeScalar); switchErr == nil {
@@ -83,12 +83,12 @@ func (aow *adaptiveOperatorWrapper) Next() (*Row, error) {
 			}
 		}
 	}
-	
+
 	// Update metrics periodically
 	if aow.rowsProcessed.Load()%1000 == 0 {
 		aow.updateMetrics()
 	}
-	
+
 	return row, err
 }
 
@@ -96,7 +96,7 @@ func (aow *adaptiveOperatorWrapper) Next() (*Row, error) {
 func (aow *adaptiveOperatorWrapper) Close() error {
 	// Final metrics update
 	aow.updateMetrics()
-	
+
 	if aow.currentOp != nil {
 		return aow.currentOp.Close()
 	}
@@ -108,7 +108,7 @@ func (aow *adaptiveOperatorWrapper) Schema() *Schema {
 	if aow.currentOp != nil {
 		return aow.currentOp.Schema()
 	}
-	
+
 	// Try to get schema from any available operator
 	if aow.scalarOp != nil {
 		return aow.scalarOp.Schema()
@@ -116,7 +116,7 @@ func (aow *adaptiveOperatorWrapper) Schema() *Schema {
 	if aow.vectorizedOp != nil {
 		return aow.vectorizedOp.Schema()
 	}
-	
+
 	return nil
 }
 
@@ -125,7 +125,7 @@ func (aow *adaptiveOperatorWrapper) SwitchMode(mode planner.ExecutionMode) error
 	if mode == aow.currentMode {
 		return nil
 	}
-	
+
 	// Check if target mode is available
 	var newOp Operator
 	switch mode {
@@ -134,42 +134,42 @@ func (aow *adaptiveOperatorWrapper) SwitchMode(mode planner.ExecutionMode) error
 			return fmt.Errorf("scalar operator not available")
 		}
 		newOp = aow.scalarOp
-		
+
 	case planner.ExecutionModeVectorized:
 		if aow.vectorizedOp == nil {
 			return fmt.Errorf("vectorized operator not available")
 		}
 		newOp = aow.vectorizedOp
-		
+
 	default:
 		return fmt.Errorf("unsupported execution mode: %v", mode)
 	}
-	
+
 	// Close current operator
 	if aow.currentOp != nil {
 		if err := aow.currentOp.Close(); err != nil {
 			return fmt.Errorf("failed to close current operator: %w", err)
 		}
 	}
-	
+
 	// Open new operator
 	// Note: In a real implementation, we'd need to restore state
 	ctx := &ExecContext{} // This should be preserved from Open()
 	if err := newOp.Open(ctx); err != nil {
 		return fmt.Errorf("failed to open new operator: %w", err)
 	}
-	
+
 	// Switch operators
 	aow.currentOp = newOp
 	aow.currentMode = mode
 	aow.lastModeSwitch = time.Now()
 	aow.modeSwitchCount++
-	
+
 	// Reset error counters
 	if mode == planner.ExecutionModeScalar {
 		aow.vectorizedErrors = 0
 	}
-	
+
 	return nil
 }
 
@@ -192,15 +192,15 @@ func (aow *adaptiveOperatorWrapper) updateMetrics() {
 			OperatorType: aow.physicalPlan.GetOperatorType(),
 		}
 	}
-	
+
 	aow.metrics.RowsProcessed = aow.rowsProcessed.Load()
 	aow.metrics.ExecutionTime = time.Since(aow.executionStart)
 	aow.metrics.ExecutionMode = aow.currentMode
 	aow.metrics.LastUpdate = time.Now()
-	
+
 	// Estimate memory usage (simplified)
 	aow.metrics.MemoryUsed = aow.metrics.RowsProcessed * 100
-	
+
 	// Record in monitor
 	if aow.monitor != nil {
 		aow.monitor.RecordOperatorMetrics(aow.metrics)
@@ -210,9 +210,9 @@ func (aow *adaptiveOperatorWrapper) updateMetrics() {
 // monitoringOperatorWrapper adds monitoring to an adaptive operator
 type monitoringOperatorWrapper struct {
 	AdaptiveOperator
-	monitor       *ExecutionMonitor
-	startTime     time.Time
-	rowCount      atomic.Int64
+	monitor   *ExecutionMonitor
+	startTime time.Time
+	rowCount  atomic.Int64
 }
 
 // Open opens the operator with monitoring
@@ -224,10 +224,10 @@ func (mow *monitoringOperatorWrapper) Open(ctx *ExecContext) error {
 // Next returns the next row with monitoring
 func (mow *monitoringOperatorWrapper) Next() (*Row, error) {
 	row, err := mow.AdaptiveOperator.Next()
-	
+
 	if row != nil {
 		mow.rowCount.Add(1)
-		
+
 		// Update metrics periodically
 		if mow.rowCount.Load()%100 == 0 {
 			metrics := mow.GetMetrics()
@@ -236,7 +236,7 @@ func (mow *monitoringOperatorWrapper) Next() (*Row, error) {
 			mow.monitor.RecordOperatorMetrics(metrics)
 		}
 	}
-	
+
 	return row, err
 }
 
@@ -247,7 +247,7 @@ func (mow *monitoringOperatorWrapper) Close() error {
 	metrics.RowsProcessed = mow.rowCount.Load()
 	metrics.ExecutionTime = time.Since(mow.startTime)
 	mow.monitor.RecordOperatorMetrics(metrics)
-	
+
 	return mow.AdaptiveOperator.Close()
 }
 
@@ -257,18 +257,17 @@ type adaptiveResultWrapper struct {
 	executor     *AdaptiveExecutor
 	context      *ExecContext
 	physicalPlan planner.PhysicalPlan
-	
+
 	// Adaptation state
-	rowsReturned      int64
-	startTime         time.Time
-	lastAdaptCheck    time.Time
+	rowsReturned       int64
+	lastAdaptCheck     time.Time
 	adaptCheckInterval time.Duration
-	replanCount       int
-	
+	replanCount        int
+
 	// Buffering for re-planning
-	bufferedRows      []*Row
-	bufferSize        int
-	isBuffering       bool
+	bufferedRows []*Row
+	bufferSize   int
+	isBuffering  bool
 }
 
 // Next returns the next row with adaptive behavior
@@ -280,7 +279,7 @@ func (arw *adaptiveResultWrapper) Next() (*Row, error) {
 		arw.rowsReturned++
 		return row, nil
 	}
-	
+
 	// Check if we should adapt
 	if arw.shouldCheckAdaptation() {
 		if err := arw.checkAndAdapt(); err != nil {
@@ -288,16 +287,16 @@ func (arw *adaptiveResultWrapper) Next() (*Row, error) {
 			fmt.Printf("Adaptation check failed: %v\n", err)
 		}
 	}
-	
+
 	// Get next row from operator
 	row, err := arw.operator.Next()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if row != nil {
 		arw.rowsReturned++
-		
+
 		// Buffer rows if we're preparing for adaptation
 		if arw.isBuffering && len(arw.bufferedRows) < arw.bufferSize {
 			arw.bufferedRows = append(arw.bufferedRows, row)
@@ -305,7 +304,7 @@ func (arw *adaptiveResultWrapper) Next() (*Row, error) {
 			return arw.Next()
 		}
 	}
-	
+
 	return row, err
 }
 
@@ -324,42 +323,42 @@ func (arw *adaptiveResultWrapper) shouldCheckAdaptation() bool {
 	if !arw.executor.adaptiveConfig.EnableAdaptiveExecution {
 		return false
 	}
-	
+
 	// Don't check too frequently
 	if time.Since(arw.lastAdaptCheck) < arw.adaptCheckInterval {
 		return false
 	}
-	
+
 	// Don't replan too many times
 	if arw.replanCount >= arw.executor.adaptiveConfig.MaxReplanAttempts {
 		return false
 	}
-	
+
 	// Check after processing enough rows
 	if arw.rowsReturned < 1000 {
 		return false
 	}
-	
+
 	return true
 }
 
 // checkAndAdapt checks if adaptation is needed and performs it
 func (arw *adaptiveResultWrapper) checkAndAdapt() error {
 	arw.lastAdaptCheck = time.Now()
-	
+
 	// Get current metrics
 	metrics := arw.operator.GetMetrics()
-	
+
 	// Check if we're significantly off from predictions
 	if arw.shouldReplan(metrics) {
 		return arw.replan()
 	}
-	
+
 	// Check if we should switch execution mode
 	if arw.shouldSwitchMode(metrics) {
 		return arw.switchMode(metrics)
 	}
-	
+
 	return nil
 }
 
@@ -367,7 +366,7 @@ func (arw *adaptiveResultWrapper) checkAndAdapt() error {
 func (arw *adaptiveResultWrapper) shouldReplan(metrics *OperatorMetrics) bool {
 	// Compare actual vs predicted performance
 	// This is simplified - would need actual vs predicted metrics
-	
+
 	// For now, don't replan
 	return false
 }
@@ -377,21 +376,21 @@ func (arw *adaptiveResultWrapper) shouldSwitchMode(metrics *OperatorMetrics) boo
 	// Check memory pressure
 	memoryPressure := arw.executor.executionMonitor.GetMetrics().TotalMemory
 	memoryLimit := arw.executor.config.QueryMemoryLimit
-	
+
 	if float64(memoryPressure)/float64(memoryLimit) > arw.executor.adaptiveConfig.MemoryPressureThreshold {
 		// High memory pressure - consider switching to scalar
 		if metrics.ExecutionMode == planner.ExecutionModeVectorized {
 			return true
 		}
 	}
-	
+
 	// Check error rate for vectorized execution
 	if wrapper, ok := arw.operator.(*adaptiveOperatorWrapper); ok {
 		if wrapper.vectorizedErrors > 5 && metrics.ExecutionMode == planner.ExecutionModeVectorized {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -400,17 +399,17 @@ func (arw *adaptiveResultWrapper) replan() error {
 	// Start buffering to avoid losing rows
 	arw.isBuffering = true
 	arw.bufferSize = 100
-	
+
 	// TODO: Implement actual re-planning
 	// This would involve:
 	// 1. Closing current operators
 	// 2. Re-generating physical plan with updated statistics
 	// 3. Creating new operators
 	// 4. Restoring execution state
-	
+
 	arw.replanCount++
 	arw.isBuffering = false
-	
+
 	return fmt.Errorf("re-planning not yet implemented")
 }
 
@@ -420,12 +419,11 @@ func (arw *adaptiveResultWrapper) switchMode(metrics *OperatorMetrics) error {
 	if metrics.ExecutionMode == planner.ExecutionModeScalar {
 		newMode = planner.ExecutionModeVectorized
 	}
-	
+
 	// Only switch if operator supports it
 	if arw.executor.adaptiveConfig.EnableOperatorAdaptation {
 		return arw.operator.SwitchMode(newMode)
 	}
-	
+
 	return nil
 }
-

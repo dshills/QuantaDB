@@ -10,10 +10,10 @@ import (
 
 // VectorizedExprEvaluatorWithFallback wraps an expression evaluator with fallback support
 type VectorizedExprEvaluatorWithFallback struct {
-	expr              planner.Expression
-	vectorizedEval    VectorizedExprEvaluator
+	expr               planner.Expression
+	vectorizedEval     VectorizedExprEvaluator
 	supportsVectorized bool
-	fallbackCount     int64
+	fallbackCount      int64
 }
 
 // NewVectorizedExprEvaluatorWithFallback creates an evaluator with fallback capability
@@ -21,7 +21,7 @@ func NewVectorizedExprEvaluatorWithFallback(expr planner.Expression) *Vectorized
 	evaluator := &VectorizedExprEvaluatorWithFallback{
 		expr: expr,
 	}
-	
+
 	// Try to create vectorized evaluator
 	if vectorizedEval, supported := tryCreateVectorizedEvaluator(expr); supported {
 		evaluator.vectorizedEval = vectorizedEval
@@ -29,7 +29,7 @@ func NewVectorizedExprEvaluatorWithFallback(expr planner.Expression) *Vectorized
 	} else {
 		evaluator.supportsVectorized = false
 	}
-	
+
 	return evaluator
 }
 
@@ -41,14 +41,14 @@ func (e *VectorizedExprEvaluatorWithFallback) EvalVector(batch *VectorizedBatch)
 		if err == nil {
 			return result, nil
 		}
-		
+
 		// Log fallback for monitoring
 		if e.fallbackCount == 0 {
 			log.Printf("Vectorized evaluation failed, falling back to row-at-a-time for expression: %v", e.expr)
 		}
 		e.fallbackCount++
 	}
-	
+
 	// Fallback to row-at-a-time evaluation
 	return e.evalRowAtATime(batch)
 }
@@ -57,30 +57,30 @@ func (e *VectorizedExprEvaluatorWithFallback) EvalVector(batch *VectorizedBatch)
 func (e *VectorizedExprEvaluatorWithFallback) evalRowAtATime(batch *VectorizedBatch) (*Vector, error) {
 	resultVector := NewVector(types.Boolean, batch.RowCount)
 	resultVector.Length = batch.RowCount
-	
+
 	// Create a temporary row for evaluation
 	row := &Row{
 		Values: make([]types.Value, len(batch.Schema.Columns)),
 	}
-	
+
 	// Evaluate expression for each row
 	for i := 0; i < batch.RowCount; i++ {
 		// Extract row from batch
 		for colIdx, vec := range batch.Vectors {
 			row.Values[colIdx] = extractValueFromVector(vec, i)
 		}
-		
+
 		// Build and evaluate expression
 		evaluator, err := buildExprEvaluator(e.expr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build evaluator: %w", err)
 		}
-		
+
 		result, err := evaluator.Eval(row, nil)
 		if err != nil {
 			return nil, fmt.Errorf("row %d: %w", i, err)
 		}
-		
+
 		// Set result in vector
 		if result.IsNull() {
 			resultVector.SetNull(i)
@@ -90,7 +90,7 @@ func (e *VectorizedExprEvaluatorWithFallback) evalRowAtATime(batch *VectorizedBa
 			return nil, fmt.Errorf("expression did not return boolean at row %d", i)
 		}
 	}
-	
+
 	return resultVector, nil
 }
 
@@ -112,31 +112,31 @@ func tryCreateVectorizedEvaluator(expr planner.Expression) (VectorizedExprEvalua
 			}
 		}
 		return nil, false
-		
+
 	case *planner.ColumnRef:
 		// For column ref, we need the column index which isn't available here
 		// This would need to be resolved during planning
 		return nil, false
-		
+
 	case *planner.Literal:
 		return NewVectorizedLiteralEvaluator(e.Value), true
-		
+
 	case *planner.UnaryOp:
 		// Unary operators not yet supported in vectorized execution
 		return nil, false
-		
+
 	case *planner.FunctionCall:
 		// User-defined functions not supported in vectorized mode
 		return nil, false
-		
+
 	case *planner.CaseExpr:
 		// CASE expressions not yet vectorized
 		return nil, false
-		
+
 	case *planner.SubqueryExpr:
 		// Subqueries cannot be vectorized
 		return nil, false
-		
+
 	default:
 		// Unknown expression type
 		return nil, false
@@ -147,8 +147,8 @@ func tryCreateVectorizedEvaluator(expr planner.Expression) (VectorizedExprEvalua
 func isVectorizedOperatorSupported(op planner.BinaryOperator) bool {
 	switch op {
 	case planner.OpAdd, planner.OpSubtract, planner.OpMultiply, planner.OpDivide,
-	     planner.OpEqual, planner.OpNotEqual, planner.OpLess, planner.OpLessEqual,
-	     planner.OpGreater, planner.OpGreaterEqual, planner.OpAnd, planner.OpOr:
+		planner.OpEqual, planner.OpNotEqual, planner.OpLess, planner.OpLessEqual,
+		planner.OpGreater, planner.OpGreaterEqual, planner.OpAnd, planner.OpOr:
 		return true
 	default:
 		return false
@@ -159,7 +159,7 @@ func isVectorizedOperatorSupported(op planner.BinaryOperator) bool {
 func isComparisonOp(op planner.BinaryOperator) bool {
 	switch op {
 	case planner.OpEqual, planner.OpNotEqual, planner.OpLess, planner.OpLessEqual,
-	     planner.OpGreater, planner.OpGreaterEqual:
+		planner.OpGreater, planner.OpGreaterEqual:
 		return true
 	default:
 		return false
@@ -171,7 +171,7 @@ func extractValueFromVector(vector *Vector, index int) types.Value {
 	if vector.IsNull(index) {
 		return types.NewNullValue()
 	}
-	
+
 	var data interface{}
 	switch vector.DataType {
 	case types.Integer:
@@ -192,7 +192,7 @@ func extractValueFromVector(vector *Vector, index int) types.Value {
 		// Handle other types
 		data = fmt.Sprintf("unsupported type %v", vector.DataType)
 	}
-	
+
 	return types.NewValue(data)
 }
 
@@ -214,17 +214,17 @@ type VectorizedStats struct {
 // NewVectorizedFilterOperatorWithFallback creates a filter operator with fallback support
 func NewVectorizedFilterOperatorWithFallback(child VectorizedOperator, predicate planner.Expression) *VectorizedFilterOperatorWithFallback {
 	evaluator := NewVectorizedExprEvaluatorWithFallback(predicate)
-	
+
 	baseFilter := &VectorizedFilterOperator{
 		baseOperator: baseOperator{schema: child.Schema()},
 		child:        child,
 		predicate:    evaluator,
 		batch:        NewVectorizedBatch(child.Schema(), VectorSize),
 	}
-	
+
 	return &VectorizedFilterOperatorWithFallback{
 		VectorizedFilterOperator: baseFilter,
-		fallbackEvaluator:       evaluator,
+		fallbackEvaluator:        evaluator,
 	}
 }
 
@@ -243,7 +243,7 @@ func (vf *VectorizedFilterOperatorWithFallback) NextBatch() (*VectorizedBatch, e
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if batch != nil {
 		vf.stats.TotalRows += int64(batch.RowCount)
 		if vf.fallbackEvaluator.supportsVectorized {
@@ -251,7 +251,7 @@ func (vf *VectorizedFilterOperatorWithFallback) NextBatch() (*VectorizedBatch, e
 		} else {
 			vf.stats.FallbackBatches++
 		}
-		
+
 		// Count filtered rows
 		filteredCount := 0
 		for i := 0; i < batch.RowCount; i++ {
@@ -264,6 +264,6 @@ func (vf *VectorizedFilterOperatorWithFallback) NextBatch() (*VectorizedBatch, e
 		}
 		vf.stats.FilteredRows += int64(filteredCount)
 	}
-	
+
 	return batch, nil
 }

@@ -8,40 +8,40 @@ import (
 type VectorizedCostModel struct {
 	// Configuration parameters
 	enableVectorizedExecution   bool
-	vectorizedBatchSize        int
-	vectorizedMemoryLimit      int64
+	vectorizedBatchSize         int
+	vectorizedMemoryLimit       int64
 	vectorizedFallbackThreshold int
-	
+
 	// Cost factors (calibrated from benchmarks)
-	vectorizedSetupCost    float64 // Fixed cost to set up vectorized execution
-	vectorizedRowCost      float64 // Cost per row for vectorized operations
-	scalarRowCost          float64 // Cost per row for scalar operations
-	vectorizedBatchFactor  float64 // Efficiency factor for batch processing
-	memoryPressureFactor   float64 // Cost increase under memory pressure
+	vectorizedSetupCost   float64 // Fixed cost to set up vectorized execution
+	vectorizedRowCost     float64 // Cost per row for vectorized operations
+	scalarRowCost         float64 // Cost per row for scalar operations
+	vectorizedBatchFactor float64 // Efficiency factor for batch processing
+	memoryPressureFactor  float64 // Cost increase under memory pressure
 }
 
 // NewVectorizedCostModel creates a new cost model with calibrated parameters
 func NewVectorizedCostModel(enableVectorized bool, batchSize int, memoryLimit int64, fallbackThreshold int) *VectorizedCostModel {
 	return &VectorizedCostModel{
 		enableVectorizedExecution:   enableVectorized,
-		vectorizedBatchSize:        batchSize,
-		vectorizedMemoryLimit:      memoryLimit,
+		vectorizedBatchSize:         batchSize,
+		vectorizedMemoryLimit:       memoryLimit,
 		vectorizedFallbackThreshold: fallbackThreshold,
-		vectorizedSetupCost:        50.0,  // Setup overhead for vectorization
-		vectorizedRowCost:          0.8,   // 20% faster than scalar (from benchmarks)
-		scalarRowCost:              1.0,   // Baseline scalar cost
-		vectorizedBatchFactor:      0.75,  // Additional efficiency from batching
-		memoryPressureFactor:       1.5,   // 50% cost increase under memory pressure
+		vectorizedSetupCost:         50.0, // Setup overhead for vectorization
+		vectorizedRowCost:           0.8,  // 20% faster than scalar (from benchmarks)
+		scalarRowCost:               1.0,  // Baseline scalar cost
+		vectorizedBatchFactor:       0.75, // Additional efficiency from batching
+		memoryPressureFactor:        1.5,  // 50% cost increase under memory pressure
 	}
 }
 
 // NewDefaultVectorizedCostModel creates a cost model with default parameters
 func NewDefaultVectorizedCostModel() *VectorizedCostModel {
 	return NewVectorizedCostModel(
-		true,                      // enableVectorized
-		1024,                      // batchSize
-		64*1024*1024,             // memoryLimit (64MB)
-		100,                      // fallbackThreshold
+		true,         // enableVectorized
+		1024,         // batchSize
+		64*1024*1024, // memoryLimit (64MB)
+		100,          // fallbackThreshold
 	)
 }
 
@@ -189,32 +189,32 @@ func (vcm *VectorizedCostModel) estimateVectorizedMemoryUsage(rowCount int64) in
 	// Estimate based on batch size and typical row size
 	batchSize := int64(vcm.vectorizedBatchSize)
 	avgRowSize := int64(128) // Estimated average row size in bytes
-	
+
 	// Memory for input batch + output batch + null bitmaps
 	batchMemory := batchSize * avgRowSize * 2 // Input + output
-	bitmapMemory := batchSize / 8              // Null bitmaps (1 bit per value)
-	
+	bitmapMemory := batchSize / 8             // Null bitmaps (1 bit per value)
+
 	return batchMemory + bitmapMemory
 }
 
 // estimateVectorizedFilterMemoryUsage estimates memory usage for vectorized filter
 func (vcm *VectorizedCostModel) estimateVectorizedFilterMemoryUsage(inputRows int64, expressionComplexity int) int64 {
 	baseMemory := vcm.estimateVectorizedMemoryUsage(inputRows)
-	
+
 	// Complex expressions need intermediate results
 	complexityFactor := 1.0 + 0.5*float64(expressionComplexity-1)
-	
+
 	return int64(float64(baseMemory) * complexityFactor)
 }
 
 // VectorizedPlanChoice represents a choice between vectorized and scalar execution
 type VectorizedPlanChoice struct {
-	UseVectorized     bool
-	VectorizedCost    float64
-	ScalarCost        float64
-	Reason            string
-	MemoryEstimate    int64
-	BatchCount        int64
+	UseVectorized  bool
+	VectorizedCost float64
+	ScalarCost     float64
+	Reason         string
+	MemoryEstimate int64
+	BatchCount     int64
 }
 
 // ChooseExecutionMode determines the best execution mode for an operation

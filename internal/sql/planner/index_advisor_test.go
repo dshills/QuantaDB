@@ -68,27 +68,27 @@ func TestIndexAdvisor(t *testing.T) {
 		// Should recommend a composite index on customer_id, order_date
 		found := false
 		for _, rec := range recommendations {
-			if rec.IndexType == IndexTypeComposite && 
-			   len(rec.Columns) >= 2 && 
-			   contains(rec.Columns, "customer_id") && 
-			   contains(rec.Columns, "order_date") {
+			if rec.IndexType == IndexTypeComposite &&
+				len(rec.Columns) >= 2 &&
+				contains(rec.Columns, "customer_id") &&
+				contains(rec.Columns, "order_date") {
 				found = true
-				
+
 				if rec.EstimatedBenefit <= 1.0 {
 					t.Errorf("Expected benefit > 1.0, got %f", rec.EstimatedBenefit)
 				}
-				
+
 				if rec.QueryCount < 30 { // At least one of the patterns should be included
 					t.Errorf("Expected query count >= 30, got %d", rec.QueryCount)
 				}
-				
+
 				if rec.Priority == PriorityLow {
 					t.Errorf("Expected higher priority than Low")
 				}
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Error("Expected composite index recommendation not found")
 		}
@@ -118,28 +118,28 @@ func TestIndexAdvisor(t *testing.T) {
 		}
 
 		recommendations := advisor.GetRecommendations()
-		
+
 		// Should recommend a covering index
 		found := false
 		for _, rec := range recommendations {
 			if rec.IndexType == IndexTypeCovering && len(rec.IncludeColumns) > 0 {
 				found = true
-				
+
 				if !contains(rec.Columns, "customer_id") {
 					t.Error("Expected customer_id in key columns")
 				}
-				
+
 				if len(rec.IncludeColumns) == 0 {
 					t.Error("Expected include columns for covering index")
 				}
-				
+
 				if rec.EstimatedBenefit <= 1.0 {
 					t.Errorf("Expected benefit > 1.0, got %f", rec.EstimatedBenefit)
 				}
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Error("Expected covering index recommendation not found")
 		}
@@ -169,26 +169,26 @@ func TestIndexAdvisor(t *testing.T) {
 		}
 
 		recommendations := advisor.GetRecommendations()
-		
+
 		// Should recommend a covering index on email (better than single-column since query projects other columns)
 		found := false
 		for _, rec := range recommendations {
-			if rec.IndexType == IndexTypeCovering && 
-			   len(rec.Columns) == 1 && 
-			   rec.Columns[0] == "email" {
+			if rec.IndexType == IndexTypeCovering &&
+				len(rec.Columns) == 1 &&
+				rec.Columns[0] == "email" {
 				found = true
-				
+
 				if rec.QueryCount != 200 {
 					t.Errorf("Expected query count 200, got %d", rec.QueryCount)
 				}
-				
+
 				if len(rec.IncludeColumns) == 0 {
 					t.Error("Expected include columns for covering index")
 				}
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Error("Expected covering index recommendation not found")
 		}
@@ -198,13 +198,13 @@ func TestIndexAdvisor(t *testing.T) {
 		// Test that infrequent queries don't generate recommendations
 		patterns := []QueryPattern{
 			{
-				Fingerprint:     "infrequent",
-				QueryType:       QueryTypeSelect,
-				PrimaryTable:    "orders",
-				FilterColumns:   []string{"rare_column"},
-				ExecutionCount:  2, // Below minimum threshold
-				ActualCost:      100.0,
-				LastSeen:        time.Now(),
+				Fingerprint:    "infrequent",
+				QueryType:      QueryTypeSelect,
+				PrimaryTable:   "orders",
+				FilterColumns:  []string{"rare_column"},
+				ExecutionCount: 2, // Below minimum threshold
+				ActualCost:     100.0,
+				LastSeen:       time.Now(),
 			},
 		}
 
@@ -214,7 +214,7 @@ func TestIndexAdvisor(t *testing.T) {
 		}
 
 		recommendations := advisor.GetRecommendations()
-		
+
 		// Should not recommend index for infrequent queries
 		for _, rec := range recommendations {
 			if contains(rec.Columns, "rare_column") {
@@ -226,22 +226,22 @@ func TestIndexAdvisor(t *testing.T) {
 	t.Run("RecommendationPriorities", func(t *testing.T) {
 		patterns := []QueryPattern{
 			{
-				Fingerprint:     "high_impact",
-				QueryType:       QueryTypeSelect,
-				PrimaryTable:    "orders",
-				FilterColumns:   []string{"urgent_column"},
-				ExecutionCount:  500, // High frequency
-				ActualCost:      1000.0, // High cost
-				LastSeen:        time.Now(),
+				Fingerprint:    "high_impact",
+				QueryType:      QueryTypeSelect,
+				PrimaryTable:   "orders",
+				FilterColumns:  []string{"urgent_column"},
+				ExecutionCount: 500,    // High frequency
+				ActualCost:     1000.0, // High cost
+				LastSeen:       time.Now(),
 			},
 			{
-				Fingerprint:     "low_impact",
-				QueryType:       QueryTypeSelect,
-				PrimaryTable:    "orders",
-				FilterColumns:   []string{"normal_column"},
-				ExecutionCount:  10,
-				ActualCost:      50.0,
-				LastSeen:        time.Now(),
+				Fingerprint:    "low_impact",
+				QueryType:      QueryTypeSelect,
+				PrimaryTable:   "orders",
+				FilterColumns:  []string{"normal_column"},
+				ExecutionCount: 10,
+				ActualCost:     50.0,
+				LastSeen:       time.Now(),
 			},
 		}
 
@@ -251,7 +251,7 @@ func TestIndexAdvisor(t *testing.T) {
 		}
 
 		recommendations := advisor.GetRecommendations()
-		
+
 		// Verify recommendations are sorted by priority
 		if len(recommendations) >= 2 {
 			// Higher priority recommendations should come first
@@ -331,7 +331,7 @@ func TestQueryPatternAnalyzer(t *testing.T) {
 		}
 
 		patterns := analyzer.GetPatterns()
-		
+
 		var productPattern *QueryPattern
 		for _, p := range patterns {
 			if p.PrimaryTable == "products" {
@@ -355,7 +355,7 @@ func TestQueryPatternAnalyzer(t *testing.T) {
 
 	t.Run("FrequentPatterns", func(t *testing.T) {
 		frequent := analyzer.GetFrequentPatterns(3)
-		
+
 		// Should include patterns with >= 3 executions
 		for _, pattern := range frequent {
 			if pattern.ExecutionCount < 3 {

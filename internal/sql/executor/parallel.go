@@ -369,3 +369,54 @@ func (e *ExchangeOperator) Close() error {
 
 	return nil
 }
+
+// ParallelResult interface for common result handling
+type ParallelResult interface {
+	GetRow() *Row
+	GetError() error
+}
+
+// handleParallelNext provides common Next() implementation for parallel operators
+func handleParallelNext[T ParallelResult](
+	parallelCtx *ParallelContext,
+	errorChan chan error,
+	resultChan chan T,
+	collectStats func(),
+) (*Row, error) {
+	// Check for errors in parallel context
+	if err := parallelCtx.GetError(); err != nil {
+		return nil, err
+	}
+
+	// Check for specific errors
+	select {
+	case err := <-errorChan:
+		return nil, err
+	default:
+	}
+
+	// Get next result
+	select {
+	case result, ok := <-resultChan:
+		if !ok {
+			return nil, nil // EOF
+		}
+
+		if result.GetError() != nil {
+			return nil, result.GetError()
+		}
+
+		// Update statistics
+		if collectStats != nil {
+			collectStats()
+		}
+
+		return result.GetRow(), nil
+
+	case err := <-errorChan:
+		return nil, err
+
+	case <-parallelCtx.Ctx.Done():
+		return nil, parallelCtx.Ctx.Err()
+	}
+}

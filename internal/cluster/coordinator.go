@@ -324,4 +324,3 @@ func convertClusterNodes(cfg *Config) []failover.ClusterNode {
 
 	return nodes
 }
-

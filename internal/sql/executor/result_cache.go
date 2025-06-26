@@ -28,11 +28,11 @@ type ResultCache struct {
 	currentMemory int64
 
 	// Statistics
-	stats ResultCacheStats
+	stats resultCacheStatsInternal
 
 	// Thread safety
 	mu sync.RWMutex
-	
+
 	// Memory management integration
 	memoryManager *storage.MemoryManager
 }
@@ -73,7 +73,7 @@ type TableDependency struct {
 	Version    int64 // Table version at cache time
 }
 
-// ResultCacheStats tracks cache performance metrics
+// ResultCacheStats tracks cache performance metrics (without mutex for copying)
 type ResultCacheStats struct {
 	// Hit/miss statistics
 	HitCount      int64
@@ -88,7 +88,11 @@ type ResultCacheStats struct {
 	AvgHitLatency  time.Duration
 	AvgMissLatency time.Duration
 	BytesSaved     int64 // Bytes saved by serving from cache
+}
 
+// resultCacheStatsInternal wraps stats with a mutex for internal use
+type resultCacheStatsInternal struct {
+	ResultCacheStats
 	mu sync.RWMutex
 }
 

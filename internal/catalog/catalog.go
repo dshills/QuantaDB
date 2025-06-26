@@ -89,10 +89,10 @@ type Index struct {
 	Type           IndexType
 	IsUnique       bool
 	IsPrimary      bool
-	Columns        []IndexColumn    // Key columns used for ordering
-	IncludeColumns []IndexColumn    // Non-key columns for covering indexes
-	WhereClause    interface{}      // Expression for partial index WHERE clause
-	Stats          *IndexStats      // Index statistics for optimization
+	Columns        []IndexColumn // Key columns used for ordering
+	IncludeColumns []IndexColumn // Non-key columns for covering indexes
+	WhereClause    interface{}   // Expression for partial index WHERE clause
+	Stats          *IndexStats   // Index statistics for optimization
 	CreatedAt      time.Time
 }
 

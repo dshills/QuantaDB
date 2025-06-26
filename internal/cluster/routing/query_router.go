@@ -13,54 +13,54 @@ import (
 
 // QueryRouter intelligently routes queries to appropriate nodes
 type QueryRouter struct {
-	config          *QueryRouterConfig
-	logger          log.Logger
-	mu              sync.RWMutex
-	
+	config *QueryRouterConfig
+	logger log.Logger
+	mu     sync.RWMutex
+
 	// Node management
 	primaryNode     *NodeInfo
 	replicaNodes    map[string]*NodeInfo
 	nodeConnections map[string]*ConnectionPool
-	
+
 	// Load balancing state
-	loadBalancer    LoadBalancer
-	healthMonitor   *HealthMonitor
-	
+	loadBalancer  LoadBalancer
+	healthMonitor *HealthMonitor
+
 	// Statistics
-	stats           *RouterStatistics
-	
+	stats *RouterStatistics
+
 	// Control
-	stopCh          chan struct{}
-	stopOnce        sync.Once
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 // QueryRouterConfig contains configuration for the query router
 type QueryRouterConfig struct {
 	// Load balancing strategy
 	LoadBalancingStrategy LoadBalancingStrategy
-	
+
 	// Health monitoring
-	HealthCheckInterval   time.Duration
-	HealthCheckTimeout    time.Duration
-	MaxFailureThreshold   int
-	
+	HealthCheckInterval time.Duration
+	HealthCheckTimeout  time.Duration
+	MaxFailureThreshold int
+
 	// Connection pooling
 	MaxConnectionsPerNode int
 	ConnectionTimeout     time.Duration
-	IdleTimeout          time.Duration
-	MaxIdleConnections   int
-	
+	IdleTimeout           time.Duration
+	MaxIdleConnections    int
+
 	// Query routing
-	EnableReadReplicas   bool
-	PreferLocalReplicas  bool
-	MaxReplicationLag    time.Duration
-	
+	EnableReadReplicas  bool
+	PreferLocalReplicas bool
+	MaxReplicationLag   time.Duration
+
 	// Retry configuration
-	MaxRetries           int
-	RetryDelay          time.Duration
-	
+	MaxRetries int
+	RetryDelay time.Duration
+
 	// Circuit breaker
-	EnableCircuitBreaker bool
+	EnableCircuitBreaker    bool
 	CircuitBreakerThreshold int
 	CircuitBreakerTimeout   time.Duration
 }
@@ -78,27 +78,27 @@ const (
 
 // NodeInfo contains information about a database node
 type NodeInfo struct {
-	ID           string
-	Address      string
-	Role         NodeRole
-	IsHealthy    bool
-	LastSeen     time.Time
-	
+	ID        string
+	Address   string
+	Role      NodeRole
+	IsHealthy bool
+	LastSeen  time.Time
+
 	// Performance metrics
-	ResponseTime    time.Duration
-	ActiveConns     int
-	TotalQueries    int64
-	FailedQueries   int64
-	ReplicationLag  time.Duration
-	
+	ResponseTime   time.Duration
+	ActiveConns    int
+	TotalQueries   int64
+	FailedQueries  int64
+	ReplicationLag time.Duration
+
 	// Load balancing weights
-	Weight          int
-	LoadScore       float64
-	
+	Weight    int
+	LoadScore float64
+
 	// Circuit breaker state
-	CircuitState    CircuitState
-	FailureCount    int
-	LastFailure     time.Time
+	CircuitState CircuitState
+	FailureCount int
+	LastFailure  time.Time
 }
 
 // NodeRole defines the role of a node in the cluster
@@ -119,22 +119,21 @@ const (
 	CircuitHalfOpen
 )
 
-
 // RouterStatistics tracks routing performance metrics
 type RouterStatistics struct {
 	mu sync.RWMutex
-	
-	TotalQueries       int64
-	ReadQueries        int64
-	WriteQueries       int64
-	FailedQueries      int64
-	
-	RoutingDecisions   map[string]int64
-	NodeUtilization    map[string]float64
+
+	TotalQueries  int64
+	ReadQueries   int64
+	WriteQueries  int64
+	FailedQueries int64
+
+	RoutingDecisions    map[string]int64
+	NodeUtilization     map[string]float64
 	AverageResponseTime time.Duration
-	
-	LoadBalancerStats  map[LoadBalancingStrategy]int64
-	HealthCheckStats   map[string]int64
+
+	LoadBalancerStats map[LoadBalancingStrategy]int64
+	HealthCheckStats  map[string]int64
 }
 
 // DefaultQueryRouterConfig returns sensible defaults
@@ -146,16 +145,16 @@ func DefaultQueryRouterConfig() *QueryRouterConfig {
 		MaxFailureThreshold:     3,
 		MaxConnectionsPerNode:   20,
 		ConnectionTimeout:       30 * time.Second,
-		IdleTimeout:            5 * time.Minute,
-		MaxIdleConnections:     5,
-		EnableReadReplicas:     true,
-		PreferLocalReplicas:    false,
-		MaxReplicationLag:      1 * time.Second,
-		MaxRetries:             3,
-		RetryDelay:            100 * time.Millisecond,
-		EnableCircuitBreaker:   true,
+		IdleTimeout:             5 * time.Minute,
+		MaxIdleConnections:      5,
+		EnableReadReplicas:      true,
+		PreferLocalReplicas:     false,
+		MaxReplicationLag:       1 * time.Second,
+		MaxRetries:              3,
+		RetryDelay:              100 * time.Millisecond,
+		EnableCircuitBreaker:    true,
 		CircuitBreakerThreshold: 5,
-		CircuitBreakerTimeout:  30 * time.Second,
+		CircuitBreakerTimeout:   30 * time.Second,
 	}
 }
 
@@ -176,7 +175,7 @@ func NewQueryRouter(config *QueryRouterConfig) *QueryRouter {
 
 	// Initialize load balancer
 	qr.loadBalancer = NewLoadBalancer(config.LoadBalancingStrategy, qr.logger)
-	
+
 	// Initialize health monitor
 	qr.healthMonitor = NewHealthMonitor(config, qr.logger)
 
@@ -203,19 +202,19 @@ func (qr *QueryRouter) Start(ctx context.Context) error {
 func (qr *QueryRouter) Stop() error {
 	qr.stopOnce.Do(func() {
 		close(qr.stopCh)
-		
+
 		// Stop health monitor
 		if qr.healthMonitor != nil {
 			qr.healthMonitor.Stop()
 		}
-		
+
 		// Close all connection pools
 		qr.mu.Lock()
 		for _, pool := range qr.nodeConnections {
 			pool.Close()
 		}
 		qr.mu.Unlock()
-		
+
 		qr.logger.Info("Query router stopped")
 	})
 	return nil
@@ -287,7 +286,7 @@ func (qr *QueryRouter) RouteQuery(ctx context.Context, query string, stmt parser
 
 	// Determine query type
 	isWrite := IsWriteQuery(stmt)
-	
+
 	// Route based on query type
 	var targetNode *NodeInfo
 	var err error
@@ -419,7 +418,7 @@ func (qr *QueryRouter) executeQueryWithRetries(ctx context.Context, node *NodeIn
 		}
 
 		lastErr = err
-		qr.logger.Warn("Query execution failed, will retry", 
+		qr.logger.Warn("Query execution failed, will retry",
 			"node_id", node.ID, "attempt", attempt+1, "error", err)
 
 		// Check if we should continue retrying
@@ -443,12 +442,12 @@ func (qr *QueryRouter) executeQuery(ctx context.Context, node *NodeInfo, query s
 	// TODO: Execute actual query
 	// For now, simulate query execution
 	start := time.Now()
-	
+
 	// Simulate network latency and processing time
 	select {
 	case <-time.After(10 * time.Millisecond):
 		duration := time.Since(start)
-		
+
 		// Update node metrics
 		qr.mu.Lock()
 		node.ResponseTime = duration
@@ -516,7 +515,7 @@ func (qr *QueryRouter) updateNodeHealth(nodeID string, isHealthy bool, responseT
 			node.ResponseTime = responseTime
 		}
 
-		qr.logger.Debug("Updated node health", 
+		qr.logger.Debug("Updated node health",
 			"node_id", nodeID, "healthy", isHealthy, "response_time", responseTime)
 	}
 }
@@ -568,17 +567,17 @@ func (qr *QueryRouter) updateNodeSuccess(nodeID string, responseTime time.Durati
 // updateStatistics updates router statistics
 func (qr *QueryRouter) updateStatistics(duration time.Duration, stmt parser.Statement) {
 	isWrite := IsWriteQuery(stmt)
-	
+
 	qr.stats.mu.Lock()
 	defer qr.stats.mu.Unlock()
-	
+
 	qr.stats.TotalQueries++
 	if isWrite {
 		qr.stats.WriteQueries++
 	} else {
 		qr.stats.ReadQueries++
 	}
-	
+
 	// Update average response time
 	if qr.stats.TotalQueries == 1 {
 		qr.stats.AverageResponseTime = duration
@@ -631,9 +630,9 @@ func (qr *QueryRouter) updateLoadBalancerWeights() {
 			// Calculate load score based on response time and failure rate
 			failureRate := float64(node.FailedQueries) / float64(node.TotalQueries)
 			responseScore := 1.0 / (float64(node.ResponseTime.Milliseconds()) + 1)
-			
+
 			node.LoadScore = responseScore * (1.0 - failureRate)
-			
+
 			// Convert to weight (higher score = higher weight)
 			node.Weight = int(node.LoadScore * 100)
 			if node.Weight < 1 {
@@ -662,11 +661,11 @@ func (qr *QueryRouter) GetStatus() map[string]interface{} {
 	defer qr.mu.RUnlock()
 
 	nodes := make(map[string]interface{})
-	
+
 	if qr.primaryNode != nil {
 		nodes["primary"] = qr.nodeToStatus(qr.primaryNode)
 	}
-	
+
 	replicas := make(map[string]interface{})
 	for id, node := range qr.replicaNodes {
 		replicas[id] = qr.nodeToStatus(node)
@@ -681,10 +680,10 @@ func (qr *QueryRouter) GetStatus() map[string]interface{} {
 		},
 		"nodes": nodes,
 		"statistics": map[string]interface{}{
-			"total_queries":        qr.stats.TotalQueries,
-			"read_queries":         qr.stats.ReadQueries,
-			"write_queries":        qr.stats.WriteQueries,
-			"failed_queries":       qr.stats.FailedQueries,
+			"total_queries":         qr.stats.TotalQueries,
+			"read_queries":          qr.stats.ReadQueries,
+			"write_queries":         qr.stats.WriteQueries,
+			"failed_queries":        qr.stats.FailedQueries,
 			"average_response_time": qr.stats.AverageResponseTime,
 		},
 		"health_monitor": qr.healthMonitor.GetStatus(),
@@ -694,19 +693,19 @@ func (qr *QueryRouter) GetStatus() map[string]interface{} {
 // nodeToStatus converts a NodeInfo to a status map
 func (qr *QueryRouter) nodeToStatus(node *NodeInfo) map[string]interface{} {
 	return map[string]interface{}{
-		"id":               node.ID,
-		"address":          node.Address,
-		"role":             node.Role,
-		"is_healthy":       node.IsHealthy,
-		"last_seen":        node.LastSeen,
-		"response_time":    node.ResponseTime,
-		"active_conns":     node.ActiveConns,
-		"total_queries":    node.TotalQueries,
-		"failed_queries":   node.FailedQueries,
-		"replication_lag":  node.ReplicationLag,
-		"weight":           node.Weight,
-		"load_score":       node.LoadScore,
-		"circuit_state":    node.CircuitState,
-		"failure_count":    node.FailureCount,
+		"id":              node.ID,
+		"address":         node.Address,
+		"role":            node.Role,
+		"is_healthy":      node.IsHealthy,
+		"last_seen":       node.LastSeen,
+		"response_time":   node.ResponseTime,
+		"active_conns":    node.ActiveConns,
+		"total_queries":   node.TotalQueries,
+		"failed_queries":  node.FailedQueries,
+		"replication_lag": node.ReplicationLag,
+		"weight":          node.Weight,
+		"load_score":      node.LoadScore,
+		"circuit_state":   node.CircuitState,
+		"failure_count":   node.FailureCount,
 	}
 }

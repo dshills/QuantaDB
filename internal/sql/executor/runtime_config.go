@@ -21,14 +21,14 @@ type ExecutorRuntimeConfig struct {
 	// Query execution settings
 	MaxParallelWorkers int
 	WorkQueueSize      int
-	
+
 	// Memory management
 	QueryMemoryLimit int64 // per-query memory limit in bytes
-	
+
 	// Statistics and monitoring
 	EnableStatistics bool
 	StatsSampleRate  float64 // 0.0 to 1.0
-	
+
 	// Feature flags (atomic for runtime updates)
 	vectorizedEnabled atomic.Bool
 	cachingEnabled    atomic.Bool
@@ -50,11 +50,11 @@ func NewExecutorRuntimeConfig() *ExecutorRuntimeConfig {
 		EnableStatistics:          true,
 		StatsSampleRate:           1.0, // Sample all queries by default
 	}
-	
+
 	// Initialize atomic flags
 	cfg.vectorizedEnabled.Store(cfg.EnableVectorizedExecution)
 	cfg.cachingEnabled.Store(cfg.EnableResultCaching)
-	
+
 	return cfg
 }
 

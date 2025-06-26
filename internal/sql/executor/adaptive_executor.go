@@ -14,11 +14,11 @@ import (
 // AdaptiveExecutor integrates with the adaptive physical planner for runtime optimization
 type AdaptiveExecutor struct {
 	*ConfigurableExecutor
-	adaptivePlanner      *planner.AdaptivePhysicalPlanner
-	feedbackCollector    *planner.RuntimeFeedbackCollector
-	executionMonitor     *ExecutionMonitor
-	adaptiveConfig       *AdaptiveExecutorConfig
-	operatorRegistry     *OperatorRegistry
+	adaptivePlanner   *planner.AdaptivePhysicalPlanner
+	feedbackCollector *planner.RuntimeFeedbackCollector
+	executionMonitor  *ExecutionMonitor
+	adaptiveConfig    *AdaptiveExecutorConfig
+	operatorRegistry  *OperatorRegistry
 }
 
 // AdaptiveExecutorConfig configures adaptive execution behavior
@@ -41,11 +41,11 @@ type AdaptiveExecutorConfig struct {
 func DefaultAdaptiveExecutorConfig() *AdaptiveExecutorConfig {
 	return &AdaptiveExecutorConfig{
 		EnableAdaptiveExecution:  true,
-		ReplanThreshold:         2.0, // Replan if actual cost is 2x predicted
-		MaxReplanAttempts:       3,
+		ReplanThreshold:          2.0, // Replan if actual cost is 2x predicted
+		MaxReplanAttempts:        3,
 		EnableOperatorAdaptation: true,
-		AdaptiveBatchSize:       1024,
-		MemoryPressureThreshold: 0.8,
+		AdaptiveBatchSize:        1024,
+		MemoryPressureThreshold:  0.8,
 	}
 }
 
@@ -60,14 +60,14 @@ type ExecutionMonitor struct {
 
 // OperatorMetrics tracks runtime metrics for an operator
 type OperatorMetrics struct {
-	OperatorID       string
-	OperatorType     planner.OperatorType
-	RowsProcessed    int64
-	ExecutionTime    time.Duration
-	MemoryUsed       int64
+	OperatorID        string
+	OperatorType      planner.OperatorType
+	RowsProcessed     int64
+	ExecutionTime     time.Duration
+	MemoryUsed        int64
 	ActualSelectivity float64
-	ExecutionMode    planner.ExecutionMode
-	LastUpdate       time.Time
+	ExecutionMode     planner.ExecutionMode
+	LastUpdate        time.Time
 }
 
 // OperatorRegistry manages operator implementations
@@ -106,7 +106,7 @@ func NewAdaptiveExecutor(
 	cfg *ExecutorRuntimeConfig,
 ) *AdaptiveExecutor {
 	configurable := NewConfigurableExecutor(engine, catalog, txnManager, cfg)
-	
+
 	return &AdaptiveExecutor{
 		ConfigurableExecutor: configurable,
 		adaptivePlanner:      adaptivePlanner,
@@ -132,38 +132,38 @@ func NewOperatorRegistry() *OperatorRegistry {
 		vectorizedOperators: make(map[planner.OperatorType]VectorizedOperatorFactory),
 		adaptiveOperators:   make(map[planner.OperatorType]AdaptiveOperatorFactory),
 	}
-	
+
 	// Register default operators
 	registry.registerDefaultOperators()
-	
+
 	return registry
 }
 
 // Execute executes a plan with adaptive optimization
 func (ae *AdaptiveExecutor) Execute(ctx *ExecContext, plan planner.Plan, tx *txn.Transaction) (Result, error) {
 	startTime := time.Now()
-	
+
 	// Convert logical plan to adaptive physical plan
 	physicalPlan, err := ae.createAdaptivePhysicalPlan(plan, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create physical plan: %w", err)
 	}
-	
+
 	// Create adaptive operator tree
 	rootOp, err := ae.createAdaptiveOperator(physicalPlan, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator: %w", err)
 	}
-	
+
 	// Wrap with monitoring
 	monitoredOp := ae.wrapWithMonitoring(rootOp)
-	
+
 	// Execute with adaptation
 	result, err := ae.executeWithAdaptation(monitoredOp, ctx, physicalPlan)
-	
+
 	// Collect feedback
 	ae.collectExecutionFeedback(physicalPlan, startTime, err == nil)
-	
+
 	return result, err
 }
 
@@ -179,10 +179,10 @@ func (ae *AdaptiveExecutor) createAdaptivePhysicalPlan(
 		BatchSize:         ae.adaptiveConfig.AdaptiveBatchSize,
 		EnableCaching:     ae.config.IsCachingEnabled(),
 	}
-	
+
 	// Add table statistics
 	planContext.TableStats = ae.gatherTableStats(logical)
-	
+
 	// Generate adaptive physical plan
 	// First try to convert Plan to LogicalPlan
 	logicalPlan, ok := logical.(planner.LogicalPlan)
@@ -193,7 +193,7 @@ func (ae *AdaptiveExecutor) createAdaptivePhysicalPlan(
 		}
 		return nil, fmt.Errorf("plan is not a logical plan: %T", logical)
 	}
-	
+
 	return ae.adaptivePlanner.GenerateAdaptivePhysicalPlan(logicalPlan, planContext)
 }
 
@@ -203,12 +203,12 @@ func (ae *AdaptiveExecutor) createAdaptiveOperator(
 	ctx *ExecContext,
 ) (AdaptiveOperator, error) {
 	opType := plan.GetOperatorType()
-	
+
 	// Check if we have an adaptive implementation
 	if factory, ok := ae.operatorRegistry.adaptiveOperators[opType]; ok {
 		return factory(plan, ctx, ae.executionMonitor)
 	}
-	
+
 	// Fall back to creating a wrapped operator
 	return ae.createWrappedAdaptiveOperator(plan, ctx)
 }
@@ -220,34 +220,34 @@ func (ae *AdaptiveExecutor) createWrappedAdaptiveOperator(
 ) (AdaptiveOperator, error) {
 	opType := plan.GetOperatorType()
 	executionMode := plan.GetExecutionMode()
-	
+
 	// Create scalar and vectorized implementations
 	var scalarOp Operator
 	var vectorizedOp VectorizedOperator
 	var err error
-	
+
 	if scalarFactory, ok := ae.operatorRegistry.scalarOperators[opType]; ok {
 		scalarOp, err = scalarFactory(plan, ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create scalar operator: %w", err)
 		}
 	}
-	
+
 	if vectorizedFactory, ok := ae.operatorRegistry.vectorizedOperators[opType]; ok {
 		vectorizedOp, err = vectorizedFactory(plan, ctx)
 		if err != nil && executionMode == planner.ExecutionModeVectorized {
 			return nil, fmt.Errorf("failed to create vectorized operator: %w", err)
 		}
 	}
-	
+
 	// Create adaptive wrapper
 	return &adaptiveOperatorWrapper{
-		physicalPlan:  plan,
-		scalarOp:      scalarOp,
-		vectorizedOp:  vectorizedOp,
-		currentMode:   executionMode,
-		metrics:       ae.createOperatorMetrics(plan),
-		monitor:       ae.executionMonitor,
+		physicalPlan: plan,
+		scalarOp:     scalarOp,
+		vectorizedOp: vectorizedOp,
+		currentMode:  executionMode,
+		metrics:      ae.createOperatorMetrics(plan),
+		monitor:      ae.executionMonitor,
 	}, nil
 }
 
@@ -261,7 +261,7 @@ func (ae *AdaptiveExecutor) executeWithAdaptation(
 	if err := op.Open(ctx); err != nil {
 		return nil, err
 	}
-	
+
 	// Create adaptive result wrapper
 	result := &adaptiveResultWrapper{
 		operator:     op,
@@ -270,7 +270,7 @@ func (ae *AdaptiveExecutor) executeWithAdaptation(
 		physicalPlan: plan,
 		replanCount:  0,
 	}
-	
+
 	return result, nil
 }
 
@@ -278,7 +278,7 @@ func (ae *AdaptiveExecutor) executeWithAdaptation(
 func (ae *AdaptiveExecutor) wrapWithMonitoring(op AdaptiveOperator) AdaptiveOperator {
 	return &monitoringOperatorWrapper{
 		AdaptiveOperator: op,
-		monitor:         ae.executionMonitor,
+		monitor:          ae.executionMonitor,
 	}
 }
 
@@ -289,10 +289,10 @@ func (ae *AdaptiveExecutor) collectExecutionFeedback(
 	success bool,
 ) {
 	executionTime := time.Since(startTime)
-	
+
 	// Get final metrics from monitor
 	metrics := ae.executionMonitor.GetMetrics()
-	
+
 	// Record operator performance
 	ae.adaptivePlanner.RecordOperatorPerformance(
 		plan,
@@ -301,7 +301,7 @@ func (ae *AdaptiveExecutor) collectExecutionFeedback(
 		metrics.TotalRows,
 		success,
 	)
-	
+
 	// Record query execution
 	signature := ae.createQuerySignature(plan)
 	ae.feedbackCollector.RecordQueryExecution(
@@ -318,29 +318,29 @@ func (ae *AdaptiveExecutor) collectExecutionFeedback(
 func (ae *AdaptiveExecutor) getAvailableMemory() int64 {
 	// Get total memory limit
 	totalLimit := ae.config.QueryMemoryLimit
-	
+
 	// Subtract current usage
 	currentUsage := ae.memoryTracker.CurrentUsage()
-	
+
 	available := totalLimit - currentUsage
 	if available < 0 {
 		return 0
 	}
-	
+
 	return available
 }
 
 // gatherTableStats gathers table statistics for planning
 func (ae *AdaptiveExecutor) gatherTableStats(plan planner.Plan) map[string]*catalog.TableStats {
 	stats := make(map[string]*catalog.TableStats)
-	
+
 	// Walk plan tree and collect table references
 	ae.walkPlanForTables(plan, func(tableName string) {
 		if table, err := ae.catalog.GetTable("public", tableName); err == nil {
 			stats[tableName] = table.Stats
 		}
 	})
-	
+
 	return stats
 }
 
@@ -352,7 +352,7 @@ func (ae *AdaptiveExecutor) walkPlanForTables(plan planner.Plan, visitor func(st
 	case *planner.PhysicalScan:
 		visitor(p.Table.TableName)
 	}
-	
+
 	// Recursively visit children
 	for _, child := range plan.Children() {
 		ae.walkPlanForTables(child, visitor)
@@ -376,18 +376,18 @@ func (ae *AdaptiveExecutor) countOperators(plan planner.PhysicalPlan, opType pla
 	if plan.GetOperatorType() == opType {
 		count = 1
 	}
-	
+
 	for _, input := range plan.GetInputs() {
 		count += ae.countOperators(input, opType)
 	}
-	
+
 	return count
 }
 
 // countPredicates counts predicates in a plan
 func (ae *AdaptiveExecutor) countPredicates(plan planner.PhysicalPlan) int {
 	count := 0
-	
+
 	switch p := plan.(type) {
 	case *planner.PhysicalFilter:
 		if p.Predicate != nil {
@@ -398,11 +398,11 @@ func (ae *AdaptiveExecutor) countPredicates(plan planner.PhysicalPlan) int {
 			count = 1
 		}
 	}
-	
+
 	for _, input := range plan.GetInputs() {
 		count += ae.countPredicates(input)
 	}
-	
+
 	return count
 }
 
@@ -422,9 +422,9 @@ func (ae *AdaptiveExecutor) createOperatorMetrics(plan planner.PhysicalPlan) *Op
 func (em *ExecutionMonitor) RecordOperatorMetrics(metrics *OperatorMetrics) {
 	em.mu.Lock()
 	defer em.mu.Unlock()
-	
+
 	em.operatorMetrics[metrics.OperatorID] = metrics
-	
+
 	// Update memory tracking
 	totalMemory := int64(0)
 	for _, m := range em.operatorMetrics {
@@ -445,12 +445,12 @@ func (em *ExecutionMonitor) GetMetrics() struct {
 } {
 	em.mu.RLock()
 	defer em.mu.RUnlock()
-	
+
 	totalRows := int64(0)
 	for _, m := range em.operatorMetrics {
 		totalRows += m.RowsProcessed
 	}
-	
+
 	return struct {
 		TotalRows   int64
 		TotalMemory int64
@@ -475,12 +475,12 @@ func (or *OperatorRegistry) registerDefaultOperators() {
 	or.scalarOperators[planner.OperatorTypeAggregate] = createScalarAggregate
 	or.scalarOperators[planner.OperatorTypeSort] = createScalarSort
 	or.scalarOperators[planner.OperatorTypeProjection] = createScalarProjection
-	
+
 	// Register vectorized operators
 	or.vectorizedOperators[planner.OperatorTypeScan] = createVectorizedScan
 	or.vectorizedOperators[planner.OperatorTypeFilter] = createVectorizedFilter
 	or.vectorizedOperators[planner.OperatorTypeProjection] = createVectorizedProjection
-	
+
 	// Register adaptive operators
 	or.adaptiveOperators[planner.OperatorTypeScan] = createAdaptiveScan
 	or.adaptiveOperators[planner.OperatorTypeFilter] = createAdaptiveFilter
@@ -495,19 +495,19 @@ func createScalarScan(plan planner.PhysicalPlan, ctx *ExecContext) (Operator, er
 
 func createScalarFilter(plan planner.PhysicalPlan, ctx *ExecContext) (Operator, error) {
 	filter := plan.(*planner.PhysicalFilter)
-	
+
 	// Create input operator
 	inputOp, err := createOperatorFromPlan(filter.Input, ctx)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Build expression evaluator
 	evaluator, err := buildExprEvaluator(filter.Predicate)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return NewFilterOperator(inputOp, evaluator), nil
 }
 
@@ -533,7 +533,7 @@ func createScalarProjection(plan planner.PhysicalPlan, ctx *ExecContext) (Operat
 
 func createVectorizedScan(plan planner.PhysicalPlan, ctx *ExecContext) (VectorizedOperator, error) {
 	scan := plan.(*planner.PhysicalScan)
-	
+
 	schema := &Schema{
 		Columns: make([]Column, len(scan.Table.Columns)),
 	}
@@ -543,19 +543,19 @@ func createVectorizedScan(plan planner.PhysicalPlan, ctx *ExecContext) (Vectoriz
 			Type: col.DataType,
 		}
 	}
-	
+
 	return NewVectorizedScanOperator(schema, int64(scan.Table.ID)), nil
 }
 
 func createVectorizedFilter(plan planner.PhysicalPlan, ctx *ExecContext) (VectorizedOperator, error) {
 	filter := plan.(*planner.PhysicalFilter)
-	
+
 	// Create input operator
 	inputOp, err := createVectorizedOperatorFromPlan(filter.Input, ctx)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return NewVectorizedFilterOperatorWithFallback(inputOp, filter.Predicate), nil
 }
 
@@ -570,7 +570,7 @@ func createAdaptiveScan(plan planner.PhysicalPlan, ctx *ExecContext, monitor *Ex
 	if err != nil {
 		return nil, err
 	}
-	
+
 	vectorizedOp, err := createVectorizedScan(plan, ctx)
 	if err != nil {
 		// Vectorized scan failed, use scalar only
@@ -581,7 +581,7 @@ func createAdaptiveScan(plan planner.PhysicalPlan, ctx *ExecContext, monitor *Ex
 			monitor:      monitor,
 		}, nil
 	}
-	
+
 	return &adaptiveOperatorWrapper{
 		physicalPlan: plan,
 		scalarOp:     scalarOp,

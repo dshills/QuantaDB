@@ -30,7 +30,7 @@ func (ls *LocalStorageBackend) Store(ctx context.Context, key string, data io.Re
 	}
 
 	fullPath := filepath.Join(ls.basePath, cleanKey)
-	
+
 	// Ensure directory exists
 	dir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -62,7 +62,7 @@ func (ls *LocalStorageBackend) Retrieve(ctx context.Context, key string) (io.Rea
 	}
 
 	fullPath := filepath.Join(ls.basePath, cleanKey)
-	
+
 	file, err := os.Open(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -83,7 +83,7 @@ func (ls *LocalStorageBackend) Delete(ctx context.Context, key string) error {
 	}
 
 	fullPath := filepath.Join(ls.basePath, cleanKey)
-	
+
 	err := os.Remove(fullPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete file %s: %w", fullPath, err)
@@ -143,7 +143,7 @@ func (ls *LocalStorageBackend) Exists(ctx context.Context, key string) (bool, er
 	}
 
 	fullPath := filepath.Join(ls.basePath, cleanKey)
-	
+
 	_, err := os.Stat(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -164,7 +164,7 @@ func (ls *LocalStorageBackend) GetMetadata(ctx context.Context, key string) (*St
 	}
 
 	fullPath := filepath.Join(ls.basePath, cleanKey)
-	
+
 	info, err := os.Stat(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -34,13 +34,13 @@ type CacheStats struct {
 
 // CacheIntegratedPlannerConfig configures cache integration
 type CacheIntegratedPlannerConfig struct {
-	EnableCaching           bool
-	MaxCacheMemory          int64
-	DefaultCacheTTL         time.Duration
-	MinCacheBenefit         float64
-	CacheSmallResults       bool
-	SmallResultThreshold    int64
-	EnableAdaptiveCaching   bool
+	EnableCaching         bool
+	MaxCacheMemory        int64
+	DefaultCacheTTL       time.Duration
+	MinCacheBenefit       float64
+	CacheSmallResults     bool
+	SmallResultThreshold  int64
+	EnableAdaptiveCaching bool
 }
 
 // DefaultCacheIntegratedPlannerConfig returns default configuration
@@ -65,10 +65,10 @@ type IntegratedCacheModel struct {
 
 // IntegratedCachingPolicy defines caching policies
 type IntegratedCachingPolicy struct {
-	TTLStrategy         TTLStrategy
-	EvictionStrategy    EvictionStrategy
-	RefreshStrategy     RefreshStrategy
-	DependencyTracking  bool
+	TTLStrategy        TTLStrategy
+	EvictionStrategy   EvictionStrategy
+	RefreshStrategy    RefreshStrategy
+	DependencyTracking bool
 }
 
 // TTLStrategy defines how TTL is determined
@@ -101,13 +101,13 @@ const (
 
 // IntegratedCachingDecision represents a caching decision
 type IntegratedCachingDecision struct {
-	ShouldCache       bool
-	EstimatedBenefit  float64
-	CacheTTL          time.Duration
-	EvictionPriority  int
-	Dependencies      []TableDependency
-	CacheKey          string
-	EstimatedSize     int64
+	ShouldCache      bool
+	EstimatedBenefit float64
+	CacheTTL         time.Duration
+	EvictionPriority int
+	Dependencies     []TableDependency
+	CacheKey         string
+	EstimatedSize    int64
 }
 
 // TableDependency tracks table dependencies for cache invalidation
@@ -139,12 +139,12 @@ type AccessPatternTracker struct {
 
 // TableAccessPattern tracks how tables are accessed
 type TableAccessPattern struct {
-	ReadCount    int64
-	WriteCount   int64
-	LastRead     time.Time
-	LastWrite    time.Time
-	AvgReadSize  int64
-	Volatility   float64
+	ReadCount   int64
+	WriteCount  int64
+	LastRead    time.Time
+	LastWrite   time.Time
+	AvgReadSize int64
+	Volatility  float64
 }
 
 // TemporalPattern tracks temporal access patterns
@@ -168,9 +168,9 @@ func NewCacheIntegratedPlanner(
 ) *CacheIntegratedPlanner {
 	// Always create enhanced model from base for now
 	baseCostModel := NewEnhancedVectorizedCostModel(physicalPlanner.vectorizedModel)
-	
+
 	cacheModel := NewIntegratedCacheModel(baseCostModel)
-	
+
 	return &CacheIntegratedPlanner{
 		physicalPlanner: physicalPlanner,
 		cacheModel:      cacheModel,
@@ -239,17 +239,17 @@ func (cip *CacheIntegratedPlanner) GeneratePhysicalPlan(
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if !cip.config.EnableCaching {
 		return physical, nil
 	}
-	
+
 	// Analyze plan for caching opportunities
 	cachingOpportunities := cip.analyzeCachingOpportunities(physical, context)
-	
+
 	// Add cache operators where beneficial
 	optimized := cip.addCacheOperators(physical, cachingOpportunities, context)
-	
+
 	return optimized, nil
 }
 
@@ -259,13 +259,13 @@ func (cip *CacheIntegratedPlanner) analyzeCachingOpportunities(
 	context *PhysicalPlanContext,
 ) []CachingOpportunity {
 	opportunities := []CachingOpportunity{}
-	
+
 	// Traverse plan tree to find caching opportunities
 	cip.traverseForCaching(plan, &opportunities, context)
-	
+
 	// Sort by estimated benefit
 	// In a real implementation, we'd sort these
-	
+
 	return opportunities
 }
 
@@ -298,7 +298,7 @@ func (cip *CacheIntegratedPlanner) traverseForCaching(
 			EstimatedBenefit: decision.EstimatedBenefit,
 		})
 	}
-	
+
 	// Recursively process children
 	for _, child := range plan.GetInputs() {
 		cip.traverseForCaching(child, opportunities, context)
@@ -314,50 +314,50 @@ func (cip *CacheIntegratedPlanner) evaluateCachingBenefit(
 		ShouldCache: false,
 		CacheTTL:    cip.config.DefaultCacheTTL,
 	}
-	
+
 	// Get execution cost
 	executionCost := plan.EstimateCost(context)
 	cardinality := plan.EstimateCardinality()
-	
+
 	// Generate cache key
 	decision.CacheKey = cip.generateCacheKey(plan)
-	
+
 	// Estimate result size
 	decision.EstimatedSize = cardinality * 100 // Rough estimate
-	
+
 	// Check if result is too large
 	if decision.EstimatedSize > cip.config.MaxCacheMemory/10 {
 		return decision
 	}
-	
+
 	// Check if result is too small (unless configured to cache small results)
 	if !cip.config.CacheSmallResults && cardinality < cip.config.SmallResultThreshold {
 		return decision
 	}
-	
+
 	// Analyze query frequency and patterns
 	queryFreq := cip.cacheAdvisor.queryAnalyzer.GetQueryFrequency(decision.CacheKey)
 	accessPattern := cip.cacheAdvisor.accessPatterns.GetAccessPattern(plan)
-	
+
 	// Calculate caching benefit
 	cacheLookupCost := 0.1 // Nominal cache lookup cost
 	hitProbability := cip.estimateHitProbability(queryFreq, accessPattern)
-	
+
 	expectedBenefit := hitProbability * (executionCost.TotalCost - cacheLookupCost)
 	memoryCost := float64(decision.EstimatedSize) / float64(cip.config.MaxCacheMemory)
-	
+
 	decision.EstimatedBenefit = expectedBenefit / (1 + memoryCost)
-	
+
 	// Make caching decision
 	if decision.EstimatedBenefit >= cip.config.MinCacheBenefit {
 		decision.ShouldCache = true
-		
+
 		// Set TTL based on access patterns and table volatility
 		decision.CacheTTL = cip.calculateOptimalTTL(plan, accessPattern)
-		
+
 		// Extract dependencies for invalidation
 		decision.Dependencies = cip.extractTableDependencies(plan)
-		
+
 		// Set eviction priority
 		decision.EvictionPriority = cip.calculateEvictionPriority(
 			decision.EstimatedBenefit,
@@ -365,7 +365,7 @@ func (cip *CacheIntegratedPlanner) evaluateCachingBenefit(
 			queryFreq,
 		)
 	}
-	
+
 	return decision
 }
 
@@ -384,7 +384,7 @@ func (cip *CacheIntegratedPlanner) addCacheOperators(
 				opp.Decision.CacheKey,
 				cip.resultCache,
 			)
-			
+
 			// Create cache store operator
 			cacheStore := NewPhysicalCacheStore(
 				cacheCheck,
@@ -393,13 +393,13 @@ func (cip *CacheIntegratedPlanner) addCacheOperators(
 				opp.Decision.Dependencies,
 				cip.resultCache,
 			)
-			
+
 			// Replace the original node in the plan tree
 			// This is simplified - in practice we'd need proper tree manipulation
 			plan = cacheStore
 		}
 	}
-	
+
 	return plan
 }
 
@@ -435,7 +435,7 @@ func (cip *CacheIntegratedPlanner) calculateOptimalTTL(
 	if accessPattern == nil {
 		return cip.config.DefaultCacheTTL
 	}
-	
+
 	// Adjust TTL based on table volatility
 	if accessPattern.Volatility > 0.8 {
 		return 30 * time.Second
@@ -444,16 +444,16 @@ func (cip *CacheIntegratedPlanner) calculateOptimalTTL(
 	} else if accessPattern.Volatility > 0.2 {
 		return 5 * time.Minute
 	}
-	
+
 	return 15 * time.Minute
 }
 
 func (cip *CacheIntegratedPlanner) extractTableDependencies(plan PhysicalPlan) []TableDependency {
 	deps := []TableDependency{}
-	
+
 	// Traverse plan to find all table scans
 	cip.extractDependenciesRecursive(plan, &deps)
-	
+
 	return deps
 }
 
@@ -468,7 +468,7 @@ func (cip *CacheIntegratedPlanner) extractDependenciesRecursive(
 			Version:    0, // Would track actual table version
 		})
 	}
-	
+
 	for _, child := range plan.GetInputs() {
 		cip.extractDependenciesRecursive(child, deps)
 	}
@@ -483,14 +483,14 @@ func (cip *CacheIntegratedPlanner) calculateEvictionPriority(
 	// Combine benefit per byte with access frequency
 	benefitPerByte := benefit / float64(size)
 	frequencyFactor := 1.0 + float64(frequency)/100.0
-	
+
 	priority := int(benefitPerByte * frequencyFactor * 1000)
-	
+
 	// Cap priority
 	if priority > 10000 {
 		priority = 10000
 	}
-	
+
 	return priority
 }
 
@@ -523,7 +523,7 @@ func (apt *AccessPatternTracker) RecordTableAccess(
 		pattern = &TableAccessPattern{}
 		apt.tableAccess[tableName] = pattern
 	}
-	
+
 	if isWrite {
 		pattern.WriteCount++
 		pattern.LastWrite = time.Now()
@@ -545,18 +545,18 @@ func (icm *IntegratedCacheModel) EvaluateCachingBenefit(
 		ShouldCache: false,
 		CacheTTL:    5 * time.Minute,
 	}
-	
+
 	// Simple cost-benefit analysis
 	cacheLookupCost := 0.1
 	hitRate := accessFrequency / (accessFrequency + 1) // Simplified hit rate model
-	
+
 	expectedSavings := hitRate * (executionCost - cacheLookupCost)
 	decision.EstimatedBenefit = expectedSavings
-	
+
 	if expectedSavings > 2.0 { // Threshold for caching
 		decision.ShouldCache = true
 	}
-	
+
 	return decision
 }
 
@@ -565,9 +565,9 @@ func (icm *IntegratedCacheModel) EvaluateCachingBenefit(
 // PhysicalCacheCheck checks if result exists in cache
 type PhysicalCacheCheck struct {
 	*BasePhysicalPlan
-	Input       PhysicalPlan
-	CacheKey    string
-	Cache       ResultCacheInterface
+	Input    PhysicalPlan
+	CacheKey string
+	Cache    ResultCacheInterface
 }
 
 // NewPhysicalCacheCheck creates a new cache check operator
@@ -583,9 +583,9 @@ func NewPhysicalCacheCheck(input PhysicalPlan, key string, cache ResultCacheInte
 	}
 }
 
-func (pcc *PhysicalCacheCheck) GetOperatorType() OperatorType { return OperatorTypeScan }
+func (pcc *PhysicalCacheCheck) GetOperatorType() OperatorType   { return OperatorTypeScan }
 func (pcc *PhysicalCacheCheck) GetExecutionMode() ExecutionMode { return ExecutionModeScalar }
-func (pcc *PhysicalCacheCheck) RequiresVectorization() bool { return false }
+func (pcc *PhysicalCacheCheck) RequiresVectorization() bool     { return false }
 func (pcc *PhysicalCacheCheck) EstimateCost(context *PhysicalPlanContext) *Cost {
 	return &Cost{CPUCost: 0.1, TotalCost: 0.1}
 }
@@ -627,9 +627,9 @@ func NewPhysicalCacheStore(
 	}
 }
 
-func (pcs *PhysicalCacheStore) GetOperatorType() OperatorType { return OperatorTypeScan }
+func (pcs *PhysicalCacheStore) GetOperatorType() OperatorType   { return OperatorTypeScan }
 func (pcs *PhysicalCacheStore) GetExecutionMode() ExecutionMode { return ExecutionModeScalar }
-func (pcs *PhysicalCacheStore) RequiresVectorization() bool { return false }
+func (pcs *PhysicalCacheStore) RequiresVectorization() bool     { return false }
 func (pcs *PhysicalCacheStore) EstimateCost(context *PhysicalPlanContext) *Cost {
 	inputCost := pcs.Input.EstimateCost(context)
 	storeCost := &Cost{CPUCost: 0.2, TotalCost: 0.2}

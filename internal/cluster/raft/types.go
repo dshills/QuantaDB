@@ -42,23 +42,23 @@ func (s NodeState) String() string {
 type RaftConfig struct {
 	// Node identification
 	NodeID NodeID
-	
+
 	// Network configuration
 	Address string // Address to listen on for Raft RPCs
-	
+
 	// Cluster membership
-	Peers []NodeID
+	Peers         []NodeID
 	PeerAddresses map[NodeID]string // Map of peer IDs to their addresses
-	
+
 	// Timing configuration
-	ElectionTimeout    time.Duration // Time to wait before starting election
-	HeartbeatInterval  time.Duration // Interval between heartbeats
-	RequestTimeout     time.Duration // Timeout for RPC requests
-	
+	ElectionTimeout   time.Duration // Time to wait before starting election
+	HeartbeatInterval time.Duration // Interval between heartbeats
+	RequestTimeout    time.Duration // Timeout for RPC requests
+
 	// Log configuration
-	MaxLogEntries      int // Maximum entries to send in one AppendEntries RPC
+	MaxLogEntries      int      // Maximum entries to send in one AppendEntries RPC
 	LogCompactionIndex LogIndex // Index below which logs can be compacted
-	
+
 	// Storage configuration
 	DataDir string // Directory for persistent state
 }
@@ -78,8 +78,8 @@ func DefaultRaftConfig() *RaftConfig {
 
 // PersistentState represents the persistent Raft state that survives restarts
 type PersistentState struct {
-	CurrentTerm Term     // Latest term server has seen
-	VotedFor    *NodeID  // CandidateID that received vote in current term (null if none)
+	CurrentTerm Term       // Latest term server has seen
+	VotedFor    *NodeID    // CandidateID that received vote in current term (null if none)
 	Log         []LogEntry // Log entries
 }
 
@@ -97,10 +97,10 @@ type LeaderState struct {
 
 // LogEntry represents a single entry in the Raft log
 type LogEntry struct {
-	Index   LogIndex    // Index of this entry
-	Term    Term        // Term when entry was received by leader
-	Type    EntryType   // Type of log entry
-	Data    []byte      // Command or data
+	Index     LogIndex  // Index of this entry
+	Term      Term      // Term when entry was received by leader
+	Type      EntryType // Type of log entry
+	Data      []byte    // Command or data
 	Timestamp time.Time // When entry was created
 }
 
@@ -108,9 +108,9 @@ type LogEntry struct {
 type EntryType int
 
 const (
-	EntryTypeCommand EntryType = iota     // Regular command
-	EntryTypeConfiguration               // Cluster configuration change
-	EntryTypeNoOp                       // No-operation (used for heartbeats)
+	EntryTypeCommand       EntryType = iota // Regular command
+	EntryTypeConfiguration                  // Cluster configuration change
+	EntryTypeNoOp                           // No-operation (used for heartbeats)
 )
 
 // String returns string representation of entry type
@@ -129,10 +129,10 @@ func (t EntryType) String() string {
 
 // RequestVoteArgs represents arguments for RequestVote RPC
 type RequestVoteArgs struct {
-	Term         Term      // Candidate's term
-	CandidateID  NodeID    // Candidate requesting vote
-	LastLogIndex LogIndex  // Index of candidate's last log entry
-	LastLogTerm  Term      // Term of candidate's last log entry
+	Term         Term     // Candidate's term
+	CandidateID  NodeID   // Candidate requesting vote
+	LastLogIndex LogIndex // Index of candidate's last log entry
+	LastLogTerm  Term     // Term of candidate's last log entry
 }
 
 // RequestVoteReply represents response for RequestVote RPC
@@ -143,19 +143,19 @@ type RequestVoteReply struct {
 
 // AppendEntriesArgs represents arguments for AppendEntries RPC
 type AppendEntriesArgs struct {
-	Term         Term        // Leader's term
-	LeaderID     NodeID      // So follower can redirect clients
-	PrevLogIndex LogIndex    // Index of log entry immediately preceding new ones
-	PrevLogTerm  Term        // Term of prevLogIndex entry
-	Entries      []LogEntry  // Log entries to store (empty for heartbeat)
-	LeaderCommit LogIndex    // Leader's commitIndex
+	Term         Term       // Leader's term
+	LeaderID     NodeID     // So follower can redirect clients
+	PrevLogIndex LogIndex   // Index of log entry immediately preceding new ones
+	PrevLogTerm  Term       // Term of prevLogIndex entry
+	Entries      []LogEntry // Log entries to store (empty for heartbeat)
+	LeaderCommit LogIndex   // Leader's commitIndex
 }
 
 // AppendEntriesReply represents response for AppendEntries RPC
 type AppendEntriesReply struct {
 	Term    Term // Current term, for leader to update itself
 	Success bool // True if follower contained entry matching prevLogIndex and prevLogTerm
-	
+
 	// Optimization fields for faster log backtracking
 	ConflictIndex LogIndex // Index of first entry in conflicting term
 	ConflictTerm  Term     // Term of conflicting entry
@@ -166,11 +166,11 @@ type ClusterMember struct {
 	NodeID  NodeID
 	Address string
 	State   NodeState
-	
+
 	// Leader tracking
 	LastHeartbeat time.Time
 	IsOnline      bool
-	
+
 	// Replication tracking (for leaders)
 	NextIndex  LogIndex
 	MatchIndex LogIndex
@@ -189,22 +189,22 @@ type RaftNode interface {
 	// Node lifecycle
 	Start() error
 	Stop() error
-	
+
 	// State queries
 	GetState() (Term, NodeState, *NodeID)
 	IsLeader() bool
 	GetLeader() *NodeID
 	GetTerm() Term
-	
+
 	// Log operations
 	AppendCommand(data []byte) (LogIndex, error)
 	GetCommittedIndex() LogIndex
-	
+
 	// Cluster membership
 	GetClusterConfiguration() *ClusterConfiguration
 	AddNode(nodeID NodeID, address string) error
 	RemoveNode(nodeID NodeID) error
-	
+
 	// RPC endpoints
 	RequestVote(args *RequestVoteArgs) (*RequestVoteReply, error)
 	AppendEntries(args *AppendEntriesArgs) (*AppendEntriesReply, error)
@@ -215,11 +215,11 @@ type RaftTransport interface {
 	// Send RPCs to other nodes
 	SendRequestVote(nodeID NodeID, args *RequestVoteArgs) (*RequestVoteReply, error)
 	SendAppendEntries(nodeID NodeID, args *AppendEntriesArgs) (*AppendEntriesReply, error)
-	
+
 	// Start/stop transport
 	Start(address string) error
 	Stop() error
-	
+
 	// Set the Raft node that will handle incoming RPCs
 	SetRaftNode(node RaftNode)
 }
@@ -228,10 +228,10 @@ type RaftTransport interface {
 type StateMachine interface {
 	// Apply a committed log entry to the state machine
 	Apply(entry *LogEntry) error
-	
+
 	// Take a snapshot of the current state
 	Snapshot() ([]byte, error)
-	
+
 	// Restore state from a snapshot
 	Restore(snapshot []byte) error
 }
@@ -241,18 +241,18 @@ type Storage interface {
 	// Persistent state
 	SaveState(state *PersistentState) error
 	LoadState() (*PersistentState, error)
-	
+
 	// Log operations
 	AppendEntries(entries []LogEntry) error
 	GetEntry(index LogIndex) (*LogEntry, error)
 	GetEntries(start, end LogIndex) ([]LogEntry, error)
 	GetLastEntry() (*LogEntry, error)
 	TruncateAfter(index LogIndex) error
-	
+
 	// Snapshots
 	SaveSnapshot(index LogIndex, term Term, data []byte) error
 	LoadSnapshot() (LogIndex, Term, []byte, error)
-	
+
 	// Cleanup
 	CompactLog(index LogIndex) error
 	Close() error
@@ -260,7 +260,7 @@ type Storage interface {
 
 // ReplicationIntegration connects Raft consensus with database replication
 type ReplicationIntegration struct {
-	RaftNode RaftNode
+	RaftNode           RaftNode
 	ReplicationManager replication.ReplicationManager
 }
 

@@ -253,7 +253,7 @@ func TestConfig_GenerateNodeID(t *testing.T) {
 				}
 			} else {
 				if config.Cluster.NodeID != tt.initialID {
-					t.Errorf("NodeID should not have changed: got %v, want %v", 
+					t.Errorf("NodeID should not have changed: got %v, want %v",
 						config.Cluster.NodeID, tt.initialID)
 				}
 			}

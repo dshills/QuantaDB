@@ -51,20 +51,20 @@ func testConcurrentVectorizedArithmetic(t *testing.T) {
 		wg.Add(1)
 		go func(goroutineID int) {
 			defer wg.Done()
-			
+
 			resultBatch := make([]int64, batchSize)
-			
+
 			for op := 0; op < numOperations; op++ {
 				VectorAddInt64(resultBatch, leftBatch, rightBatch, batchSize)
 			}
-			
+
 			// Verify final result
 			expectedSum := leftBatch[0] + rightBatch[0]
 			if resultBatch[0] != expectedSum {
 				errors <- fmt.Errorf("goroutine %d: expected %d, got %d", goroutineID, expectedSum, resultBatch[0])
 				return
 			}
-			
+
 			results <- resultBatch
 		}(g)
 	}
@@ -125,18 +125,18 @@ func testConcurrentVectorizedFilter(t *testing.T) {
 		wg.Add(1)
 		go func(goroutineID int) {
 			defer wg.Done()
-			
+
 			threshold := make([]int64, batchSize)
 			for i := 0; i < batchSize; i++ {
 				threshold[i] = 1000
 			}
-			
+
 			for op := 0; op < numOperations; op++ {
 				resultBatch := make([]bool, batchSize)
-				
+
 				// Use existing vectorized comparison function
 				VectorGreaterThanInt64(resultBatch, inputBatch, threshold, batchSize)
-				
+
 				// Verify some results
 				if !resultBatch[1500] { // 1500 > 1000 should be true
 					errors <- fmt.Errorf("goroutine %d: expected true for value 1500", goroutineID)
@@ -147,7 +147,7 @@ func testConcurrentVectorizedFilter(t *testing.T) {
 					return
 				}
 			}
-			
+
 			// Return final result for verification
 			finalResult := make([]bool, batchSize)
 			VectorGreaterThanInt64(finalResult, inputBatch, threshold, batchSize)
@@ -220,7 +220,7 @@ func testConcurrentAdaptiveOperator(t *testing.T) {
 		wg.Add(1)
 		go func(goroutineID int) {
 			defer wg.Done()
-			
+
 			// Open the operator
 			if err := adaptiveOp.Open(ctx); err != nil {
 				errors <- fmt.Errorf("goroutine %d: failed to open: %w", goroutineID, err)
@@ -289,13 +289,13 @@ func testConcurrentBatchProcessing(t *testing.T) {
 		producerWg.Add(1)
 		go func(producerID int) {
 			defer producerWg.Done()
-			
+
 			for b := 0; b < totalBatches/numProducers; b++ {
 				batch := make([]int64, batchSize)
 				for i := 0; i < batchSize; i++ {
 					batch[i] = int64(producerID*batchSize + i)
 				}
-				
+
 				select {
 				case batchChan <- batch:
 					// Success
@@ -312,20 +312,20 @@ func testConcurrentBatchProcessing(t *testing.T) {
 		consumerWg.Add(1)
 		go func(consumerID int) {
 			defer consumerWg.Done()
-			
+
 			for {
 				select {
 				case batch, ok := <-batchChan:
 					if !ok {
 						return // Channel closed
 					}
-					
+
 					// Process batch (vectorized addition)
 					result := make([]int64, len(batch))
 					VectorAddInt64(result, batch, batch, len(batch))
-					
+
 					resultChan <- result
-					
+
 				case <-time.After(2 * time.Second):
 					return // Timeout - assume no more work
 				}
@@ -360,7 +360,7 @@ collectLoop:
 				t.Errorf("Expected batch size %d, got %d", batchSize, len(result))
 			}
 			processedBatches++
-			
+
 		case <-timeout:
 			t.Fatal("Batch processing test timed out")
 		}
@@ -397,18 +397,18 @@ func testVectorizedMemoryContention(t *testing.T) {
 		wg.Add(1)
 		go func(goroutineID int) {
 			defer wg.Done()
-			
+
 			// Allocate multiple large batches
 			var batches [][]int64
 			var currentMemory int64
-			
+
 			for i := 0; i < 10; i++ {
 				batch := make([]int64, batchSize)
 				batchMemory := int64(len(batch) * 8) // 8 bytes per int64
-				
+
 				// Check memory limit
 				allocationMutex.Lock()
-				if totalAllocations + batchMemory > memoryLimit {
+				if totalAllocations+batchMemory > memoryLimit {
 					allocationMutex.Unlock()
 					// Simulate memory pressure response
 					runtime.GC()
@@ -417,28 +417,28 @@ func testVectorizedMemoryContention(t *testing.T) {
 				}
 				totalAllocations += batchMemory
 				allocationMutex.Unlock()
-				
+
 				// Initialize batch
 				for j := 0; j < batchSize; j++ {
 					batch[j] = int64(goroutineID*batchSize + j)
 				}
-				
+
 				batches = append(batches, batch)
 				currentMemory += batchMemory
-				
+
 				// Perform vectorized operation
 				if len(batches) >= 2 {
 					result := make([]int64, batchSize)
 					VectorAddInt64(result, batches[0], batches[1], batchSize)
 				}
-				
+
 				// Simulate some processing time
 				time.Sleep(time.Millisecond)
 			}
-			
+
 			// Report memory usage
 			memoryUsage <- currentMemory
-			
+
 			// Clean up
 			allocationMutex.Lock()
 			totalAllocations -= currentMemory
@@ -491,7 +491,7 @@ func testConcurrentFallbackStrategy(t *testing.T) {
 		wg.Add(1)
 		go func(goroutineID int) {
 			defer wg.Done()
-			
+
 			adaptiveOp := &AdaptiveVectorizedOperator{
 				vectorizedImpl: vectorizedOp,
 				scalarImpl:     scalarOp,
@@ -501,7 +501,7 @@ func testConcurrentFallbackStrategy(t *testing.T) {
 			}
 
 			ctx := &ExecContext{Stats: &ExecStats{}}
-			
+
 			if err := adaptiveOp.Open(ctx); err != nil {
 				errors <- fmt.Errorf("goroutine %d: failed to open: %w", goroutineID, err)
 				return
@@ -515,7 +515,7 @@ func testConcurrentFallbackStrategy(t *testing.T) {
 				if adaptiveOp.currentImpl == scalarOp {
 					fallbacks++
 				}
-				
+
 				row, err := adaptiveOp.Next()
 				if err != nil {
 					// Expected due to forced failures, continue
@@ -525,7 +525,7 @@ func testConcurrentFallbackStrategy(t *testing.T) {
 					break
 				}
 			}
-			
+
 			fallbackCounts <- fallbacks
 		}(g)
 	}
@@ -539,7 +539,7 @@ func testConcurrentFallbackStrategy(t *testing.T) {
 	for range errors {
 		errorCount++
 	}
-	
+
 	// We expect some errors due to forced failures, but not excessive
 	if errorCount > numGoroutines {
 		t.Errorf("Too many errors: expected <= %d, got %d", numGoroutines, errorCount)
@@ -569,7 +569,7 @@ func BenchmarkConcurrentVectorized(b *testing.B) {
 		const batchSize = 1024
 		leftBatch := make([]int64, batchSize)
 		rightBatch := make([]int64, batchSize)
-		
+
 		for i := 0; i < batchSize; i++ {
 			leftBatch[i] = int64(i)
 			rightBatch[i] = int64(i * 2)
@@ -590,7 +590,6 @@ func BenchmarkConcurrentVectorized(b *testing.B) {
 		for i := 0; i < batchSize; i++ {
 			inputBatch[i] = int64(i)
 		}
-
 
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
@@ -626,14 +625,14 @@ func (m *MockVectorizedOperator) Next() (*Row, error) {
 	if m.shouldFail && m.rowCount > 2 {
 		return nil, fmt.Errorf("simulated vectorized failure")
 	}
-	
+
 	if m.rowCount >= 5 {
 		return nil, nil // EOF
 	}
-	
+
 	time.Sleep(m.processTime)
 	m.rowCount++
-	
+
 	return &Row{
 		Values: []types.Value{types.NewValue(int64(m.rowCount))},
 	}, nil
@@ -663,10 +662,10 @@ func (m *MockScalarOperator) Next() (*Row, error) {
 	if m.rowCount >= 5 {
 		return nil, nil // EOF
 	}
-	
+
 	time.Sleep(m.processTime)
 	m.rowCount++
-	
+
 	return &Row{
 		Values: []types.Value{types.NewValue(int64(m.rowCount))},
 	}, nil

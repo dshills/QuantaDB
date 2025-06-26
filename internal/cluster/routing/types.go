@@ -19,10 +19,10 @@ type QueryResult struct {
 // RouterStatistics tracks routing performance metrics
 func NewRouterStatistics() *RouterStatistics {
 	return &RouterStatistics{
-		RoutingDecisions:   make(map[string]int64),
-		NodeUtilization:    make(map[string]float64),
-		LoadBalancerStats:  make(map[LoadBalancingStrategy]int64),
-		HealthCheckStats:   make(map[string]int64),
+		RoutingDecisions:  make(map[string]int64),
+		NodeUtilization:   make(map[string]float64),
+		LoadBalancerStats: make(map[LoadBalancingStrategy]int64),
+		HealthCheckStats:  make(map[string]int64),
 	}
 }
 

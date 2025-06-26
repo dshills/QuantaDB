@@ -69,7 +69,7 @@ func (rm *ReplicationManagerImpl) StartPrimary() error {
 
 	// Initialize WAL streamer
 	rm.streamer = NewWALStreamer(rm.config, rm.walMgr, rm.logger)
-	
+
 	// Start streamer service
 	if err := rm.streamer.(*WALStreamerImpl).Start(); err != nil {
 		return fmt.Errorf("failed to start WAL streamer: %w", err)
@@ -347,11 +347,11 @@ func (rm *ReplicationManagerImpl) checkReplicationHealth() {
 
 	// Get receiver status
 	status := receiver.GetStatus()
-	
+
 	// Update replication status based on receiver state
 	rm.mu.Lock()
 	rm.status.LastLSN = status.LastAppliedLSN
-	
+
 	switch status.State {
 	case "STREAMING":
 		rm.status.State = "REPLICA_STREAMING"
@@ -363,7 +363,7 @@ func (rm *ReplicationManagerImpl) checkReplicationHealth() {
 	rm.mu.Unlock()
 
 	// Log status periodically
-	rm.logger.Debug("Replication status", 
+	rm.logger.Debug("Replication status",
 		"state", status.State,
 		"lastAppliedLSN", status.LastAppliedLSN,
 		"recordsReceived", status.RecordsReceived,
@@ -373,7 +373,7 @@ func (rm *ReplicationManagerImpl) checkReplicationHealth() {
 // walStreamingLoop streams new WAL records to replicas (primary only)
 func (rm *ReplicationManagerImpl) walStreamingLoop() {
 	rm.logger.Info("Started WAL streaming loop")
-	
+
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -402,7 +402,7 @@ func (rm *ReplicationManagerImpl) streamWALRecords(fromLSN, toLSN wal.LSN) {
 
 	// TODO: Read actual WAL records from fromLSN to toLSN
 	// For now, we'll simulate the streaming process
-	
+
 	// Update replica acknowledgment tracking for sync manager
 	rm.mu.RLock()
 	replicas := make([]NodeID, 0, len(rm.replicas))

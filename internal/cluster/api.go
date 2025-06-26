@@ -63,7 +63,7 @@ func (a *API) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := a.coordinator.GetStatus()
-	
+
 	// Convert to JSON-friendly format
 	response := map[string]interface{}{
 		"node": map[string]interface{}{
@@ -88,11 +88,11 @@ func (a *API) handleStatus(w http.ResponseWriter, r *http.Request) {
 			"replica_count": status.ReplicationStatus.ReplicaCount,
 		},
 		"failover": map[string]interface{}{
-			"current_role":        status.FailoverStatus.CurrentRole.String(),
-			"is_healthy":          status.FailoverStatus.IsHealthy,
-			"last_failover":       status.FailoverStatus.LastFailoverTime.Format(time.RFC3339),
+			"current_role":         status.FailoverStatus.CurrentRole.String(),
+			"is_healthy":           status.FailoverStatus.IsHealthy,
+			"last_failover":        status.FailoverStatus.LastFailoverTime.Format(time.RFC3339),
 			"failover_in_progress": status.FailoverStatus.FailoverInProgress,
-			"last_health_check":   status.FailoverStatus.LastHealthCheck.Format(time.RFC3339),
+			"last_health_check":    status.FailoverStatus.LastHealthCheck.Format(time.RFC3339),
 		},
 		"cluster": map[string]interface{}{
 			"is_healthy": status.IsHealthy,
@@ -111,7 +111,7 @@ func (a *API) handleNodes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := a.coordinator.GetStatus()
-	
+
 	// Build nodes list from Raft configuration
 	nodes := []map[string]interface{}{}
 	if status.RaftConfiguration != nil && status.RaftConfiguration.Members != nil {
@@ -121,12 +121,12 @@ func (a *API) handleNodes(w http.ResponseWriter, r *http.Request) {
 				"address": member.Address,
 				"state":   member.State.String(),
 			}
-			
+
 			// Mark leader
 			if status.RaftLeader != nil && nodeID == *status.RaftLeader {
 				nodeInfo["is_leader"] = true
 			}
-			
+
 			nodes = append(nodes, nodeInfo)
 		}
 	}
@@ -148,11 +148,11 @@ func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := a.coordinator.GetStatus()
-	
+
 	response := map[string]interface{}{
-		"status": "ok",
-		"healthy": status.IsHealthy,
-		"role": status.NodeInfo.Role.String(),
+		"status":         "ok",
+		"healthy":        status.IsHealthy,
+		"role":           status.NodeInfo.Role.String(),
 		"uptime_seconds": status.Uptime.Seconds(),
 	}
 

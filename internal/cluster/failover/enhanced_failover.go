@@ -43,8 +43,8 @@ type EnhancedFailoverConfig struct {
 	MaxPingRetries int
 
 	// Service degradation
-	EnableDegradedMode    bool
-	DegradedModeTimeout   time.Duration
+	EnableDegradedMode      bool
+	DegradedModeTimeout     time.Duration
 	ReadOnlyDuringPartition bool
 }
 
@@ -184,13 +184,13 @@ func (npd *NetworkPartitionDetector) HasQuorum() bool {
 
 	healthyPeers := npd.countHealthyPeers()
 	witnessVotes := npd.countWitnessVotes()
-	
+
 	// Include self in the count
 	totalVotes := 1 + healthyPeers + witnessVotes
 	requiredQuorum := npd.calculateRequiredQuorum()
 
-	npd.logger.Debug("Quorum calculation", 
-		"healthy_peers", healthyPeers, 
+	npd.logger.Debug("Quorum calculation",
+		"healthy_peers", healthyPeers,
 		"witness_votes", witnessVotes,
 		"total_votes", totalVotes,
 		"required_quorum", requiredQuorum)
@@ -270,7 +270,7 @@ func (npd *NetworkPartitionDetector) performHealthChecks(ctx context.Context) {
 	// Check peers
 	for nodeID, peer := range npd.peers {
 		healthy := npd.pingPeer(ctx, peer)
-		
+
 		if healthy {
 			peer.IsHealthy = true
 			peer.LastSeen = time.Now()
@@ -282,8 +282,8 @@ func (npd *NetworkPartitionDetector) performHealthChecks(ctx context.Context) {
 			}
 		}
 
-		npd.logger.Debug("Peer health check", 
-			"node_id", nodeID, 
+		npd.logger.Debug("Peer health check",
+			"node_id", nodeID,
 			"healthy", peer.IsHealthy,
 			"failure_count", peer.FailureCount)
 	}
@@ -296,8 +296,8 @@ func (npd *NetworkPartitionDetector) performHealthChecks(ctx context.Context) {
 			witness.LastContact = time.Now()
 		}
 
-		npd.logger.Debug("Witness health check", 
-			"address", address, 
+		npd.logger.Debug("Witness health check",
+			"address", address,
 			"healthy", healthy)
 	}
 
@@ -308,9 +308,9 @@ func (npd *NetworkPartitionDetector) performHealthChecks(ctx context.Context) {
 func (npd *NetworkPartitionDetector) pingPeer(ctx context.Context, peer *PeerStatus) bool {
 	// TODO: Implement actual network ping
 	// For now, simulate ping based on time-based health simulation
-	
+
 	start := time.Now()
-	
+
 	// Simulate network timeout
 	pingCtx, cancel := context.WithTimeout(ctx, npd.config.PingTimeout)
 	defer cancel()
@@ -330,7 +330,7 @@ func (npd *NetworkPartitionDetector) pingPeer(ctx context.Context, peer *PeerSta
 func (npd *NetworkPartitionDetector) pingWitness(ctx context.Context, witness *WitnessNode) bool {
 	// TODO: Implement actual witness node ping
 	// This would typically be a lightweight HTTP endpoint or TCP health check
-	
+
 	pingCtx, cancel := context.WithTimeout(ctx, npd.config.PingTimeout)
 	defer cancel()
 
@@ -450,6 +450,10 @@ func (npd *NetworkPartitionDetector) handlePartitionStateChange(oldState, newSta
 		// - Stop accepting writes
 		// - Stop leadership activities
 		// - Maintain read-only operations if safe
+
+	case PartitionStateRecovering:
+		npd.logger.Info("Network partition recovering, gradually resuming operations")
+		// TODO: Trigger gradual resumption of operations
 	}
 }
 
@@ -479,15 +483,15 @@ func (npd *NetworkPartitionDetector) GetStatus() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"partition_state":    npd.partitionState,
-		"has_quorum":         npd.HasQuorum(),
+		"partition_state":     npd.partitionState,
+		"has_quorum":          npd.HasQuorum(),
 		"should_allow_writes": npd.ShouldAllowWrites(),
-		"healthy_peers":      npd.countHealthyPeers(),
-		"witness_votes":      npd.countWitnessVotes(),
-		"required_quorum":    npd.calculateRequiredQuorum(),
-		"last_health_check":  npd.lastHealthCheck,
-		"peers":              peers,
-		"witnesses":          witnesses,
+		"healthy_peers":       npd.countHealthyPeers(),
+		"witness_votes":       npd.countWitnessVotes(),
+		"required_quorum":     npd.calculateRequiredQuorum(),
+		"last_health_check":   npd.lastHealthCheck,
+		"peers":               peers,
+		"witnesses":           witnesses,
 		"config": map[string]interface{}{
 			"require_quorum":             npd.config.RequireQuorum,
 			"enable_degraded_mode":       npd.config.EnableDegradedMode,

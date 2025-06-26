@@ -20,15 +20,15 @@ import (
 
 // ClusterAPI provides RESTful API for cluster management
 type ClusterAPI struct {
-	config  *ClusterAPIConfig
-	logger  log.Logger
-	server  *http.Server
-	mu      sync.RWMutex
+	config *ClusterAPIConfig
+	logger log.Logger
+	server *http.Server
+	mu     sync.RWMutex
 
 	// Component references
-	monitor           *monitoring.ClusterMonitor
+	monitor            *monitoring.ClusterMonitor
 	replicationManager replication.ReplicationManager
-	queryRouter       *routing.QueryRouter
+	queryRouter        *routing.QueryRouter
 
 	// API state
 	started bool
@@ -43,21 +43,21 @@ type ClusterAPIConfig struct {
 	WriteTimeout  time.Duration
 
 	// Security settings
-	EnableAuth     bool
-	APIKey         string
-	EnableTLS      bool
-	CertFile       string
-	KeyFile        string
+	EnableAuth bool
+	APIKey     string
+	EnableTLS  bool
+	CertFile   string
+	KeyFile    string
 
 	// Rate limiting
 	EnableRateLimit bool
 	RequestsPerMin  int
 
 	// CORS settings
-	EnableCORS      bool
-	AllowedOrigins  []string
-	AllowedMethods  []string
-	AllowedHeaders  []string
+	EnableCORS     bool
+	AllowedOrigins []string
+	AllowedMethods []string
+	AllowedHeaders []string
 }
 
 // APIResponse represents a standard API response
@@ -293,9 +293,7 @@ func (api *ClusterAPI) authMiddleware(next http.Handler) http.Handler {
 		apiKey := r.Header.Get("X-API-Key")
 		if apiKey == "" {
 			apiKey = r.Header.Get("Authorization")
-			if strings.HasPrefix(apiKey, "Bearer ") {
-				apiKey = strings.TrimPrefix(apiKey, "Bearer ")
-			}
+			apiKey = strings.TrimPrefix(apiKey, "Bearer ")
 		}
 
 		if apiKey != api.config.APIKey {
@@ -318,12 +316,12 @@ func (api *ClusterAPI) rateLimitMiddleware(next http.Handler) http.Handler {
 func (api *ClusterAPI) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// Wrap ResponseWriter to capture status code
 		wrapped := &responseWrapper{ResponseWriter: w, statusCode: http.StatusOK}
-		
+
 		next.ServeHTTP(wrapped, r)
-		
+
 		duration := time.Since(start)
 		api.logger.Info("API request",
 			"method", r.Method,
@@ -355,9 +353,9 @@ func (api *ClusterAPI) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.writeSuccessResponse(w, map[string]interface{}{
-		"status": "healthy",
-		"version": "1.0.0", // TODO: Get from build info
-		"uptime": time.Since(time.Now()).String(), // TODO: Track actual uptime
+		"status":  "healthy",
+		"version": "1.0.0",                         // TODO: Get from build info
+		"uptime":  time.Since(time.Now()).String(), // TODO: Track actual uptime
 	})
 }
 
@@ -702,7 +700,7 @@ func (api *ClusterAPI) handleMaintenance(w http.ResponseWriter, r *http.Request)
 		// TODO: Return maintenance mode status
 		api.writeSuccessResponse(w, map[string]interface{}{
 			"maintenance_mode": false,
-			"message": "Maintenance mode status would be returned here",
+			"message":          "Maintenance mode status would be returned here",
 		})
 	case http.MethodPost:
 		// TODO: Enable/disable maintenance mode
@@ -756,7 +754,7 @@ func (api *ClusterAPI) handleBackup(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Implement backup functionality
 	api.writeSuccessResponse(w, map[string]interface{}{
-		"message": "Backup would be initiated here",
+		"message":   "Backup would be initiated here",
 		"backup_id": "backup-" + strconv.FormatInt(time.Now().Unix(), 10),
 	})
 }
@@ -810,7 +808,7 @@ func (api *ClusterAPI) writeSuccessResponse(w http.ResponseWriter, data interfac
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		api.logger.Error("Failed to encode response", "error", err)
 	}
@@ -826,7 +824,7 @@ func (api *ClusterAPI) writeErrorResponse(w http.ResponseWriter, statusCode int,
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		api.logger.Error("Failed to encode error response", "error", err)
 	}

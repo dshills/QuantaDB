@@ -10,7 +10,6 @@ import (
 	"github.com/dshills/QuantaDB/internal/wal"
 )
 
-
 // SynchronousReplicationConfig holds configuration for synchronous replication
 type SynchronousReplicationConfig struct {
 	// Mode specifies the synchronous replication level
@@ -54,14 +53,14 @@ type SynchronousReplicationManager struct {
 
 // SyncOperation tracks a synchronous replication operation
 type SyncOperation struct {
-	ID          string
-	LSN         wal.LSN
+	ID           string
+	LSN          wal.LSN
 	RequiredAcks int
 	ReceivedAcks int
-	StartTime   time.Time
-	Done        chan error
-	Context     context.Context
-	Cancel      context.CancelFunc
+	StartTime    time.Time
+	Done         chan error
+	Context      context.Context
+	Cancel       context.CancelFunc
 }
 
 // ReplicaStatus tracks the status of a replica for synchronous operations
@@ -108,7 +107,7 @@ func (srm *SynchronousReplicationManager) WaitForReplication(ctx context.Context
 	requiredAcks := srm.calculateRequiredAcks()
 
 	if requiredAcks == 0 {
-		srm.logger.Warn("No replicas available for synchronous replication", 
+		srm.logger.Warn("No replicas available for synchronous replication",
 			"mode", srm.config.Mode, "lsn", lsn)
 		return nil // Proceed without synchronous replication
 	}
@@ -144,18 +143,18 @@ func (srm *SynchronousReplicationManager) WaitForReplication(ctx context.Context
 	select {
 	case err := <-op.Done:
 		if err != nil {
-			srm.logger.Error("Synchronous replication failed", 
+			srm.logger.Error("Synchronous replication failed",
 				"op_id", opID, "lsn", lsn, "error", err)
 			return fmt.Errorf("synchronous replication failed: %w", err)
 		}
-		
+
 		duration := time.Since(op.StartTime)
-		srm.logger.Info("Synchronous replication completed", 
+		srm.logger.Info("Synchronous replication completed",
 			"op_id", opID, "lsn", lsn, "acks", op.ReceivedAcks, "duration", duration)
 		return nil
 
 	case <-opCtx.Done():
-		srm.logger.Warn("Synchronous replication timeout", 
+		srm.logger.Warn("Synchronous replication timeout",
 			"op_id", opID, "lsn", lsn, "received_acks", op.ReceivedAcks, "required_acks", requiredAcks)
 		return fmt.Errorf("synchronous replication timeout after %v", srm.config.SyncTimeout)
 	}
@@ -175,7 +174,7 @@ func (srm *SynchronousReplicationManager) ProcessReplicaAcknowledgment(replicaID
 		}
 		srm.replicaStatuses[replicaID] = status
 	}
-	
+
 	status.LastAckLSN = lsn
 	status.LastAckTime = now
 	status.IsHealthy = true
@@ -184,16 +183,16 @@ func (srm *SynchronousReplicationManager) ProcessReplicaAcknowledgment(replicaID
 	for opID, op := range srm.pendingOps {
 		if lsn >= op.LSN && op.ReceivedAcks < op.RequiredAcks {
 			op.ReceivedAcks++
-			
-			srm.logger.Debug("Received replica acknowledgment", 
-				"replica_id", replicaID, "op_id", opID, "lsn", lsn, 
+
+			srm.logger.Debug("Received replica acknowledgment",
+				"replica_id", replicaID, "op_id", opID, "lsn", lsn,
 				"received_acks", op.ReceivedAcks, "required_acks", op.RequiredAcks)
 
 			// Check if operation is now complete
 			if op.ReceivedAcks >= op.RequiredAcks {
 				select {
 				case op.Done <- nil:
-					srm.logger.Info("Synchronous operation completed", 
+					srm.logger.Info("Synchronous operation completed",
 						"op_id", opID, "lsn", op.LSN, "acks", op.ReceivedAcks)
 				default:
 					// Channel already closed or operation timed out
@@ -253,7 +252,7 @@ func (srm *SynchronousReplicationManager) UpdateReplicaHealth(replicaID string, 
 	status.IsHealthy = isHealthy
 
 	if oldHealth != isHealthy {
-		srm.logger.Info("Replica health changed", 
+		srm.logger.Info("Replica health changed",
 			"replica_id", replicaID, "healthy", isHealthy)
 
 		// If replica became unhealthy, check if any pending operations need to be failed
@@ -269,11 +268,11 @@ func (srm *SynchronousReplicationManager) checkPendingOperationsForFailure() {
 
 	for opID, op := range srm.pendingOps {
 		if op.RequiredAcks > availableReplicas {
-			srm.logger.Warn("Insufficient replicas for synchronous operation", 
+			srm.logger.Warn("Insufficient replicas for synchronous operation",
 				"op_id", opID, "required", op.RequiredAcks, "available", availableReplicas)
-			
+
 			select {
-			case op.Done <- fmt.Errorf("insufficient healthy replicas: required %d, available %d", 
+			case op.Done <- fmt.Errorf("insufficient healthy replicas: required %d, available %d",
 				op.RequiredAcks, availableReplicas):
 			default:
 				// Channel already closed
@@ -295,7 +294,7 @@ func (srm *SynchronousReplicationManager) SetReplicationMode(mode SynchronousRep
 	oldMode := srm.config.Mode
 	srm.config.Mode = mode
 
-	srm.logger.Info("Replication mode changed", 
+	srm.logger.Info("Replication mode changed",
 		"old_mode", oldMode, "new_mode", mode)
 
 	// If switching to async mode, complete all pending operations
@@ -303,7 +302,7 @@ func (srm *SynchronousReplicationManager) SetReplicationMode(mode SynchronousRep
 		for opID, op := range srm.pendingOps {
 			select {
 			case op.Done <- nil:
-				srm.logger.Info("Completing pending operation due to async mode switch", 
+				srm.logger.Info("Completing pending operation due to async mode switch",
 					"op_id", opID)
 			default:
 				// Channel already closed
@@ -320,10 +319,10 @@ func (srm *SynchronousReplicationManager) GetStatus() map[string]interface{} {
 	replicas := make(map[string]interface{})
 	for id, status := range srm.replicaStatuses {
 		replicas[id] = map[string]interface{}{
-			"last_ack_lsn":   status.LastAckLSN,
-			"last_ack_time":  status.LastAckTime,
-			"is_healthy":     status.IsHealthy,
-			"response_time":  status.ResponseTime,
+			"last_ack_lsn":  status.LastAckLSN,
+			"last_ack_time": status.LastAckTime,
+			"is_healthy":    status.IsHealthy,
+			"response_time": status.ResponseTime,
 		}
 	}
 
@@ -333,10 +332,10 @@ func (srm *SynchronousReplicationManager) GetStatus() map[string]interface{} {
 		"healthy_replicas": srm.getHealthyReplicaCount(),
 		"replicas":         replicas,
 		"config": map[string]interface{}{
-			"sync_timeout":          srm.config.SyncTimeout,
-			"min_replicas":          srm.config.MinReplicas,
-			"max_concurrent_syncs":  srm.config.MaxConcurrentSyncs,
-			"retry_attempts":        srm.config.RetryAttempts,
+			"sync_timeout":         srm.config.SyncTimeout,
+			"min_replicas":         srm.config.MinReplicas,
+			"max_concurrent_syncs": srm.config.MaxConcurrentSyncs,
+			"retry_attempts":       srm.config.RetryAttempts,
 		},
 	}
 }

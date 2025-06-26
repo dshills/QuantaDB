@@ -71,7 +71,7 @@ type Connection struct {
 
 	// Extended query protocol session
 	extQuerySession *ExtendedQuerySession
-	
+
 	// Cluster support
 	clusterCoordinator interface{} // *cluster.Coordinator
 }

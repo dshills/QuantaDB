@@ -131,8 +131,9 @@ func TestPhysicalPlannerIntegration(t *testing.T) {
 		}
 
 		childCost := physicalSort.Children()[0].(PhysicalPlan).Cost()
-		if physicalSort.Cost() <= childCost {
-			t.Errorf("Expected sort cost (%f) > child cost (%f)", physicalSort.Cost(), childCost)
+		sortCost := physicalSort.Cost()
+		if sortCost <= childCost {
+			t.Errorf("Expected sort cost (%f) > child cost (%f)", sortCost, childCost)
 		}
 	})
 }

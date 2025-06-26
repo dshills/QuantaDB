@@ -13,9 +13,9 @@ import (
 
 // WALStreamerImpl implements the WALStreamer interface
 type WALStreamerImpl struct {
-	config   *ReplicationConfig
-	walMgr   *wal.Manager
-	logger   log.Logger
+	config *ReplicationConfig
+	walMgr *wal.Manager
+	logger log.Logger
 
 	// Streaming state
 	mu       sync.RWMutex
@@ -48,7 +48,7 @@ type replicaStream struct {
 // NewWALStreamer creates a new WAL streamer
 func NewWALStreamer(config *ReplicationConfig, walMgr *wal.Manager, logger log.Logger) *WALStreamerImpl {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &WALStreamerImpl{
 		config:   config,
 		walMgr:   walMgr,
@@ -164,7 +164,7 @@ func (s *WALStreamerImpl) StreamWALRecord(record *wal.LogRecord) error {
 		default:
 			// Channel is full - replica might be lagging
 			s.logger.Warn("WAL stream buffer full", "replica", stream.info.NodeID)
-			
+
 			// Try to send with timeout
 			select {
 			case stream.sendCh <- record:
@@ -312,7 +312,7 @@ func (s *WALStreamerImpl) streamToReplica(stream *replicaStream, startLSN wal.LS
 		select {
 		case record := <-stream.sendCh:
 			batch = append(batch, record)
-			
+
 			// Send batch if full or after flush interval
 			if len(batch) >= s.config.BatchSize {
 				if err := s.sendBatch(stream, batch); err != nil {
@@ -352,7 +352,7 @@ func (s *WALStreamerImpl) sendHistoricalRecords(stream *replicaStream, startLSN 
 	// 1. Reading WAL segments from disk starting at startLSN
 	// 2. Deserializing records
 	// 3. Sending them to the replica
-	
+
 	s.logger.Info("Sending historical records", "replica", stream.info.NodeID, "startLSN", startLSN)
 	return nil
 }
@@ -391,8 +391,8 @@ func (s *WALStreamerImpl) sendBatch(stream *replicaStream, batch []*wal.LogRecor
 	}
 	stream.mu.Unlock()
 
-	s.logger.Debug("Sent WAL batch", 
-		"replica", stream.info.NodeID, 
+	s.logger.Debug("Sent WAL batch",
+		"replica", stream.info.NodeID,
 		"records", len(batch),
 		"startLSN", walData.StartLSN,
 		"endLSN", walData.EndLSN,

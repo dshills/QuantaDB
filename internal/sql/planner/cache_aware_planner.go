@@ -12,88 +12,88 @@ import (
 // CacheAwarePlanner extends physical planning with intelligent result caching decisions
 type CacheAwarePlanner struct {
 	*EnhancedPlanner
-	cacheModel      *CacheAwareCostModel
-	cacheStats      *CacheStatistics
-	cachingPolicy   *CachingPolicy
+	cacheModel    *CacheAwareCostModel
+	cacheStats    *CacheStatistics
+	cachingPolicy *CachingPolicy
 }
 
 // CacheAwareCostModel provides cost-based caching decisions
 type CacheAwareCostModel struct {
 	// Cost thresholds
-	MinExecutionCostForCaching   float64 // Minimum execution cost to consider caching
-	MaxResultSizeForCaching      int64   // Maximum result size to cache (bytes)
-	CacheMaintenanceCostFactor   float64 // Cost factor for cache maintenance
-	
+	MinExecutionCostForCaching float64 // Minimum execution cost to consider caching
+	MaxResultSizeForCaching    int64   // Maximum result size to cache (bytes)
+	CacheMaintenanceCostFactor float64 // Cost factor for cache maintenance
+
 	// Benefit calculations
-	AccessFrequencyWeight        float64 // Weight for access frequency in benefit calculation
-	ExecutionCostWeight          float64 // Weight for execution cost in benefit calculation
-	MemoryPressurePenalty        float64 // Penalty factor under memory pressure
-	
+	AccessFrequencyWeight float64 // Weight for access frequency in benefit calculation
+	ExecutionCostWeight   float64 // Weight for execution cost in benefit calculation
+	MemoryPressurePenalty float64 // Penalty factor under memory pressure
+
 	// TTL calculations
-	BaseTTL                      time.Duration // Base TTL for cached results
-	DynamicTTLEnabled            bool          // Whether to use dynamic TTL based on cost
-	HighCostTTLMultiplier        float64       // TTL multiplier for expensive queries
-	LowVolatilityTTLMultiplier   float64       // TTL multiplier for stable data
+	BaseTTL                    time.Duration // Base TTL for cached results
+	DynamicTTLEnabled          bool          // Whether to use dynamic TTL based on cost
+	HighCostTTLMultiplier      float64       // TTL multiplier for expensive queries
+	LowVolatilityTTLMultiplier float64       // TTL multiplier for stable data
 }
 
 // CachingPolicy defines when and how to cache query results
 type CachingPolicy struct {
 	// Enable/disable flags
-	EnableResultCaching          bool
-	EnableAdaptiveTTL            bool
-	EnableCostBasedEviction      bool
-	
+	EnableResultCaching     bool
+	EnableAdaptiveTTL       bool
+	EnableCostBasedEviction bool
+
 	// Caching criteria
-	MinCardinality               int64   // Minimum result rows to consider caching
-	MaxCardinality               int64   // Maximum result rows to cache
-	MinRepeatProbability         float64 // Minimum probability of query repetition
-	
+	MinCardinality       int64   // Minimum result rows to consider caching
+	MaxCardinality       int64   // Maximum result rows to cache
+	MinRepeatProbability float64 // Minimum probability of query repetition
+
 	// Resource limits
-	MaxCacheMemoryRatio          float64 // Maximum cache memory as ratio of available memory
-	MaxCacheEntries              int     // Maximum number of cached entries
-	
+	MaxCacheMemoryRatio float64 // Maximum cache memory as ratio of available memory
+	MaxCacheEntries     int     // Maximum number of cached entries
+
 	// Query type preferences
-	PreferCacheSelects           bool // Cache SELECT queries
-	PreferCacheAggregates        bool // Cache aggregate queries
-	PreferCacheJoins             bool // Cache join queries
-	AvoidCacheVolatileTables     bool // Avoid caching queries on frequently updated tables
+	PreferCacheSelects       bool // Cache SELECT queries
+	PreferCacheAggregates    bool // Cache aggregate queries
+	PreferCacheJoins         bool // Cache join queries
+	AvoidCacheVolatileTables bool // Avoid caching queries on frequently updated tables
 }
 
 // CachingDecision represents a caching decision with reasoning
 type CachingDecision struct {
-	ShouldCache         bool
-	CacheTTL            time.Duration
-	EvictionPriority    int
-	EstimatedBenefit    float64
-	EstimatedCost       float64
-	Dependencies        []string
-	Reasoning           []string
-	ConfidenceScore     float64
+	ShouldCache      bool
+	CacheTTL         time.Duration
+	EvictionPriority int
+	EstimatedBenefit float64
+	EstimatedCost    float64
+	Dependencies     []string
+	Reasoning        []string
+	ConfidenceScore  float64
 }
 
 // CacheStatistics tracks caching performance metrics
 type CacheStatistics struct {
 	// Decision statistics
-	CachingDecisionsMade         int64
-	CachingEnabled               int64
-	CachingDisabled              int64
-	
+	CachingDecisionsMade int64
+	CachingEnabled       int64
+	CachingDisabled      int64
+
 	// Performance metrics
-	AvgCacheHitLatency           time.Duration
-	AvgCacheMissLatency          time.Duration
-	CacheHitRate                 float64
-	
+	AvgCacheHitLatency  time.Duration
+	AvgCacheMissLatency time.Duration
+	CacheHitRate        float64
+
 	// Benefit tracking
-	TotalBytesSaved              int64
-	TotalTimeSaved               time.Duration
-	EstimatedCostSavings         float64
-	
+	TotalBytesSaved      int64
+	TotalTimeSaved       time.Duration
+	EstimatedCostSavings float64
+
 	// Eviction statistics
-	TTLEvictions                 int64
-	MemoryPressureEvictions      int64
-	ExplicitEvictions            int64
-	
-	LastUpdate                   time.Time
+	TTLEvictions            int64
+	MemoryPressureEvictions int64
+	ExplicitEvictions       int64
+
+	LastUpdate time.Time
 }
 
 // NewCacheAwarePlanner creates a new cache-aware planner
@@ -109,34 +109,34 @@ func NewCacheAwarePlanner(enhancedPlanner *EnhancedPlanner) *CacheAwarePlanner {
 // NewCacheAwareCostModel creates a cost model with sensible defaults
 func NewCacheAwareCostModel() *CacheAwareCostModel {
 	return &CacheAwareCostModel{
-		MinExecutionCostForCaching:   100.0,                // Cache queries costing > 100 units
-		MaxResultSizeForCaching:      10 * 1024 * 1024,     // 10MB max result size
-		CacheMaintenanceCostFactor:   0.1,                  // 10% overhead for cache maintenance
-		AccessFrequencyWeight:        0.6,                  // 60% weight on access frequency
-		ExecutionCostWeight:          0.4,                  // 40% weight on execution cost
-		MemoryPressurePenalty:        2.0,                  // 2x penalty under memory pressure
-		BaseTTL:                      5 * time.Minute,      // 5 minute base TTL
-		DynamicTTLEnabled:            true,
-		HighCostTTLMultiplier:        3.0,                  // 3x TTL for expensive queries
-		LowVolatilityTTLMultiplier:   2.0,                  // 2x TTL for stable data
+		MinExecutionCostForCaching: 100.0,            // Cache queries costing > 100 units
+		MaxResultSizeForCaching:    10 * 1024 * 1024, // 10MB max result size
+		CacheMaintenanceCostFactor: 0.1,              // 10% overhead for cache maintenance
+		AccessFrequencyWeight:      0.6,              // 60% weight on access frequency
+		ExecutionCostWeight:        0.4,              // 40% weight on execution cost
+		MemoryPressurePenalty:      2.0,              // 2x penalty under memory pressure
+		BaseTTL:                    5 * time.Minute,  // 5 minute base TTL
+		DynamicTTLEnabled:          true,
+		HighCostTTLMultiplier:      3.0, // 3x TTL for expensive queries
+		LowVolatilityTTLMultiplier: 2.0, // 2x TTL for stable data
 	}
 }
 
 // NewDefaultCachingPolicy creates a default caching policy
 func NewDefaultCachingPolicy() *CachingPolicy {
 	return &CachingPolicy{
-		EnableResultCaching:          true,
-		EnableAdaptiveTTL:            true,
-		EnableCostBasedEviction:      true,
-		MinCardinality:               10,    // Cache results with 10+ rows
-		MaxCardinality:               100000, // Don't cache huge results
-		MinRepeatProbability:         0.1,   // 10% chance of repetition
-		MaxCacheMemoryRatio:          0.25,  // Use up to 25% of memory for cache
-		MaxCacheEntries:              10000, // Maximum cached queries
-		PreferCacheSelects:           true,
-		PreferCacheAggregates:        true,
-		PreferCacheJoins:             true,
-		AvoidCacheVolatileTables:     true,
+		EnableResultCaching:      true,
+		EnableAdaptiveTTL:        true,
+		EnableCostBasedEviction:  true,
+		MinCardinality:           10,     // Cache results with 10+ rows
+		MaxCardinality:           100000, // Don't cache huge results
+		MinRepeatProbability:     0.1,    // 10% chance of repetition
+		MaxCacheMemoryRatio:      0.25,   // Use up to 25% of memory for cache
+		MaxCacheEntries:          10000,  // Maximum cached queries
+		PreferCacheSelects:       true,
+		PreferCacheAggregates:    true,
+		PreferCacheJoins:         true,
+		AvoidCacheVolatileTables: true,
 	}
 }
 
@@ -154,24 +154,24 @@ func (cap *CacheAwarePlanner) Plan(stmt parser.Statement) (Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Only add caching decisions for SELECT statements
 	selectStmt, isSelect := stmt.(*parser.SelectStmt)
 	if !isSelect || !cap.cachingPolicy.EnableResultCaching {
 		return plan, nil
 	}
-	
+
 	// Analyze caching feasibility
 	cachingDecision := cap.EvaluateCachingDecision(plan, selectStmt)
-	
+
 	// Update statistics
 	cap.updateCachingStats(cachingDecision)
-	
+
 	// If caching is beneficial, wrap the plan with cache operations
 	if cachingDecision.ShouldCache {
 		return cap.wrapWithCaching(plan, cachingDecision), nil
 	}
-	
+
 	return plan, nil
 }
 
@@ -187,58 +187,58 @@ func (cap *CacheAwarePlanner) EvaluateCachingDecision(
 		Reasoning:        []string{},
 		ConfidenceScore:  0.5,
 	}
-	
+
 	// Early exits for uncacheable queries
 	if !cap.isQueryCacheable(stmt, decision) {
 		return decision
 	}
-	
+
 	// Estimate execution cost and result characteristics
 	executionCost := cap.estimateExecutionCost(plan)
 	resultSize := cap.estimateResultSize(plan)
 	cardinality := cap.estimateResultCardinality(plan)
-	
+
 	// Check basic caching criteria
 	if !cap.meetsCachingCriteria(executionCost, resultSize, cardinality, decision) {
 		return decision
 	}
-	
+
 	// Estimate access frequency and repetition probability
 	accessFrequency := cap.estimateAccessFrequency(stmt)
 	repeatProbability := cap.estimateRepeatProbability(stmt)
-	
+
 	// Calculate caching benefit
 	benefit := cap.calculateCachingBenefit(
 		executionCost, accessFrequency, repeatProbability, resultSize)
-	
+
 	// Factor in memory pressure
 	memoryPressure := cap.getMemoryPressure()
 	adjustedBenefit := benefit / (1.0 + memoryPressure*cap.cacheModel.MemoryPressurePenalty)
-	
+
 	// Make final caching decision
 	if adjustedBenefit > 1.0 { // Benefit threshold
 		decision.ShouldCache = true
 		decision.EstimatedBenefit = adjustedBenefit
 		decision.EstimatedCost = executionCost
 		decision.ConfidenceScore = 0.8
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("beneficial_caching_benefit_%.2f", adjustedBenefit))
-		
+
 		// Calculate dynamic TTL
 		if cap.cacheModel.DynamicTTLEnabled {
 			decision.CacheTTL = cap.calculateDynamicTTL(executionCost, repeatProbability)
 		}
-		
+
 		// Set eviction priority based on benefit
 		decision.EvictionPriority = cap.calculateEvictionPriority(adjustedBenefit, executionCost)
-		
+
 		// Extract table dependencies
 		decision.Dependencies = cap.extractTableDependencies(stmt)
 	} else {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("insufficient_benefit_%.2f", adjustedBenefit))
 	}
-	
+
 	return decision
 }
 
@@ -249,19 +249,19 @@ func (cap *CacheAwarePlanner) isQueryCacheable(stmt *parser.SelectStmt, decision
 		decision.Reasoning = append(decision.Reasoning, "contains_non_deterministic_functions")
 		return false
 	}
-	
+
 	// Check for parameter references that would make caching less effective
 	if cap.hasParameterReferences(stmt) {
 		decision.Reasoning = append(decision.Reasoning, "contains_parameters")
 		// Don't immediately reject - parameterized queries can still benefit from caching
 	}
-	
+
 	// Check for subqueries that might make caching complex
 	if cap.hasComplexSubqueries(stmt) {
 		decision.Reasoning = append(decision.Reasoning, "contains_complex_subqueries")
 		decision.ConfidenceScore *= 0.8 // Lower confidence
 	}
-	
+
 	return true
 }
 
@@ -274,31 +274,31 @@ func (cap *CacheAwarePlanner) meetsCachingCriteria(
 ) bool {
 	// Check execution cost threshold
 	if executionCost < cap.cacheModel.MinExecutionCostForCaching {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("execution_cost_too_low_%.2f", executionCost))
 		return false
 	}
-	
+
 	// Check result size limits
 	if resultSize > cap.cacheModel.MaxResultSizeForCaching {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("result_size_too_large_%d", resultSize))
 		return false
 	}
-	
+
 	// Check cardinality limits
 	if cardinality < cap.cachingPolicy.MinCardinality {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("cardinality_too_low_%d", cardinality))
 		return false
 	}
-	
+
 	if cardinality > cap.cachingPolicy.MaxCardinality {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("cardinality_too_high_%d", cardinality))
 		return false
 	}
-	
+
 	return true
 }
 
@@ -311,19 +311,19 @@ func (cap *CacheAwarePlanner) calculateCachingBenefit(
 ) float64 {
 	// Base benefit from avoiding re-execution
 	executionBenefit := executionCost * repeatProbability * accessFrequency
-	
+
 	// Factor in access frequency (more frequent = more beneficial)
 	frequencyBenefit := accessFrequency * cap.cacheModel.AccessFrequencyWeight
-	
+
 	// Factor in execution cost (more expensive = more beneficial to cache)
 	costBenefit := executionCost * cap.cacheModel.ExecutionCostWeight
-	
+
 	// Calculate cache maintenance cost
 	maintenanceCost := float64(resultSize) * cap.cacheModel.CacheMaintenanceCostFactor
-	
+
 	// Total benefit calculation
 	totalBenefit := (executionBenefit + frequencyBenefit + costBenefit) / (1.0 + maintenanceCost/1000.0)
-	
+
 	return totalBenefit
 }
 
@@ -333,35 +333,35 @@ func (cap *CacheAwarePlanner) calculateDynamicTTL(
 	repeatProbability float64,
 ) time.Duration {
 	baseTTL := cap.cacheModel.BaseTTL
-	
+
 	// Extend TTL for expensive queries
 	if executionCost > 1000.0 {
 		baseTTL = time.Duration(float64(baseTTL) * cap.cacheModel.HighCostTTLMultiplier)
 	}
-	
+
 	// Extend TTL for queries likely to be repeated
 	if repeatProbability > 0.7 {
 		baseTTL = time.Duration(float64(baseTTL) * 1.5)
 	}
-	
+
 	// Factor in data volatility (would need to analyze table update patterns)
 	// For now, use a simple heuristic
 	volatilityFactor := cap.estimateDataVolatility()
 	if volatilityFactor < 0.3 { // Low volatility
 		baseTTL = time.Duration(float64(baseTTL) * cap.cacheModel.LowVolatilityTTLMultiplier)
 	}
-	
+
 	// Ensure reasonable bounds
 	maxTTL := 1 * time.Hour
 	minTTL := 30 * time.Second
-	
+
 	if baseTTL > maxTTL {
 		baseTTL = maxTTL
 	}
 	if baseTTL < minTTL {
 		baseTTL = minTTL
 	}
-	
+
 	return baseTTL
 }
 
@@ -416,45 +416,45 @@ func (cap *CacheAwarePlanner) estimateResultCardinality(plan Plan) int64 {
 func (cap *CacheAwarePlanner) estimateAccessFrequency(stmt *parser.SelectStmt) float64 {
 	// Simple heuristic based on query complexity
 	// In practice, this would use query log analysis
-	
+
 	// Simple queries are accessed more frequently
 	if stmt.From != nil && stmt.Where == nil {
 		return 5.0 // High frequency
 	}
-	
+
 	// Aggregate queries might be dashboard queries (high frequency)
 	if len(stmt.GroupBy) > 0 {
 		return 3.0 // Medium-high frequency
 	}
-	
+
 	// Complex joins might be reports (medium frequency)
 	joinCount := cap.countJoins(stmt)
 	if joinCount > 1 {
 		return 2.0 // Medium frequency
 	}
-	
+
 	return 1.0 // Default frequency
 }
 
 func (cap *CacheAwarePlanner) estimateRepeatProbability(stmt *parser.SelectStmt) float64 {
 	// Generate a query signature and check historical patterns
 	signature := cap.generateQuerySignature(stmt)
-	
+
 	// In practice, this would analyze query logs
 	// For now, use simple heuristics
-	
+
 	if cap.hasOrderBy(stmt) && cap.hasLimit(stmt) {
 		return 0.8 // Pagination queries are often repeated
 	}
-	
+
 	if len(stmt.GroupBy) > 0 {
 		return 0.7 // Aggregate queries for dashboards
 	}
-	
+
 	if cap.hasSimpleFilters(stmt) {
 		return 0.6 // Filtered searches
 	}
-	
+
 	// Use signature to estimate (simplified)
 	_ = signature
 	return 0.4 // Default probability
@@ -532,7 +532,7 @@ func (cap *CacheAwarePlanner) generateQuerySignature(stmt *parser.SelectStmt) st
 	if len(stmt.OrderBy) > 0 {
 		queryStr += "_WITH_ORDERBY"
 	}
-	
+
 	hash := sha256.Sum256([]byte(queryStr))
 	return hex.EncodeToString(hash[:8]) // First 8 bytes for brevity
 }
@@ -553,15 +553,15 @@ func (cap *CacheAwarePlanner) extractTableDependencies(stmt *parser.SelectStmt) 
 // extractTableNamesFromJoin extracts table names from JOIN expressions
 func (cap *CacheAwarePlanner) extractTableNamesFromJoin(join *parser.JoinExpr) []string {
 	var tableNames []string
-	
+
 	if leftTable, ok := join.Left.(*parser.TableRef); ok {
 		tableNames = append(tableNames, leftTable.TableName)
 	}
-	
+
 	if rightTable, ok := join.Right.(*parser.TableRef); ok {
 		tableNames = append(tableNames, rightTable.TableName)
 	}
-	
+
 	return tableNames
 }
 

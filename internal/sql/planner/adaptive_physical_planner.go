@@ -11,22 +11,21 @@ import (
 // AdaptivePhysicalPlanner extends PhysicalPlanner with runtime adaptability
 type AdaptivePhysicalPlanner struct {
 	*PhysicalPlanner
-	memoryMonitor        *MemoryPressureMonitor
-	historyTracker       *OperatorHistoryTracker
-	adaptiveDecider      *AdaptiveVectorizationDecider
-	feedbackCollector    *RuntimeFeedbackCollector
-	cacheIntegrator      *CacheIntegratedPlanner
+	memoryMonitor     *MemoryPressureMonitor
+	historyTracker    *OperatorHistoryTracker
+	adaptiveDecider   *AdaptiveVectorizationDecider
+	feedbackCollector *RuntimeFeedbackCollector
 }
 
 // MemoryPressureMonitor tracks system memory usage
 type MemoryPressureMonitor struct {
-	mu                    sync.RWMutex
-	currentMemoryUsed     int64
-	totalMemoryAvailable  int64
-	pressureThreshold     float64
-	lastUpdate            time.Time
-	historicalPressure    []float64
-	maxHistorySize        int
+	mu                   sync.RWMutex
+	currentMemoryUsed    int64
+	totalMemoryAvailable int64
+	pressureThreshold    float64
+	lastUpdate           time.Time
+	historicalPressure   []float64
+	maxHistorySize       int
 }
 
 // NewMemoryPressureMonitor creates a new memory monitor
@@ -43,13 +42,13 @@ func NewMemoryPressureMonitor(totalMemory int64, pressureThreshold float64) *Mem
 func (mpm *MemoryPressureMonitor) UpdateMemoryUsage(used int64) {
 	mpm.mu.Lock()
 	defer mpm.mu.Unlock()
-	
+
 	mpm.currentMemoryUsed = used
 	mpm.lastUpdate = time.Now()
-	
+
 	pressure := float64(used) / float64(mpm.totalMemoryAvailable)
 	mpm.historicalPressure = append(mpm.historicalPressure, pressure)
-	
+
 	if len(mpm.historicalPressure) > mpm.maxHistorySize {
 		mpm.historicalPressure = mpm.historicalPressure[1:]
 	}
@@ -59,11 +58,11 @@ func (mpm *MemoryPressureMonitor) UpdateMemoryUsage(used int64) {
 func (mpm *MemoryPressureMonitor) GetMemoryPressure() float64 {
 	mpm.mu.RLock()
 	defer mpm.mu.RUnlock()
-	
+
 	if mpm.totalMemoryAvailable == 0 {
 		return 0.0
 	}
-	
+
 	return float64(mpm.currentMemoryUsed) / float64(mpm.totalMemoryAvailable)
 }
 
@@ -76,16 +75,16 @@ func (mpm *MemoryPressureMonitor) IsUnderPressure() bool {
 func (mpm *MemoryPressureMonitor) GetAveragePressure() float64 {
 	mpm.mu.RLock()
 	defer mpm.mu.RUnlock()
-	
+
 	if len(mpm.historicalPressure) == 0 {
 		return 0.0
 	}
-	
+
 	sum := 0.0
 	for _, p := range mpm.historicalPressure {
 		sum += p
 	}
-	
+
 	return sum / float64(len(mpm.historicalPressure))
 }
 
@@ -133,10 +132,10 @@ func (oht *OperatorHistoryTracker) RecordExecution(
 ) {
 	oht.mu.Lock()
 	defer oht.mu.Unlock()
-	
+
 	// Bucket cardinality to nearest power of 10
 	signature.Cardinality = bucketCardinality(signature.Cardinality)
-	
+
 	history, exists := oht.history[signature]
 	if !exists {
 		history = &OperatorHistory{
@@ -144,19 +143,19 @@ func (oht *OperatorHistoryTracker) RecordExecution(
 		}
 		oht.history[signature] = history
 	}
-	
+
 	history.ExecutionCount++
 	history.TotalTime += executionTime
 	history.TotalMemoryUsed += memoryUsed
 	history.TotalRowsProduced += rowsProduced
 	history.LastExecution = time.Now()
-	
+
 	// Update success rate
 	if success {
-		history.SuccessRate = (history.SuccessRate*float64(history.ExecutionCount-1) + 1.0) / 
+		history.SuccessRate = (history.SuccessRate*float64(history.ExecutionCount-1) + 1.0) /
 			float64(history.ExecutionCount)
 	} else {
-		history.SuccessRate = (history.SuccessRate * float64(history.ExecutionCount-1)) / 
+		history.SuccessRate = (history.SuccessRate * float64(history.ExecutionCount-1)) /
 			float64(history.ExecutionCount)
 	}
 }
@@ -167,18 +166,18 @@ func (oht *OperatorHistoryTracker) GetAveragePerformance(
 ) (avgTime time.Duration, avgMemory int64, avgRows int64, found bool) {
 	oht.mu.RLock()
 	defer oht.mu.RUnlock()
-	
+
 	signature.Cardinality = bucketCardinality(signature.Cardinality)
-	
+
 	history, exists := oht.history[signature]
 	if !exists || history.ExecutionCount == 0 {
 		return 0, 0, 0, false
 	}
-	
+
 	avgTime = history.TotalTime / time.Duration(history.ExecutionCount)
 	avgMemory = history.TotalMemoryUsed / history.ExecutionCount
 	avgRows = history.TotalRowsProduced / history.ExecutionCount
-	
+
 	return avgTime, avgMemory, avgRows, true
 }
 
@@ -192,12 +191,12 @@ type AdaptiveVectorizationDecider struct {
 
 // AdaptiveDeciderConfig configures the adaptive decider
 type AdaptiveDeciderConfig struct {
-	MinCardinalityForVectorization   int64
-	MemoryPressureThreshold          float64
-	HistoryWeight                    float64
-	CostDifferenceThreshold          float64
-	EnableFallback                   bool
-	PreferVectorizedUnderThreshold   int64
+	MinCardinalityForVectorization int64
+	MemoryPressureThreshold        float64
+	HistoryWeight                  float64
+	CostDifferenceThreshold        float64
+	EnableFallback                 bool
+	PreferVectorizedUnderThreshold int64
 }
 
 // NewAdaptiveVectorizationDecider creates a new adaptive decider
@@ -254,33 +253,33 @@ func (avd *AdaptiveVectorizationDecider) MakeVectorizationDecision(
 		Reasoning:        []string{},
 		ConfidenceScore:  0.5,
 	}
-	
+
 	// Extract operator characteristics
 	opType := getOperatorType(operator)
 	cardinality := estimateCardinality(operator, context)
 	expression := extractExpression(operator)
-	
+
 	// Check memory pressure
 	memoryPressure := avd.memoryMonitor.GetMemoryPressure()
 	if memoryPressure > avd.config.MemoryPressureThreshold {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("High memory pressure: %.2f", memoryPressure))
 		decision.ConfidenceScore *= 0.7
 		return decision
 	}
-	
+
 	// Check cardinality threshold
 	if cardinality < avd.config.MinCardinalityForVectorization {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("Low cardinality: %d", cardinality))
 		decision.ConfidenceScore *= 0.8
 		return decision
 	}
-	
+
 	// Get cost estimates
 	scalarCost := avd.costModel.EstimateScalarCost(opType, cardinality, expression)
 	vectorizedCost := avd.costModel.EstimateVectorizedCost(opType, cardinality, expression)
-	
+
 	// Check historical performance
 	signature := OperatorSignature{
 		OperatorType:  opType,
@@ -288,9 +287,9 @@ func (avd *AdaptiveVectorizationDecider) MakeVectorizationDecision(
 		Cardinality:   cardinality,
 		HasPredicate:  expression != nil,
 	}
-	
+
 	avgTime, avgMemory, _, hasHistory := avd.historyTracker.GetAveragePerformance(signature)
-	
+
 	// Adjust costs based on history
 	if hasHistory {
 		historicalFactor := 1.0
@@ -298,26 +297,26 @@ func (avd *AdaptiveVectorizationDecider) MakeVectorizationDecision(
 			historicalFactor = 1.2 // Penalize slow operations
 		}
 		vectorizedCost *= historicalFactor
-		
+
 		decision.MemoryRequirement = avgMemory
 		decision.ConfidenceScore = 0.8 // Higher confidence with history
 	} else {
 		decision.MemoryRequirement = int64(float64(cardinality) * 100) // Estimate
 		decision.ConfidenceScore = 0.6
 	}
-	
+
 	// Calculate speedup
 	decision.EstimatedSpeedup = scalarCost / vectorizedCost
-	
+
 	// Make decision
 	if decision.EstimatedSpeedup > avd.config.CostDifferenceThreshold {
 		decision.UseVectorized = true
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("Estimated speedup: %.2fx", decision.EstimatedSpeedup))
-		
+
 		// Choose batch size based on memory and cardinality
 		decision.BatchSize = avd.chooseBatchSize(cardinality, decision.MemoryRequirement, context)
-		
+
 		// Set fallback strategy
 		if avd.config.EnableFallback {
 			if cardinality < avd.config.PreferVectorizedUnderThreshold {
@@ -327,10 +326,10 @@ func (avd *AdaptiveVectorizationDecider) MakeVectorizationDecision(
 			}
 		}
 	} else {
-		decision.Reasoning = append(decision.Reasoning, 
+		decision.Reasoning = append(decision.Reasoning,
 			fmt.Sprintf("Insufficient speedup: %.2fx", decision.EstimatedSpeedup))
 	}
-	
+
 	return decision
 }
 
@@ -342,28 +341,28 @@ func (avd *AdaptiveVectorizationDecider) chooseBatchSize(
 ) int {
 	// Start with default batch size
 	batchSize := 1024
-	
+
 	// Adjust based on cardinality
 	if cardinality < 10000 {
 		batchSize = 512
 	} else if cardinality > 1000000 {
 		batchSize = 2048
 	}
-	
+
 	// Adjust based on available memory
-	availableMemory := context.MemoryAvailable - 
+	availableMemory := context.MemoryAvailable -
 		int64(avd.memoryMonitor.GetMemoryPressure()*float64(context.MemoryAvailable))
-	
+
 	maxBatchSize := int(availableMemory / (memoryRequirement / cardinality))
 	if maxBatchSize < batchSize {
 		batchSize = maxBatchSize
 	}
-	
+
 	// Ensure minimum batch size
 	if batchSize < 64 {
 		batchSize = 64
 	}
-	
+
 	return batchSize
 }
 
@@ -372,12 +371,12 @@ func bucketCardinality(cardinality int64) int64 {
 	if cardinality <= 0 {
 		return 0
 	}
-	
+
 	power := int64(1)
 	for power*10 <= cardinality {
 		power *= 10
 	}
-	
+
 	return power
 }
 
@@ -428,16 +427,16 @@ func NewAdaptivePhysicalPlanner(
 	costEstimator := NewCostEstimator(catalog)
 	vectorizedModel := NewVectorizedCostModel(true, 1024, memoryLimit, 1000)
 	enhancedModel := NewEnhancedVectorizedCostModel(vectorizedModel)
-	
+
 	// Create physical planner
 	physicalPlanner := NewPhysicalPlanner(costEstimator, vectorizedModel, catalog)
-	
+
 	// Create adaptive components
 	memoryMonitor := NewMemoryPressureMonitor(memoryLimit, 0.8)
 	historyTracker := NewOperatorHistoryTracker(1000)
 	adaptiveDecider := NewAdaptiveVectorizationDecider(enhancedModel, historyTracker, memoryMonitor)
 	feedbackCollector := NewRuntimeFeedbackCollector()
-	
+
 	return &AdaptivePhysicalPlanner{
 		PhysicalPlanner:   physicalPlanner,
 		memoryMonitor:     memoryMonitor,
@@ -454,16 +453,16 @@ func (app *AdaptivePhysicalPlanner) GenerateAdaptivePhysicalPlan(
 ) (PhysicalPlan, error) {
 	// Update runtime stats
 	app.runtimeStats.MemoryPressure = app.memoryMonitor.GetMemoryPressure()
-	
+
 	// Generate base physical plan
 	physical, err := app.GeneratePhysicalPlan(logical, context)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Apply adaptive optimizations
 	optimized := app.applyAdaptiveOptimizations(physical, context)
-	
+
 	return optimized, nil
 }
 
@@ -491,12 +490,12 @@ func (app *AdaptivePhysicalPlanner) RecordOperatorPerformance(
 		Cardinality:   operator.EstimateCardinality(),
 		HasPredicate:  false, // Would need to check operator specifics
 	}
-	
+
 	app.historyTracker.RecordExecution(signature, executionTime, memoryUsed, rowsProduced, success)
-	
+
 	// Update memory monitor
 	app.memoryMonitor.UpdateMemoryUsage(memoryUsed)
-	
+
 	// Update feedback collector
 	app.feedbackCollector.RecordOperatorMetrics(
 		signature,

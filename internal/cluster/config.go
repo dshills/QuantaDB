@@ -68,4 +68,3 @@ func (c *Config) ToRaftConfig() *raft.RaftConfig {
 		DataDir:           c.DataDir + "/raft",
 	}
 }
-

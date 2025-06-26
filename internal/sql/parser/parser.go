@@ -2384,7 +2384,7 @@ type CreateIndexStmt struct {
 	Columns        []string
 	IncludeColumns []string // Non-key columns for covering indexes
 	Unique         bool
-	IndexType      string   // BTREE, HASH, etc.
+	IndexType      string // BTREE, HASH, etc.
 }
 
 func (s *CreateIndexStmt) statementNode() {}
