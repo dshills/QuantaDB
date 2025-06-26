@@ -201,9 +201,9 @@ func (dp *DynamicProgrammingEnumerator) calculateJoinCost(_ *CostEstimator, left
 	// Simplified cost calculation
 	// In practice, this would consider different join algorithms
 
-	combinedRows := left.Cost.Rows * right.Cost.Rows * float64(joinCondition.Selectivity)
+	combinedRows := left.Cost.EstimateRows() * right.Cost.EstimateRows() * float64(joinCondition.Selectivity)
 	if combinedRows == 0 {
-		combinedRows = left.Cost.Rows * right.Cost.Rows * 0.1 // Default selectivity
+		combinedRows = left.Cost.EstimateRows() * right.Cost.EstimateRows() * 0.1 // Default selectivity
 	}
 
 	// Hash join cost estimation
@@ -211,10 +211,10 @@ func (dp *DynamicProgrammingEnumerator) calculateJoinCost(_ *CostEstimator, left
 	probeCost := left.Cost.TotalCost  // Probe phase
 
 	return Cost{
-		StartupCost: left.Cost.StartupCost + right.Cost.StartupCost + buildCost,
-		TotalCost:   left.Cost.TotalCost + right.Cost.TotalCost + buildCost + probeCost,
-		Rows:        combinedRows,
-		Width:       left.Cost.Width + right.Cost.Width,
+		SetupCost: left.Cost.SetupCost + right.Cost.SetupCost + buildCost,
+		TotalCost: left.Cost.TotalCost + right.Cost.TotalCost + buildCost + probeCost,
+		CPUCost:   left.Cost.CPUCost + right.Cost.CPUCost + probeCost,
+		IOCost:    left.Cost.IOCost + right.Cost.IOCost,
 	}
 }
 
@@ -354,11 +354,12 @@ func (g *GreedyEnumerator) findBestNextTable(graph *JoinGraph, costEstimator *Co
 				tableCost := costEstimator.EstimateTableScanCost(table.Table, table.Selectivity)
 
 				// Simplified join cost
+				estimatedRows := currentCost.EstimateRows() * tableCost.EstimateRows() * float64(edge.Selectivity)
 				joinCost := Cost{
-					StartupCost: currentCost.StartupCost + tableCost.StartupCost,
-					TotalCost:   currentCost.TotalCost + tableCost.TotalCost + (currentCost.Rows * tableCost.Rows * float64(edge.Selectivity)),
-					Rows:        currentCost.Rows * tableCost.Rows * float64(edge.Selectivity),
-					Width:       currentCost.Width + tableCost.Width,
+					SetupCost: currentCost.SetupCost + tableCost.SetupCost,
+					TotalCost: currentCost.TotalCost + tableCost.TotalCost + estimatedRows,
+					CPUCost:   currentCost.CPUCost + tableCost.CPUCost + estimatedRows,
+					IOCost:    currentCost.IOCost + tableCost.IOCost,
 				}
 
 				if joinCost.TotalCost < bestCost.TotalCost {
