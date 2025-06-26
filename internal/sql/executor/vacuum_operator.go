@@ -160,19 +160,19 @@ func (op *VacuumOperator) EstimateCost() planner.Cost {
 	if op.table != nil {
 		// Single table vacuum
 		return planner.Cost{
-			StartupCost: 1000.0,
-			TotalCost:   10000.0,
-			Rows:        1,
-			Width:       100,
+			SetupCost: 1000.0,
+			TotalCost: 10000.0,
+			CPUCost:   8000.0,
+			IOCost:    1000.0,
 		}
 	}
 
 	// Full database vacuum
 	return planner.Cost{
-		StartupCost: 10000.0,
-		TotalCost:   100000.0,
-		Rows:        1,
-		Width:       100,
+		SetupCost: 10000.0,
+		TotalCost: 100000.0,
+		CPUCost:   80000.0,
+		IOCost:    10000.0,
 	}
 }
 
