@@ -1,5 +1,7 @@
 # QuantaDB
 
+This is pre-alpha software and should be treated as such.
+
 🎉 **Production-Ready PostgreSQL-Compatible Distributed Database!**
 
 QuantaDB is a complete SQL database featuring persistent storage, MVCC transactions, crash recovery, and enterprise-grade query processing capabilities. All 22 TPC-H queries are fully functional, including the most complex analytical workloads with correlated subqueries.
