@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/dshills/QuantaDB/internal/catalog"
-	"github.com/dshills/QuantaDB/internal/engine/memory"
+	"github.com/dshills/QuantaDB/internal/engine"
 	"github.com/dshills/QuantaDB/internal/sql/parser"
 	"github.com/dshills/QuantaDB/internal/sql/planner"
 	"github.com/dshills/QuantaDB/internal/sql/types"
@@ -15,7 +15,7 @@ import (
 func TestAdaptiveExecutor(t *testing.T) {
 	// Create test infrastructure
 	cat := catalog.NewMemoryCatalog()
-	eng := memory.NewEngine()
+	eng := engine.NewMemoryEngine()
 	txnMgr := txn.NewManager()
 	
 	// Create test table
@@ -130,7 +130,7 @@ func TestAdaptiveExecutor(t *testing.T) {
 func BenchmarkAdaptiveVsRegularExecution(b *testing.B) {
 	// Create test infrastructure
 	cat := catalog.NewMemoryCatalog()
-	eng := memory.NewEngine()
+	eng := engine.NewMemoryEngine()
 	txnMgr := txn.NewManager()
 	
 	// Create test table with more data

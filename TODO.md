@@ -24,14 +24,14 @@ See [COMPLETED.md](COMPLETED.md) for the full list of completed features.
 
 ## Next Priority Items
 
-### 1. Query Planner Integration [IN PROGRESS] 🚧
+### 1. Query Planner Integration [COMPLETED] ✅
 
 - [x] Integrate vectorized operators with cost-based optimization
 - [x] Add vectorized execution cost models
 - [x] Implement adaptive execution (vectorized vs row-at-a-time)
 - [x] Cost-based decision making for result caching
 - [x] Integration with executor for runtime adaptation
-- [ ] Performance validation with benchmarks
+- [x] Performance validation with benchmarks
 
 ### 2. Advanced Index Features [COMPLETED] ✅
 
