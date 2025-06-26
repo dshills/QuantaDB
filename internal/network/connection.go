@@ -445,7 +445,7 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) (er
 		errStr := err.Error()
 		if strings.Contains(errStr, "table") && strings.Contains(errStr, "not found") {
 			// Extract table name if possible
-			parts := strings.Split(errStr, "\"")
+			parts := strings.Split(errStr, "'")
 			if len(parts) >= 2 {
 				return errors.TableNotFoundError(parts[1])
 			}
@@ -453,14 +453,14 @@ func (c *Connection) handleQuery(ctx context.Context, msg *protocol.Message) (er
 		}
 		if strings.Contains(errStr, "column") && strings.Contains(errStr, "not found") {
 			// Extract column name if possible
-			parts := strings.Split(errStr, "\"")
+			parts := strings.Split(errStr, "'")
 			if len(parts) >= 2 {
 				return errors.ColumnNotFoundError(parts[1], "")
 			}
 			return errors.UndefinedColumnError("unknown", "")
 		}
 		if strings.Contains(errStr, "ambiguous") {
-			parts := strings.Split(errStr, "\"")
+			parts := strings.Split(errStr, "'")
 			if len(parts) >= 2 {
 				return errors.AmbiguousColumnError(parts[1])
 			}
