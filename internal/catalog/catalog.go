@@ -91,6 +91,7 @@ type Index struct {
 	IsPrimary   bool
 	Columns     []IndexColumn
 	WhereClause interface{} // Expression for partial index WHERE clause
+	Stats       *IndexStats // Index statistics for optimization
 	CreatedAt   time.Time
 }
 

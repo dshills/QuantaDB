@@ -88,13 +88,12 @@ func (ce *CostEstimator) EstimateTableScanCost(table *catalog.Table, selectivity
 	cpuCost := float64(stats.RowCount) * ce.params.CPUTupleCost
 
 	totalCost := startupCost + ioCost + cpuCost
-	estimatedRows := float64(stats.RowCount) * selectivity
 
 	return Cost{
-		StartupCost: startupCost,
-		TotalCost:   totalCost,
-		Rows:        estimatedRows,
-		Width:       stats.AvgRowSize,
+		SetupCost: startupCost,
+		TotalCost: totalCost,
+		CPUCost:   cpuCost,
+		IOCost:    ioCost,
 	}
 }
 
@@ -145,10 +144,10 @@ func (ce *CostEstimator) EstimateIndexScanCost(table *catalog.Table, index *cata
 	totalCost := startupCost + indexIOCost + heapIOCost + indexCPUCost + heapCPUCost
 
 	return Cost{
-		StartupCost: startupCost,
-		TotalCost:   totalCost,
-		Rows:        matchingRows,
-		Width:       tableStats.AvgRowSize,
+		SetupCost: startupCost,
+		TotalCost: totalCost,
+		CPUCost:   indexCPUCost + heapCPUCost,
+		IOCost:    indexIOCost + heapIOCost,
 	}
 }
 
