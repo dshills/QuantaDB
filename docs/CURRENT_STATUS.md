@@ -15,42 +15,42 @@ The focus is now shifting to performance optimization and distributed features.
 ## Architecture Overview
 
 ```
-┌─────────────────┐     ┌─────────────────┐
-│ PostgreSQL      │     │ QuantaDB CLI    │
-│ Clients (psql)  │     │ (quantactl)     │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         └───────────┬───────────┘
-                     │
-        ┌────────────▼────────────┐
-        │   Network Layer         │
-        │ (PostgreSQL Protocol)   │
-        └────────────┬────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │    SQL Parser           │
-        │ (Lexer + AST Builder)   │
-        └────────────┬────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │   Query Planner         │
-        │ (Optimizer + Stats)     │
-        └────────────┬────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │   Query Executor        │
-        │ (Physical Operators)    │
-        └────────────┬────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │  Storage Backend        │
-        │ (Disk-based Tables)     │
-        └────────────┬────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │   Storage Engine        │
-        │ (Pages + Buffer Pool)   │
-        └─────────────────────────┘
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ PostgreSQL      │     │ QuantaDB CLI    │     │ Cluster API     │
+│ Clients (psql)  │     │ (quantactl)     │     │ (HTTP/REST)     │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                        │
+         └───────────┬───────────┘                        │
+                     │                                     │
+        ┌────────────▼────────────┐           ┌───────────▼──────────┐
+        │   Network Layer         │           │  Cluster Coordinator │
+        │ (PostgreSQL Protocol)   │           │  (Raft + Failover)   │
+        └────────────┬────────────┘           └──────────────────────┘
+                     │                                     │
+        ┌────────────▼────────────┐                      │
+        │    SQL Parser           │                      │
+        │ (Lexer + AST Builder)   │                      │
+        └────────────┬────────────┘                      │
+                     │                                     │
+        ┌────────────▼────────────┐                      │
+        │   Query Planner         │                      │
+        │ (Optimizer + Stats)     │                      │
+        └────────────┬────────────┘                      │
+                     │                                     │
+        ┌────────────▼────────────┐                      │
+        │   Query Executor        │←─────────────────────┤
+        │ (Physical Operators)    │   Read-only checks   │
+        └────────────┬────────────┘                      │
+                     │                                     │
+        ┌────────────▼────────────┐                      │
+        │  Storage Backend        │                      │
+        │ (Disk-based Tables)     │                      │
+        └────────────┬────────────┘                      │
+                     │                                     │
+        ┌────────────▼────────────────────────┐          │
+        │   Storage Engine & WAL              │←─────────┤
+        │ (Pages + Buffer Pool + Replication) │ Streaming│
+        └─────────────────────────────────────┘          │
 ```
 
 ## Component Status
@@ -118,6 +118,14 @@ The focus is now shifting to performance optimization and distributed features.
    - Checkpoint mechanism for limiting recovery time
    - Full integration with storage operations
 
+9. **Distributed System Components** (`internal/cluster/`) 🆕 **EXPERIMENTAL**
+   - **Raft Consensus** (`raft/`) - Leader election and distributed consensus
+   - **Streaming Replication** (`replication/`) - WAL-based primary-replica replication
+   - **Automatic Failover** (`failover/`) - Health monitoring and role transitions
+   - **Cluster Coordinator** - Central management of distributed components
+   - **HTTP Management API** - REST endpoints for cluster monitoring
+   - **Read-only Enforcement** - Query routing based on node role
+
 ### 🔄 In Progress
 
 1. **Performance Optimization**
@@ -144,7 +152,7 @@ The focus is now shifting to performance optimization and distributed features.
 ### ❌ Not Started
 
 1. **Authentication System**
-2. **Distributed Features**
+2. ~~**Distributed Features**~~ 🆕 **EXPERIMENTAL IMPLEMENTATION AVAILABLE**
 3. **Backup and Recovery**
 4. **Advanced SQL Features** (CTEs, Window Functions)
 
@@ -197,8 +205,28 @@ make test-coverage # Generate coverage report
 ```
 
 ### Running
+
+**Single Node Mode (Default)**
 ```bash
 ./build/quantadb --data ./data --port 5432
+```
+
+**Cluster Mode (Experimental)**
+```bash
+# Start primary
+./build/quantadb --cluster-mode primary --node-id node1 --data ./data/primary
+
+# Start replica (different terminal)
+./build/quantadb --cluster-mode replica --node-id node2 --port 5433 \
+  --primary localhost:6432 --data ./data/replica
+
+# Or use the helper script
+./scripts/start-cluster.sh
+
+# Monitor cluster status
+curl http://localhost:8432/cluster/status
+curl http://localhost:8432/cluster/nodes
+curl http://localhost:8432/cluster/health
 ```
 
 ### Testing Storage

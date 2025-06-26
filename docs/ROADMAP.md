@@ -115,28 +115,36 @@ QuantaDB has evolved from an experimental database to a **production-ready Postg
 - Full-text search
 - *Estimated: 3-4 weeks*
 
-### Phase 4: Distributed Features (Q4 2025)
+### Phase 4: Distributed Features (Q4 2025) 🚧 **EXPERIMENTAL IMPLEMENTATION AVAILABLE**
 
-**1. Replication**
-- WAL-based streaming replication
-- Synchronous and asynchronous modes
-- Read replicas
-- Automatic failover
-- *Estimated: 4-5 weeks*
+**1. Replication** ✅ **EXPERIMENTAL**
+- ✅ WAL-based streaming replication
+- ⏳ Synchronous and asynchronous modes (async only currently)
+- ✅ Read replicas with automatic read-only enforcement
+- ✅ Automatic failover with health monitoring
+- *Status: Basic implementation complete, needs production hardening*
 
-**2. Sharding**
+**2. Sharding** ❌ **NOT STARTED**
 - Horizontal partitioning
 - Distributed query execution
 - Cross-shard transactions
 - Shard rebalancing
 - *Estimated: 6-8 weeks*
 
-**3. Consensus**
-- Raft consensus for metadata
-- Distributed transactions
-- Clock synchronization
-- Split-brain prevention
-- *Estimated: 4-6 weeks*
+**3. Consensus** ✅ **EXPERIMENTAL**
+- ✅ Raft consensus for cluster coordination
+- ⏳ Distributed transactions (not implemented)
+- ⏳ Clock synchronization (not implemented)
+- ✅ Split-brain prevention via Raft
+- *Status: Raft implementation complete, distributed transactions pending*
+
+**Current Distributed Features (Experimental)**
+- Cluster coordinator with Raft consensus
+- Primary-replica replication with WAL streaming
+- Automatic failover and role transitions
+- HTTP management API (port+3000) for monitoring
+- Read-only query enforcement on replicas
+- Example configurations and helper scripts
 
 ## Long-term Vision
 
