@@ -1,6 +1,7 @@
 package failover
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -83,6 +84,28 @@ func (m *MockReplicationManager) GetStatus() replication.ReplicationStatus {
 		NodeID: "test-node",
 		Mode:   m.mode,
 		State:  m.state,
+	}
+}
+
+// Synchronous replication operations  
+func (m *MockReplicationManager) WaitForSynchronousReplication(ctx context.Context, lsn wal.LSN) error {
+	return nil
+}
+
+func (m *MockReplicationManager) ProcessReplicaAcknowledgment(replicaID string, lsn wal.LSN) {
+	// Mock implementation does nothing
+}
+
+func (m *MockReplicationManager) SetSynchronousReplicationMode(mode replication.SynchronousReplicationMode) {
+	// Mock implementation does nothing
+}
+
+func (m *MockReplicationManager) GetSynchronousReplicationStatus() map[string]interface{} {
+	return map[string]interface{}{
+		"mode":             "disabled",
+		"pending_ops":      0,
+		"healthy_replicas": 0,
+		"replicas":         map[string]interface{}{},
 	}
 }
 

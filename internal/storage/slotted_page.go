@@ -184,9 +184,17 @@ func (sp *SlottedPage) Compact() {
 		if length > 0 { // Record is not deleted
 			offset := binary.LittleEndian.Uint16(sp.Data[slotOffset-PageHeaderSize:])
 
+			// Validate offset and length to prevent slice bounds errors
+			dataStart := offset - PageHeaderSize
+			dataEnd := dataStart + length
+			if dataStart >= uint16(len(sp.Data)) || dataEnd > uint16(len(sp.Data)) || dataEnd < dataStart {
+				// Skip corrupted record
+				continue
+			}
+
 			// Read the live record data
 			recordData := make([]byte, length)
-			copy(recordData, sp.Data[offset-PageHeaderSize:offset-PageHeaderSize+length])
+			copy(recordData, sp.Data[dataStart:dataEnd])
 
 			liveRecords = append(liveRecords, LiveRecord{
 				SlotNum: slotNum,

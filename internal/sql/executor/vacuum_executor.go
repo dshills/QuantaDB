@@ -352,7 +352,7 @@ func (ve *VacuumExecutor) compactTablePages(tableID int64) error {
 		}
 
 		// Only compact if page has significant fragmentation (e.g., less than 50% utilization)
-		if page.Header.PageType == storage.PageTypeData {
+		if page.Header.Type == storage.PageTypeData {
 			// Calculate utilization
 			usedSpace := storage.PageSize - storage.PageHeaderSize - page.Header.FreeSpace
 			utilization := float64(usedSpace) / float64(storage.PageSize-storage.PageHeaderSize)
@@ -395,7 +395,7 @@ func (ve *VacuumExecutor) CompactPage(pageID storage.PageID) error {
 	defer ve.storage.bufferPool.UnpinPage(pageID, true) // Mark dirty since we're compacting
 	
 	// Only compact data pages with slotted layout
-	if page.Header.PageType != storage.PageTypeData {
+	if page.Header.Type != storage.PageTypeData {
 		return nil // Skip non-data pages
 	}
 	

@@ -3,6 +3,7 @@ package network
 import (
 	"crypto/md5" // #nosec G501 - Required for PostgreSQL compatibility
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -85,6 +86,7 @@ func (store *InMemoryUserStore) ListUsers() []string {
 	for username := range store.users {
 		users = append(users, username)
 	}
+	sort.Strings(users) // Sort for deterministic output
 	return users
 }
 

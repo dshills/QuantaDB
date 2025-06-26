@@ -35,7 +35,7 @@ func ExampleInMemoryUserStore() {
 	// alice auth: true
 	// alice wrong password: false
 	// User count: 3
-	// Users: [alice bob admin]
+	// Users: [admin alice bob]
 }
 
 // Example_serverAuthentication demonstrates how to configure server authentication
