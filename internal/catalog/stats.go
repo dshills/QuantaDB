@@ -26,6 +26,15 @@ type ColumnStats struct {
 	TableRowCount int64 // Total rows in the table (for selectivity calculation)
 }
 
+// IndexStats holds index-level statistics.
+type IndexStats struct {
+	Height        int     // B-tree height
+	LeafPages     int64   // Number of leaf pages
+	TotalPages    int64   // Total number of pages
+	Selectivity   float64 // Estimated selectivity
+	LastAnalyzed  time.Time
+}
+
 // Histogram represents the distribution of values in a column.
 type Histogram struct {
 	Type    HistogramType
