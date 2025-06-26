@@ -424,7 +424,7 @@ func (p *BasicPlanner) planCreateIndex(stmt *parser.CreateIndexStmt) (LogicalPla
 	schemaName := defaultSchema
 
 	return NewLogicalCreateIndex(schemaName, stmt.TableName, stmt.IndexName,
-		stmt.Columns, stmt.Unique, stmt.IndexType), nil
+		stmt.Columns, stmt.IncludeColumns, stmt.Unique, stmt.IndexType), nil
 }
 
 // planDropTable converts a DROP TABLE statement to a logical plan.

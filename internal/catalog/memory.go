@@ -415,6 +415,27 @@ func (c *MemoryCatalog) CreateIndex(indexSchema *IndexSchema) (*Index, error) {
 		})
 	}
 
+	// Add include columns (for covering indexes)
+	for i, colName := range indexSchema.IncludeColumns {
+		col := c.findColumn(table, colName)
+		if col == nil {
+			return nil, fmt.Errorf("include column %q not found", colName)
+		}
+
+		// Ensure column is not already in key columns
+		for _, keyCol := range index.Columns {
+			if keyCol.Column.Name == colName {
+				return nil, fmt.Errorf("column %q cannot be both a key column and include column", colName)
+			}
+		}
+
+		index.IncludeColumns = append(index.IncludeColumns, IndexColumn{
+			Column:    col,
+			SortOrder: Ascending, // Include columns don't affect sort order
+			Position:  len(indexSchema.Columns) + i,
+		})
+	}
+
 	// Store index
 	table.Indexes = append(table.Indexes, index)
 	c.indexes[indexKey] = index
@@ -532,12 +553,13 @@ func (c *MemoryCatalog) findColumn(table *Table, columnName string) *Column {
 
 // IndexSchema defines the structure for creating an index.
 type IndexSchema struct {
-	SchemaName string
-	TableName  string
-	IndexName  string
-	Type       IndexType
-	IsUnique   bool
-	Columns    []IndexColumnDef
+	SchemaName     string
+	TableName      string
+	IndexName      string
+	Type           IndexType
+	IsUnique       bool
+	Columns        []IndexColumnDef // Key columns used for ordering
+	IncludeColumns []string         // Non-key columns for covering indexes
 }
 
 // IndexColumnDef defines a column in an index.

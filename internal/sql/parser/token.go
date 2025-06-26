@@ -70,6 +70,7 @@ const (
 	TokenExecute
 	TokenDeallocate
 	TokenExplain
+	TokenInclude
 
 	// Constraint tokens
 	TokenForeign
@@ -212,6 +213,7 @@ var tokenStrings = map[TokenType]string{
 	TokenExecute:      "EXECUTE",
 	TokenDeallocate:   "DEALLOCATE",
 	TokenExplain:      "EXPLAIN",
+	TokenInclude:      "INCLUDE",
 	TokenForeign:      "FOREIGN",
 	TokenReferences:   "REFERENCES",
 	TokenCheck:        "CHECK",
@@ -390,6 +392,7 @@ var keywords = map[string]TokenType{
 	"EXECUTE":    TokenExecute,
 	"DEALLOCATE": TokenDeallocate,
 	"EXPLAIN":    TokenExplain,
+	"INCLUDE":    TokenInclude,
 	"FLOAT":      TokenFloat,
 	"DOUBLE":     TokenDouble,
 	"REAL":       TokenReal,

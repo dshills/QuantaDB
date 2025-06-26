@@ -167,8 +167,33 @@ func (m *Manager) InsertIntoIndexes(schemaName, tableName string, row map[string
 			return err
 		}
 
+		// Create value for index
+		var value []byte
+		if len(indexMeta.IncludeColumns) > 0 {
+			// This is a covering index - create enhanced value with include column data
+			includeData := make(map[string]types.Value)
+			for _, includeCol := range indexMeta.IncludeColumns {
+				if val, exists := row[includeCol.Column.Name]; exists {
+					includeData[includeCol.Column.Name] = val
+				}
+			}
+			
+			coveringValue := &CoveringIndexValue{
+				RowID:       rowID,
+				IncludeData: includeData,
+			}
+			
+			value, err = coveringValue.Encode()
+			if err != nil {
+				return fmt.Errorf("failed to encode covering index value for %s: %w", indexName, err)
+			}
+		} else {
+			// Regular index - just store the row ID
+			value = rowID
+		}
+
 		// Insert into index
-		if err := idx.Insert(key, rowID); err != nil {
+		if err := idx.Insert(key, value); err != nil {
 			return fmt.Errorf("failed to insert into index %s: %w", indexName, err)
 		}
 	}

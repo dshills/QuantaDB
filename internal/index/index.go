@@ -52,6 +52,165 @@ type IndexEntry struct { //nolint:revive // Established API
 	RowID []byte
 }
 
+// CoveringIndexValue represents a value in a covering index that includes both row ID and include column data.
+type CoveringIndexValue struct {
+	RowID        []byte                   // The row identifier
+	IncludeData  map[string]types.Value   // Values for include columns (non-key columns)
+}
+
+// EncodeCoveringValue encodes a CoveringIndexValue into a byte slice for storage.
+func (civ *CoveringIndexValue) Encode() ([]byte, error) {
+	if civ == nil {
+		return nil, fmt.Errorf("cannot encode nil CoveringIndexValue")
+	}
+
+	// Use a simple format: rowIDLen(4) + rowID + includeDataLen(4) + includeData
+	encoder := KeyEncoder{}
+	
+	// Encode include data
+	var includeBytes []byte
+	if len(civ.IncludeData) > 0 {
+		// Create ordered list of column names for consistent encoding
+		var colNames []string
+		for colName := range civ.IncludeData {
+			colNames = append(colNames, colName)
+		}
+		
+		// Simple encoding: colCount(4) + for each col: nameLen(4) + name + valueLen(4) + value
+		includeBytes = make([]byte, 4) // space for column count
+		binary.BigEndian.PutUint32(includeBytes, uint32(len(colNames)))
+		
+		for _, colName := range colNames {
+			// Column name
+			nameBytes := []byte(colName)
+			nameLenBytes := make([]byte, 4)
+			binary.BigEndian.PutUint32(nameLenBytes, uint32(len(nameBytes)))
+			includeBytes = append(includeBytes, nameLenBytes...)
+			includeBytes = append(includeBytes, nameBytes...)
+			
+			// Column value
+			valueBytes, err := encoder.EncodeValue(civ.IncludeData[colName])
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode include column %s: %w", colName, err)
+			}
+			if valueBytes == nil {
+				valueBytes = []byte{} // Empty slice for NULL values
+			}
+			valueLenBytes := make([]byte, 4)
+			binary.BigEndian.PutUint32(valueLenBytes, uint32(len(valueBytes)))
+			includeBytes = append(includeBytes, valueLenBytes...)
+			includeBytes = append(includeBytes, valueBytes...)
+		}
+	}
+
+	// Final encoding: rowIDLen(4) + rowID + includeDataLen(4) + includeData
+	result := make([]byte, 4) // space for rowID length
+	binary.BigEndian.PutUint32(result, uint32(len(civ.RowID)))
+	result = append(result, civ.RowID...)
+	
+	includeLenBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(includeLenBytes, uint32(len(includeBytes)))
+	result = append(result, includeLenBytes...)
+	result = append(result, includeBytes...)
+	
+	return result, nil
+}
+
+// DecodeCoveringValue decodes a byte slice into a CoveringIndexValue.
+func DecodeCoveringValue(data []byte) (*CoveringIndexValue, error) {
+	if len(data) < 8 { // Need at least 8 bytes for two length fields
+		return nil, fmt.Errorf("invalid covering value data: too short")
+	}
+
+	offset := 0
+	
+	// Read rowID length
+	rowIDLen := binary.BigEndian.Uint32(data[offset:offset+4])
+	offset += 4
+	
+	if offset+int(rowIDLen) > len(data) {
+		return nil, fmt.Errorf("invalid covering value data: rowID length exceeds data")
+	}
+	
+	// Read rowID
+	rowID := make([]byte, rowIDLen)
+	copy(rowID, data[offset:offset+int(rowIDLen)])
+	offset += int(rowIDLen)
+	
+	if offset+4 > len(data) {
+		return nil, fmt.Errorf("invalid covering value data: missing include data length")
+	}
+	
+	// Read include data length
+	includeDataLen := binary.BigEndian.Uint32(data[offset:offset+4])
+	offset += 4
+	
+	result := &CoveringIndexValue{
+		RowID:       rowID,
+		IncludeData: make(map[string]types.Value),
+	}
+	
+	if includeDataLen == 0 {
+		return result, nil // No include data
+	}
+	
+	if offset+int(includeDataLen) > len(data) {
+		return nil, fmt.Errorf("invalid covering value data: include data length exceeds remaining data")
+	}
+	
+	// Decode include data
+	includeBytes := data[offset:offset+int(includeDataLen)]
+	includeOffset := 0
+	
+	if len(includeBytes) < 4 {
+		return nil, fmt.Errorf("invalid include data: missing column count")
+	}
+	
+	colCount := binary.BigEndian.Uint32(includeBytes[includeOffset:includeOffset+4])
+	includeOffset += 4
+	
+	for i := 0; i < int(colCount); i++ {
+		// Read column name
+		if includeOffset+4 > len(includeBytes) {
+			return nil, fmt.Errorf("invalid include data: missing column name length")
+		}
+		nameLen := binary.BigEndian.Uint32(includeBytes[includeOffset:includeOffset+4])
+		includeOffset += 4
+		
+		if includeOffset+int(nameLen) > len(includeBytes) {
+			return nil, fmt.Errorf("invalid include data: column name length exceeds data")
+		}
+		colName := string(includeBytes[includeOffset:includeOffset+int(nameLen)])
+		includeOffset += int(nameLen)
+		
+		// Read column value
+		if includeOffset+4 > len(includeBytes) {
+			return nil, fmt.Errorf("invalid include data: missing column value length")
+		}
+		valueLen := binary.BigEndian.Uint32(includeBytes[includeOffset:includeOffset+4])
+		includeOffset += 4
+		
+		if includeOffset+int(valueLen) > len(includeBytes) {
+			return nil, fmt.Errorf("invalid include data: column value length exceeds data")
+		}
+		
+		var value types.Value
+		if valueLen == 0 {
+			value = types.NewNullValue() // NULL value
+		} else {
+			// Note: For simplicity, storing as text for now. A full implementation would need 
+			// to store type information or use a more sophisticated encoding scheme.
+			valueStr := string(includeBytes[includeOffset:includeOffset+int(valueLen)])
+			value = types.NewTextValue(valueStr)
+		}
+		includeOffset += int(valueLen)
+		
+		result.IncludeData[colName] = value
+	}
+	
+	return result, nil
+}
+
 // IndexStats contains statistics about an index.
 type IndexStats struct { //nolint:revive // Established API
 	Type         IndexType

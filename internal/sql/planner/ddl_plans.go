@@ -227,24 +227,26 @@ func (p *LogicalDelete) logicalNode() {}
 // LogicalCreateIndex represents a CREATE INDEX operation
 type LogicalCreateIndex struct {
 	basePlan
-	IndexName  string
-	TableName  string
-	SchemaName string
-	Columns    []string
-	Unique     bool
-	IndexType  string
+	IndexName      string
+	TableName      string
+	SchemaName     string
+	Columns        []string
+	IncludeColumns []string
+	Unique         bool
+	IndexType      string
 }
 
 // NewLogicalCreateIndex creates a new CREATE INDEX plan node
-func NewLogicalCreateIndex(schemaName, tableName, indexName string, columns []string, unique bool, indexType string) *LogicalCreateIndex {
+func NewLogicalCreateIndex(schemaName, tableName, indexName string, columns []string, includeColumns []string, unique bool, indexType string) *LogicalCreateIndex {
 	return &LogicalCreateIndex{
-		basePlan:   basePlan{},
-		SchemaName: schemaName,
-		TableName:  tableName,
-		IndexName:  indexName,
-		Columns:    columns,
-		Unique:     unique,
-		IndexType:  indexType,
+		basePlan:       basePlan{},
+		SchemaName:     schemaName,
+		TableName:      tableName,
+		IndexName:      indexName,
+		Columns:        columns,
+		IncludeColumns: includeColumns,
+		Unique:         unique,
+		IndexType:      indexType,
 	}
 }
 

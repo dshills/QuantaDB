@@ -1489,6 +1489,31 @@ func (p *Parser) parseCreateIndexWithUnique(unique bool) (*CreateIndexStmt, erro
 		return nil, p.lastError()
 	}
 
+	// Optional INCLUDE clause for covering indexes
+	var includeColumns []string
+	if p.match(TokenInclude) {
+		if !p.consume(TokenLeftParen, "expected '(' after INCLUDE") {
+			return nil, p.lastError()
+		}
+
+		// Parse include column list
+		for {
+			colName := p.current.Value
+			if !p.consume(TokenIdentifier, "expected column name") {
+				return nil, p.lastError()
+			}
+			includeColumns = append(includeColumns, colName)
+
+			if !p.match(TokenComma) {
+				break
+			}
+		}
+
+		if !p.consume(TokenRightParen, "expected ')' after include columns") {
+			return nil, p.lastError()
+		}
+	}
+
 	// Optional USING clause
 	indexType := "BTREE" // default
 	if p.match(TokenUsing) {
@@ -1499,11 +1524,12 @@ func (p *Parser) parseCreateIndexWithUnique(unique bool) (*CreateIndexStmt, erro
 	}
 
 	return &CreateIndexStmt{
-		IndexName: indexName,
-		TableName: tableName,
-		Columns:   columns,
-		Unique:    unique,
-		IndexType: indexType,
+		IndexName:      indexName,
+		TableName:      tableName,
+		Columns:        columns,
+		IncludeColumns: includeColumns,
+		Unique:         unique,
+		IndexType:      indexType,
 	}, nil
 }
 
@@ -2353,11 +2379,12 @@ func (s *DropTableStmt) String() string {
 
 // CreateIndexStmt represents a CREATE INDEX statement.
 type CreateIndexStmt struct {
-	IndexName string
-	TableName string
-	Columns   []string
-	Unique    bool
-	IndexType string // BTREE, HASH, etc.
+	IndexName      string
+	TableName      string
+	Columns        []string
+	IncludeColumns []string // Non-key columns for covering indexes
+	Unique         bool
+	IndexType      string   // BTREE, HASH, etc.
 }
 
 func (s *CreateIndexStmt) statementNode() {}
@@ -2366,12 +2393,16 @@ func (s *CreateIndexStmt) String() string {
 	if s.Unique {
 		unique = "UNIQUE "
 	}
+	includeClause := ""
+	if len(s.IncludeColumns) > 0 {
+		includeClause = fmt.Sprintf(" INCLUDE (%s)", strings.Join(s.IncludeColumns, ", "))
+	}
 	indexType := ""
 	if s.IndexType != "" {
 		indexType = fmt.Sprintf(" USING %s", s.IndexType)
 	}
-	return fmt.Sprintf("CREATE %sINDEX %s ON %s (%s)%s",
-		unique, s.IndexName, s.TableName, strings.Join(s.Columns, ", "), indexType)
+	return fmt.Sprintf("CREATE %sINDEX %s ON %s (%s)%s%s",
+		unique, s.IndexName, s.TableName, strings.Join(s.Columns, ", "), includeClause, indexType)
 }
 
 // DropIndexStmt represents a DROP INDEX statement.

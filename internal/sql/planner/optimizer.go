@@ -668,6 +668,165 @@ func (is *IndexSelection) SetVectorizedModel(model *VectorizedCostModel, batchSi
 	}
 }
 
+// tryCoveringIndexScan attempts to find a covering index that can satisfy the query entirely
+// without needing to access the base table. This is the most efficient type of index scan.
+func (is *IndexSelection) tryCoveringIndexScan(scan *LogicalScan, filter *LogicalFilter) LogicalPlan {
+	if is.catalog == nil {
+		return nil
+	}
+
+	// Skip covering index optimization for OR predicates as they typically don't benefit from indexes
+	if filter != nil && filter.Predicate != nil && is.containsOrPredicate(filter.Predicate) {
+		return nil
+	}
+
+	// Get table to access its indexes
+	table, err := is.catalog.GetTable("public", scan.TableName) // Assuming public schema
+	if err != nil || table == nil {
+		return nil
+	}
+
+	// Extract required columns from the scan and filter
+	requiredColumns := is.extractRequiredColumns(scan, filter)
+	if len(requiredColumns) == 0 {
+		return nil
+	}
+
+	// Find the best covering index
+	var bestIndex *catalog.Index
+	var bestCost float64
+
+	for _, idx := range table.Indexes {
+		// Check if this index covers all required columns
+		if IsCoveringIndex(idx, requiredColumns) {
+			// Estimate cost for this covering index
+			cost := is.estimateCoveringIndexCost(table, idx, filter, len(requiredColumns))
+			
+			if bestIndex == nil || cost < bestCost {
+				bestIndex = idx
+				bestCost = cost
+			}
+		}
+	}
+
+	if bestIndex == nil {
+		return nil
+	}
+
+	// Check if we can extract range conditions for the index
+	startValues, endValues := is.extractIndexRangeConditions(bestIndex, filter.Predicate)
+
+	// Create IndexOnlyScan plan
+	schema := scan.Schema()
+	return NewIndexOnlyScan(
+		scan.TableName,
+		bestIndex.Name,
+		bestIndex,
+		schema,
+		startValues,
+		endValues,
+		requiredColumns,
+	)
+}
+
+// extractRequiredColumns determines which columns are needed by the query
+func (is *IndexSelection) extractRequiredColumns(scan *LogicalScan, filter *LogicalFilter) []string {
+	columnsSet := make(map[string]bool)
+	
+	// Add columns from the filter predicate
+	if filter != nil && filter.Predicate != nil {
+		is.extractColumnsFromExpression(filter.Predicate, columnsSet)
+	}
+	
+	// For now, if we can't determine specific columns, assume we need all table columns
+	// In a more sophisticated implementation, we would walk up the plan tree to find projections
+	if len(columnsSet) == 0 {
+		// Get all table columns
+		if table, err := is.catalog.GetTable("public", scan.TableName); err == nil && table != nil {
+			for _, col := range table.Columns {
+				columnsSet[col.Name] = true
+			}
+		}
+	}
+	
+	// Convert to slice
+	var columns []string
+	for col := range columnsSet {
+		columns = append(columns, col)
+	}
+	
+	return columns
+}
+
+// extractColumnsFromExpression recursively extracts column names from expressions
+func (is *IndexSelection) extractColumnsFromExpression(expr Expression, columns map[string]bool) {
+	switch e := expr.(type) {
+	case *ColumnRef:
+		columns[e.ColumnName] = true
+	case *BinaryOp:
+		is.extractColumnsFromExpression(e.Left, columns)
+		is.extractColumnsFromExpression(e.Right, columns)
+	case *UnaryOp:
+		is.extractColumnsFromExpression(e.Expr, columns)
+	case *FunctionCall:
+		for _, arg := range e.Args {
+			is.extractColumnsFromExpression(arg, columns)
+		}
+	// Add more expression types as needed
+	}
+}
+
+// estimateCoveringIndexCost estimates the cost of using a covering index
+func (is *IndexSelection) estimateCoveringIndexCost(table *catalog.Table, index *catalog.Index, filter *LogicalFilter, numColumns int) float64 {
+	if is.costEstimator != nil {
+		// Use the cost estimator if available
+		baseIndexCost := is.costEstimator.EstimateIndexScanCost(table, index, 0.5) // Assume 50% selectivity
+		
+		// Index-only scans are cheaper than index scans with heap lookups
+		// Reduce cost by 30-50% since we avoid heap access
+		coveringBonus := 0.6
+		
+		// Wider indexes (more columns) have slightly higher cost
+		columnPenalty := float64(numColumns) * 0.05
+		
+		return baseIndexCost.TotalCost * coveringBonus * (1.0 + columnPenalty)
+	}
+	
+	// Simple heuristic: base cost + column penalty
+	baseCost := 100.0
+	columnCost := float64(numColumns) * 10.0
+	return baseCost + columnCost
+}
+
+// extractIndexRangeConditions extracts start and end values for index range scans
+func (is *IndexSelection) extractIndexRangeConditions(index *catalog.Index, predicate Expression) ([]Expression, []Expression) {
+	// For now, return nil to indicate no specific range conditions
+	// A full implementation would analyze the predicate to extract range conditions
+	// that match the index key columns
+	return nil, nil
+}
+
+// containsOrPredicate checks if the predicate contains OR operations
+func (is *IndexSelection) containsOrPredicate(expr Expression) bool {
+	switch e := expr.(type) {
+	case *BinaryOp:
+		if e.Operator == OpOr {
+			return true
+		}
+		// Check recursively in child expressions
+		return is.containsOrPredicate(e.Left) || is.containsOrPredicate(e.Right)
+	case *UnaryOp:
+		return is.containsOrPredicate(e.Expr)
+	case *FunctionCall:
+		for _, arg := range e.Args {
+			if is.containsOrPredicate(arg) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // tryIndexIntersection attempts to use multiple indexes with bitmap operations.
 func (is *IndexSelection) tryIndexIntersection(scan *LogicalScan, filter *LogicalFilter) LogicalPlan {
 	// Get table metadata
@@ -769,7 +928,12 @@ func (is *IndexSelection) Apply(plan LogicalPlan) (LogicalPlan, bool) {
 					}
 				}
 				
-				// Try composite index scan first (enhanced multi-column index support)
+				// Try covering index scan first - most efficient since it avoids heap access
+				if coveringIndexScan := is.tryCoveringIndexScan(scan, p); coveringIndexScan != nil {
+					return coveringIndexScan, true
+				}
+
+				// Try composite index scan second (enhanced multi-column index support)
 				if is.costEstimator != nil {
 					if compositeIndexScan := tryCompositeIndexScanWithCost(scan, p, is.catalog, is.costEstimator); compositeIndexScan != nil {
 						// Composite index scan found - return it directly (filter is incorporated)

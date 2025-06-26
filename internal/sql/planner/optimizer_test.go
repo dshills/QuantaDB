@@ -131,8 +131,12 @@ func TestIndexSelectionRule(t *testing.T) {
 				case *CompositeIndexScan:
 					indexName = scan.IndexName
 					tableName = scan.TableName
+				case *IndexOnlyScan:
+					// IndexOnlyScan is even better than IndexScan - it's a covering index
+					indexName = scan.IndexName
+					tableName = scan.TableName
 				default:
-					t.Errorf("Expected IndexScan or CompositeIndexScan but got %T", result)
+					t.Errorf("Expected IndexScan, CompositeIndexScan, or IndexOnlyScan but got %T", result)
 					return
 				}
 
@@ -233,15 +237,18 @@ func TestIndexSelectionWithComplexPlan(t *testing.T) {
 		return
 	}
 
-	// Accept either IndexScan or CompositeIndexScan
+	// Accept IndexScan, CompositeIndexScan, or IndexOnlyScan (covering index)
 	var indexName string
 	switch scan := projectResult.Children()[0].(type) {
 	case *IndexScan:
 		indexName = scan.IndexName
 	case *CompositeIndexScan:
 		indexName = scan.IndexName
+	case *IndexOnlyScan:
+		// IndexOnlyScan is even better - it's a covering index
+		indexName = scan.IndexName
 	default:
-		t.Errorf("Expected IndexScan or CompositeIndexScan as child but got %T", projectResult.Children()[0])
+		t.Errorf("Expected IndexScan, CompositeIndexScan, or IndexOnlyScan as child but got %T", projectResult.Children()[0])
 		return
 	}
 

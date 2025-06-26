@@ -15,55 +15,96 @@ func TestParseCreateIndex(t *testing.T) {
 			name:  "simple index",
 			input: "CREATE INDEX idx_users_email ON users (email)",
 			expected: &CreateIndexStmt{
-				IndexName: "idx_users_email",
-				TableName: "users",
-				Columns:   []string{"email"},
-				Unique:    false,
-				IndexType: "BTREE",
+				IndexName:      "idx_users_email",
+				TableName:      "users",
+				Columns:        []string{"email"},
+				IncludeColumns: []string{},
+				Unique:         false,
+				IndexType:      "BTREE",
 			},
 		},
 		{
 			name:  "unique index",
 			input: "CREATE UNIQUE INDEX idx_users_email ON users (email)",
 			expected: &CreateIndexStmt{
-				IndexName: "idx_users_email",
-				TableName: "users",
-				Columns:   []string{"email"},
-				Unique:    true,
-				IndexType: "BTREE",
+				IndexName:      "idx_users_email",
+				TableName:      "users",
+				Columns:        []string{"email"},
+				IncludeColumns: []string{},
+				Unique:         true,
+				IndexType:      "BTREE",
 			},
 		},
 		{
 			name:  "multi-column index",
 			input: "CREATE INDEX idx_users_name ON users (first_name, last_name)",
 			expected: &CreateIndexStmt{
-				IndexName: "idx_users_name",
-				TableName: "users",
-				Columns:   []string{"first_name", "last_name"},
-				Unique:    false,
-				IndexType: "BTREE",
+				IndexName:      "idx_users_name",
+				TableName:      "users",
+				Columns:        []string{"first_name", "last_name"},
+				IncludeColumns: []string{},
+				Unique:         false,
+				IndexType:      "BTREE",
 			},
 		},
 		{
 			name:  "index with type",
 			input: "CREATE INDEX idx_users_email ON users (email) USING HASH",
 			expected: &CreateIndexStmt{
-				IndexName: "idx_users_email",
-				TableName: "users",
-				Columns:   []string{"email"},
-				Unique:    false,
-				IndexType: "HASH",
+				IndexName:      "idx_users_email",
+				TableName:      "users",
+				Columns:        []string{"email"},
+				IncludeColumns: []string{},
+				Unique:         false,
+				IndexType:      "HASH",
 			},
 		},
 		{
 			name:  "index with ASC/DESC",
 			input: "CREATE INDEX idx_users_created ON users (created_at DESC)",
 			expected: &CreateIndexStmt{
-				IndexName: "idx_users_created",
-				TableName: "users",
-				Columns:   []string{"created_at"},
-				Unique:    false,
-				IndexType: "BTREE",
+				IndexName:      "idx_users_created",
+				TableName:      "users",
+				Columns:        []string{"created_at"},
+				IncludeColumns: []string{},
+				Unique:         false,
+				IndexType:      "BTREE",
+			},
+		},
+		{
+			name:  "covering index with INCLUDE",
+			input: "CREATE INDEX idx_users_covering ON users (email) INCLUDE (first_name, last_name)",
+			expected: &CreateIndexStmt{
+				IndexName:      "idx_users_covering",
+				TableName:      "users",
+				Columns:        []string{"email"},
+				IncludeColumns: []string{"first_name", "last_name"},
+				Unique:         false,
+				IndexType:      "BTREE",
+			},
+		},
+		{
+			name:  "unique covering index with INCLUDE",
+			input: "CREATE UNIQUE INDEX idx_users_unique_covering ON users (email) INCLUDE (created_at, updated_at)",
+			expected: &CreateIndexStmt{
+				IndexName:      "idx_users_unique_covering",
+				TableName:      "users",
+				Columns:        []string{"email"},
+				IncludeColumns: []string{"created_at", "updated_at"},
+				Unique:         true,
+				IndexType:      "BTREE",
+			},
+		},
+		{
+			name:  "covering index with INCLUDE and USING",
+			input: "CREATE INDEX idx_users_hash_covering ON users (user_id) INCLUDE (email, status) USING HASH",
+			expected: &CreateIndexStmt{
+				IndexName:      "idx_users_hash_covering",
+				TableName:      "users",
+				Columns:        []string{"user_id"},
+				IncludeColumns: []string{"email", "status"},
+				Unique:         false,
+				IndexType:      "HASH",
 			},
 		},
 	}
@@ -106,6 +147,15 @@ func TestParseCreateIndex(t *testing.T) {
 			}
 			if createIdx.IndexType != tt.expected.IndexType {
 				t.Errorf("IndexType = %v, want %v", createIdx.IndexType, tt.expected.IndexType)
+			}
+			if len(createIdx.IncludeColumns) != len(tt.expected.IncludeColumns) {
+				t.Errorf("IncludeColumns count = %v, want %v", len(createIdx.IncludeColumns), len(tt.expected.IncludeColumns))
+			} else {
+				for i, col := range createIdx.IncludeColumns {
+					if col != tt.expected.IncludeColumns[i] {
+						t.Errorf("IncludeColumn[%d] = %v, want %v", i, col, tt.expected.IncludeColumns[i])
+					}
+				}
 			}
 		})
 	}

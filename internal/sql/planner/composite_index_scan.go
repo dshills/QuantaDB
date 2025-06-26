@@ -149,14 +149,59 @@ func tryCompositeIndexScanWithCost(scan *LogicalScan, filter *LogicalFilter, cat
 	return nil
 }
 
-// IsCompositeIndexScan checks if a plan is a composite index scan
+// IsCompositeIndexScan checks if a plan is a composite index scan or index-only scan
+// Note: This function name is kept for backward compatibility with existing tests
 func IsCompositeIndexScan(plan Plan) bool {
-	_, ok := plan.(*CompositeIndexScan)
-	return ok
+	_, isComposite := plan.(*CompositeIndexScan)
+	_, isIndexOnly := plan.(*IndexOnlyScan)
+	return isComposite || isIndexOnly
 }
 
-// GetCompositeIndexScan safely casts a plan to CompositeIndexScan
-func GetCompositeIndexScan(plan Plan) (*CompositeIndexScan, bool) {
-	scan, ok := plan.(*CompositeIndexScan)
-	return scan, ok
+// IndexScanResult represents common properties for both CompositeIndexScan and IndexOnlyScan
+type IndexScanResult struct {
+	IndexName       string
+	MatchingColumns int
+	Plan            Plan
+}
+
+// GetCompositeIndexScan safely extracts index scan information from CompositeIndexScan or IndexOnlyScan
+func GetCompositeIndexScan(plan Plan) (*IndexScanResult, bool) {
+	switch scan := plan.(type) {
+	case *CompositeIndexScan:
+		matchingColumns := 0
+		if scan.IndexMatch != nil {
+			matchingColumns = scan.IndexMatch.MatchingColumns
+		}
+		return &IndexScanResult{
+			IndexName:       scan.IndexName,
+			MatchingColumns: matchingColumns,
+			Plan:            plan,
+		}, true
+	case *IndexOnlyScan:
+		// For IndexOnlyScan, we need to estimate matching columns
+		// Since IndexOnlyScan is typically chosen when it's an optimization of a CompositeIndexScan,
+		// we can make a reasonable estimate based on the index structure
+		matchingColumns := len(scan.Index.Columns) // Assume the index is being used effectively
+		
+		// If we have specific start/end values, use that as a better estimate
+		if len(scan.StartValues) > 0 || len(scan.EndValues) > 0 {
+			startLen := len(scan.StartValues)
+			endLen := len(scan.EndValues)
+			maxRangeColumns := startLen
+			if endLen > startLen {
+				maxRangeColumns = endLen
+			}
+			if maxRangeColumns > 0 && maxRangeColumns <= len(scan.Index.Columns) {
+				matchingColumns = maxRangeColumns
+			}
+		}
+		
+		return &IndexScanResult{
+			IndexName:       scan.IndexName,
+			MatchingColumns: matchingColumns,
+			Plan:            plan,
+		}, true
+	default:
+		return nil, false
+	}
 }

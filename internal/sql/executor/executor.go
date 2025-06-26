@@ -961,6 +961,7 @@ func (e *BasicExecutor) buildCreateIndexOperator(plan *planner.LogicalCreateInde
 		plan.TableName,
 		plan.IndexName,
 		plan.Columns,
+		plan.IncludeColumns,
 		plan.Unique,
 		plan.IndexType,
 		ctx.Catalog,

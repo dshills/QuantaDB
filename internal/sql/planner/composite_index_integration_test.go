@@ -79,17 +79,17 @@ func TestCompositeIndexIntegration(t *testing.T) {
 		// Optimize the plan
 		optimized := optimizer.Optimize(filter)
 
-		// Should have been converted to a composite index scan
+		// Should have been converted to a composite index scan or index-only scan
 		if !IsCompositeIndexScan(optimized) {
-			t.Errorf("Expected CompositeIndexScan, got %T: %s", optimized, optimized.String())
+			t.Errorf("Expected CompositeIndexScan or IndexOnlyScan, got %T: %s", optimized, optimized.String())
 		}
 
-		if compositeIndexScan, ok := GetCompositeIndexScan(optimized); ok {
-			if compositeIndexScan.IndexName != "idx_company_dept" {
-				t.Errorf("Expected index 'idx_company_dept', got %s", compositeIndexScan.IndexName)
+		if indexScanResult, ok := GetCompositeIndexScan(optimized); ok {
+			if indexScanResult.IndexName != "idx_company_dept" {
+				t.Errorf("Expected index 'idx_company_dept', got %s", indexScanResult.IndexName)
 			}
-			if compositeIndexScan.IndexMatch.MatchingColumns != 2 {
-				t.Errorf("Expected 2 matching columns, got %d", compositeIndexScan.IndexMatch.MatchingColumns)
+			if indexScanResult.MatchingColumns != 2 {
+				t.Errorf("Expected 2 matching columns, got %d", indexScanResult.MatchingColumns)
 			}
 		}
 	})
@@ -131,17 +131,17 @@ func TestCompositeIndexIntegration(t *testing.T) {
 		// Optimize the plan
 		optimized := optimizer.Optimize(filter)
 
-		// Should have been converted to a composite index scan using the 3-column index
+		// Should have been converted to a composite index scan or index-only scan using the 3-column index
 		if !IsCompositeIndexScan(optimized) {
-			t.Errorf("Expected CompositeIndexScan, got %T: %s", optimized, optimized.String())
+			t.Errorf("Expected CompositeIndexScan or IndexOnlyScan, got %T: %s", optimized, optimized.String())
 		}
 
-		if compositeIndexScan, ok := GetCompositeIndexScan(optimized); ok {
-			if compositeIndexScan.IndexName != "idx_company_dept_name" {
-				t.Errorf("Expected index 'idx_company_dept_name', got %s", compositeIndexScan.IndexName)
+		if indexScanResult, ok := GetCompositeIndexScan(optimized); ok {
+			if indexScanResult.IndexName != "idx_company_dept_name" {
+				t.Errorf("Expected index 'idx_company_dept_name', got %s", indexScanResult.IndexName)
 			}
-			if compositeIndexScan.IndexMatch.MatchingColumns != 3 {
-				t.Errorf("Expected 3 matching columns, got %d", compositeIndexScan.IndexMatch.MatchingColumns)
+			if indexScanResult.MatchingColumns != 3 {
+				t.Errorf("Expected 3 matching columns, got %d", indexScanResult.MatchingColumns)
 			}
 		}
 	})

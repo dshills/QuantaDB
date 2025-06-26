@@ -14,6 +14,7 @@ type CreateIndexOperator struct {
 	tableName      string
 	schemaName     string
 	columns        []string
+	includeColumns []string
 	unique         bool
 	indexType      string
 	catalog        catalog.Catalog
@@ -29,6 +30,7 @@ type CreateIndexOperator struct {
 func NewCreateIndexOperator(
 	schemaName, tableName, indexName string,
 	columns []string,
+	includeColumns []string,
 	unique bool,
 	indexType string,
 	cat catalog.Catalog,
@@ -47,17 +49,18 @@ func NewCreateIndexOperator(
 	}
 
 	return &CreateIndexOperator{
-		indexName:  indexName,
-		tableName:  tableName,
-		schemaName: schemaName,
-		columns:    columns,
-		unique:     unique,
-		indexType:  indexType,
-		catalog:    cat,
-		storage:    storage,
-		indexMgr:   indexMgr,
-		executed:   false,
-		schema:     schema,
+		indexName:      indexName,
+		tableName:      tableName,
+		schemaName:     schemaName,
+		columns:        columns,
+		includeColumns: includeColumns,
+		unique:         unique,
+		indexType:      indexType,
+		catalog:        cat,
+		storage:        storage,
+		indexMgr:       indexMgr,
+		executed:       false,
+		schema:         schema,
 	}
 }
 
@@ -83,6 +86,28 @@ func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 		if !found {
 			return fmt.Errorf("column '%s' does not exist in table '%s.%s'",
 				colName, c.schemaName, c.tableName)
+		}
+	}
+
+	// Validate include columns exist in table
+	for _, colName := range c.includeColumns {
+		found := false
+		for _, col := range table.Columns {
+			if col.Name == colName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("include column '%s' does not exist in table '%s.%s'",
+				colName, c.schemaName, c.tableName)
+		}
+
+		// Ensure include column is not already a key column
+		for _, keyColName := range c.columns {
+			if keyColName == colName {
+				return fmt.Errorf("column '%s' cannot be both a key column and include column", colName)
+			}
 		}
 	}
 
@@ -123,12 +148,13 @@ func (c *CreateIndexOperator) Open(ctx *ExecContext) error {
 
 	// Create IndexSchema for catalog
 	indexSchema := &catalog.IndexSchema{
-		SchemaName: c.schemaName,
-		TableName:  c.tableName,
-		IndexName:  c.indexName,
-		Type:       idxType,
-		IsUnique:   c.unique,
-		Columns:    indexColumns,
+		SchemaName:     c.schemaName,
+		TableName:      c.tableName,
+		IndexName:      c.indexName,
+		Type:           idxType,
+		IsUnique:       c.unique,
+		Columns:        indexColumns,
+		IncludeColumns: c.includeColumns,
 	}
 
 	// Add index to catalog
